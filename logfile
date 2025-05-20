@@ -1,0 +1,27 @@
+2025-05-19 10:16:04.446 PDT [4653] LOG:  starting PostgreSQL 14.13 (Homebrew) on x86_64-apple-darwin20.6.0, compiled by Apple clang version 13.0.0 (clang-1300.0.29.30), 64-bit
+2025-05-19 10:16:04.449 PDT [4653] LOG:  listening on IPv6 address "::1", port 5432
+2025-05-19 10:16:04.449 PDT [4653] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2025-05-19 10:16:04.450 PDT [4653] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2025-05-19 10:16:04.460 PDT [4654] LOG:  database system was shut down at 2025-05-19 10:15:44 PDT
+2025-05-19 10:16:04.469 PDT [4653] LOG:  database system is ready to accept connections
+2025-05-19 10:16:41.360 PDT [4674] FATAL:  database "gasf" does not exist
+2025-05-19 10:18:00.569 PDT [4697] FATAL:  database "gasf" does not exist
+2025-05-19 10:18:20.207 PDT [4705] FATAL:  database "gasf" does not exist
+2025-05-19 10:18:44.409 PDT [4714] FATAL:  database "gasf" does not exist
+2025-05-19 10:19:24.924 PDT [4723] ERROR:  database "clientele_db" already exists
+2025-05-19 10:19:24.924 PDT [4723] STATEMENT:  CREATE DATABASE clientele_db;
+2025-05-19 10:19:42.139 PDT [4723] ERROR:  role "clientele_user" already exists
+2025-05-19 10:19:42.139 PDT [4723] STATEMENT:  CREATE USER clientele_user WITH PASSWORD 'supersecurepassword';
+2025-05-19 10:20:37.580 PDT [4739] ERROR:  syntax error at or near "psql" at character 1
+2025-05-19 10:20:37.580 PDT [4739] STATEMENT:  psql -d postgres
+	
+	CREATE DATABASE clientele_db;
+2025-05-19 10:20:37.581 PDT [4739] ERROR:  permission denied to create role
+2025-05-19 10:20:37.581 PDT [4739] STATEMENT:  CREATE USER clientele_user WITH PASSWORD 'supersecurepassword';
+2025-05-19 10:20:37.583 PDT [4739] WARNING:  no privileges were granted for "clientele_db"
+2025-05-19 14:40:36.337 PDT [13753] ERROR:  relation "clients_client" does not exist at character 13
+2025-05-19 14:40:36.337 PDT [13753] STATEMENT:  INSERT INTO "clients_client" ("first_name", "last_name", "dob", "ssn", "homeless", "address", "city", "state", "zip_code", "phone", "alt_phone", "demographic_info", "language", "language_other", "gender", "orientation", "veteran", "criminal_justice", "difficulty_english", "disabled", "fostercare", "single_parent", "attending_school", "highest_degree", "employment_status", "seeking_fulltime", "recent_hourly_wage", "family_size", "calfresh", "calworks", "caap", "medi_cal", "ssdi", "ssi", "staff_name", "nonprofit", "created_at") VALUES ('Matthew', 'Robin', '1988-11-05'::date, '000000000', false, '', '', 'CA', '', '9255507522', '', 'white', 'en', '', 'M', 'straight', false, false, false, false, false, false, false, 'aa', 'unemployed', false, NULL, 1, false, false, false, false, false, false, 'Matt', 'MHH', '2025-05-19T21:40:36.332104+00:00'::timestamptz) RETURNING "clients_client"."id"
+2025-05-19 14:40:36.405 PDT [13753] ERROR:  relation "clients_client" does not exist at character 1166
+2025-05-19 14:40:36.405 PDT [13753] STATEMENT:  SELECT "clients_client"."id", "clients_client"."first_name", "clients_client"."last_name", "clients_client"."dob", "clients_client"."ssn", "clients_client"."homeless", "clients_client"."address", "clients_client"."city", "clients_client"."state", "clients_client"."zip_code", "clients_client"."phone", "clients_client"."alt_phone", "clients_client"."demographic_info", "clients_client"."language", "clients_client"."language_other", "clients_client"."gender", "clients_client"."orientation", "clients_client"."veteran", "clients_client"."criminal_justice", "clients_client"."difficulty_english", "clients_client"."disabled", "clients_client"."fostercare", "clients_client"."single_parent", "clients_client"."attending_school", "clients_client"."highest_degree", "clients_client"."employment_status", "clients_client"."seeking_fulltime", "clients_client"."recent_hourly_wage", "clients_client"."family_size", "clients_client"."calfresh", "clients_client"."calworks", "clients_client"."caap", "clients_client"."medi_cal", "clients_client"."ssdi", "clients_client"."ssi", "clients_client"."staff_name", "clients_client"."nonprofit", "clients_client"."created_at" FROM "clients_client" LIMIT 21
+2025-05-19 14:40:36.409 PDT [13753] ERROR:  relation "clients_client" does not exist at character 1166
+2025-05-19 14:40:36.409 PDT [13753] STATEMENT:  SELECT "clients_client"."id", "clients_client"."first_name", "clients_client"."last_name", "clients_client"."dob", "clients_client"."ssn", "clients_client"."homeless", "clients_client"."address", "clients_client"."city", "clients_client"."state", "clients_client"."zip_code", "clients_client"."phone", "clients_client"."alt_phone", "clients_client"."demographic_info", "clients_client"."language", "clients_client"."language_other", "clients_client"."gender", "clients_client"."orientation", "clients_client"."veteran", "clients_client"."criminal_justice", "clients_client"."difficulty_english", "clients_client"."disabled", "clients_client"."fostercare", "clients_client"."single_parent", "clients_client"."attending_school", "clients_client"."highest_degree", "clients_client"."employment_status", "clients_client"."seeking_fulltime", "clients_client"."recent_hourly_wage", "clients_client"."family_size", "clients_client"."calfresh", "clients_client"."calworks", "clients_client"."caap", "clients_client"."medi_cal", "clients_client"."ssdi", "clients_client"."ssi", "clients_client"."staff_name", "clients_client"."nonprofit", "clients_client"."created_at" FROM "clients_client" LIMIT 21
