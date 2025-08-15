@@ -1,190 +1,423 @@
 <template>
-    <form @submit.prevent="handleSubmit" class="max-w-3xl mx-auto p-4 space-y-4 bg-white rounded shadow">
-      <h2 class="text-xl font-bold mb-4">Add New Client</h2>
-  
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Existing fields -->
-        <div class="flex items-center gap-4">
-          <label class="block text-sm font-medium">First Name</label>
-          <input v-model="form.first_name" type="text" required class="input" />
+  <div class="min-h-screen bg-gradient py-12 px-4">
+    <!-- Header with Mission Hiring Hall branding -->
+    <div class="max-w-5xl mx-auto mb-12 text-center">
+      <div class="relative">
+        <!-- Decorative background elements -->
+        <div class="absolute inset-0 flex items-center justify-center">
+          <div class="w-24 h-24 border-4 border-mission-400 rounded-full opacity-20 animate-pulse"></div>
+          <div class="w-12 h-12 border-2 border-mission-500 rounded-full absolute opacity-30 animate-ping"></div>
         </div>
-  
-        <div>
-          <label class="block text-sm font-medium gap-y-4">Last Name</label>
-          <input v-model="form.last_name" type="text" required class="input" />
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">Date of Birth</label>
-          <input v-model="form.dob" type="date" required class="input" />
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">Phone</label>
-          <input v-model="form.phone" type="tel" class="input" />
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">SSN</label>
-          <input v-model="form.ssn" type="text" class="input" />
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">Gender</label>
-          <select v-model="form.gender" required class="input">
-            <option disabled value="">Select gender</option>
-            <option value="M">Male</option>
-            <option value="F">Female</option>
-            <option value="NB">Non-binary</option>
-            <option value="O">Other</option>
-          </select>
-        </div>
-  
-        <!-- New fields -->
-  
-        <div>
-          <label class="block text-sm font-medium">Demographic Info</label>
-          <select v-model="form.demographic_info" required class="input">
-            <option disabled value="">Select demographic</option>
-            <option value="black">Black</option>
-            <option value="white">White</option>
-            <option value="latinx">Latinx</option>
-            <option value="asian">Asian</option>
-            <option value="native">Native American</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">Language</label>
-          <select v-model="form.language" required class="input">
-            <option disabled value="">Select language</option>
-            <option value="en">English</option>
-            <option value="es">Spanish</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-  
-        <div v-if="form.language === 'other'">
-          <label class="block text-sm font-medium">Other Language</label>
-          <input v-model="form.language_other" type="text" class="input" />
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">Orientation</label>
-          <select v-model="form.orientation" required class="input">
-            <option disabled value="">Select orientation</option>
-            <option value="straight">Straight</option>
-            <option value="lgbtq+">LGBTQ+</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">Highest Degree</label>
-          <select v-model="form.highest_degree" required class="input">
-            <option disabled value="">Select degree</option>
-            <option value="none">None</option>
-            <option value="hs">High School</option>
-            <option value="aa">AA</option>
-            <option value="ba">BA</option>
-            <option value="ma">MA</option>
-            <option value="phd">PhD</option>
-          </select>
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">Employment Status</label>
-          <input v-model="form.employment_status" type="text" required class="input" />
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">Staff Name</label>
-          <input v-model="form.staff_name" type="text" required class="input" />
-        </div>
-  
-        <div>
-          <label class="block text-sm font-medium">Nonprofit</label>
-          <input v-model="form.nonprofit" type="text" required class="input" />
+        <h1 class="text-5xl font-bold text-slate-800 relative z-10 mb-4">
+          <span class="text-mission-600">Mission Hiring Hall</span> Client Intake
+        </h1>
+        <p class="text-xl text-slate-600 relative z-10">San Francisco Employment & Training Services</p>
+        <div class="mt-4 flex justify-center space-x-2">
+          <div class="w-2 h-2 bg-mission-400 rounded-full"></div>
+          <div class="w-2 h-2 bg-mission-500 rounded-full"></div>
+          <div class="w-2 h-2 bg-mission-600 rounded-full"></div>
         </div>
       </div>
-  
-      <div>
-        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-          Submit
-        </button>
+    </div>
+
+    <!-- Main Form Container -->
+    <div class="max-w-5xl mx-auto">
+      <form @submit.prevent="handleSubmit" class="form-card">
+        <!-- Form Header -->
+        <div class="form-header">
+          <div class="decorative-pattern"></div>
+          <div class="relative z-10">
+            <h2 class="text-3xl font-bold text-white flex items-center mb-2">
+              <svg class="w-10 h-10 mr-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              New Client Registration
+            </h2>
+            <p class="text-mission-100 text-lg">Complete the form below to register for employment services</p>
+          </div>
+        </div>
+
+        <!-- Form Content -->
+        <div class="p-10 space-y-10">
+          <!-- Personal Information Section -->
+          <div class="space-y-6">
+            <div class="section-header">
+              <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
+              <h3 class="text-2xl font-semibold text-slate-800">Personal Information</h3>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> First Name
+                </label>
+                <input 
+                  v-model="form.first_name" 
+                  type="text" 
+                  required 
+                  class="form-input"
+                  placeholder="Enter first name"
+                />
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Last Name
+                </label>
+                <input 
+                  v-model="form.last_name" 
+                  type="text" 
+                  required 
+                  class="form-input"
+                  placeholder="Enter last name"
+                />
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Date of Birth
+                </label>
+                <input 
+                  v-model="form.dob" 
+                  type="date" 
+                  required 
+                  class="form-input"
+                />
+                <p class="text-xs text-slate-500">mm/dd/yyyy</p>
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Phone Number
+                </label>
+                <input 
+                  v-model="form.phone" 
+                  type="tel" 
+                  required
+                  class="form-input"
+                  placeholder="(415) 555-0123"
+                />
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">SSN (Optional)</label>
+                <input 
+                  v-model="form.ssn" 
+                  type="text" 
+                  class="form-input"
+                  placeholder="XXX-XX-XXXX"
+                />
+                <p class="text-xs text-slate-500">For employment verification only</p>
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Gender
+                </label>
+                <select v-model="form.gender" required class="form-select">
+                  <option disabled value="">Select gender</option>
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                  <option value="NB">Non-binary</option>
+                  <option value="O">Other</option>
+                  <option value="P">Prefer not to say</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- San Francisco Residency & Demographics Section -->
+          <div class="space-y-6">
+            <div class="section-header">
+              <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
+              <h3 class="text-2xl font-semibold text-slate-800">San Francisco Residency & Background</h3>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> San Francisco Resident
+                </label>
+                <select v-model="form.sf_resident" required class="form-select">
+                  <option disabled value="">Select residency status</option>
+                  <option value="yes">Yes, I live in San Francisco</option>
+                  <option value="no">No, I live outside San Francisco</option>
+                </select>
+                <p class="text-xs text-slate-500">Priority given to SF residents</p>
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Neighborhood/Area
+                </label>
+                <select v-model="form.neighborhood" required class="form-select">
+                  <option disabled value="">Select your area</option>
+                  <option value="mission">Mission District</option>
+                  <option value="soma">South of Market (SoMa)</option>
+                  <option value="bayview">Bayview-Hunters Point</option>
+                  <option value="tenderloin">Tenderloin</option>
+                  <option value="western">Western Addition</option>
+                  <option value="other">Other San Francisco Area</option>
+                </select>
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Ethnicity/Race
+                </label>
+                <select v-model="form.demographic_info" required class="form-select">
+                  <option disabled value="">Select ethnicity/race</option>
+                  <option value="black">Black/African American</option>
+                  <option value="white">White/Caucasian</option>
+                  <option value="latinx">Hispanic/Latinx</option>
+                  <option value="asian">Asian/Pacific Islander</option>
+                  <option value="native">Native American</option>
+                  <option value="mixed">Mixed Race</option>
+                  <option value="other">Other</option>
+                  <option value="prefer_not">Prefer not to say</option>
+                </select>
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Primary Language
+                </label>
+                <select v-model="form.language" required class="form-select">
+                  <option disabled value="">Select primary language</option>
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                  <option value="zh">Chinese (Mandarin/Cantonese)</option>
+                  <option value="vi">Vietnamese</option>
+                  <option value="tl">Tagalog/Filipino</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div v-if="form.language === 'other'" class="lg:col-span-2 space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">Other Language</label>
+                <input 
+                  v-model="form.language_other" 
+                  type="text" 
+                  class="form-input"
+                  placeholder="Please specify language"
+                />
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Education Level
+                </label>
+                <select v-model="form.highest_degree" required class="form-select">
+                  <option disabled value="">Select highest education</option>
+                  <option value="none">No formal education</option>
+                  <option value="elementary">Elementary school</option>
+                  <option value="middle">Middle school</option>
+                  <option value="hs">High school diploma/GED</option>
+                  <option value="some_college">Some college</option>
+                  <option value="aa">Associate's degree (AA)</option>
+                  <option value="ba">Bachelor's degree (BA/BS)</option>
+                  <option value="ma">Master's degree (MA/MS)</option>
+                  <option value="phd">Doctorate (PhD)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Employment & Training Section -->
+          <div class="space-y-6">
+            <div class="section-header">
+              <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
+              <h3 class="text-2xl font-semibold text-slate-800">Employment & Training Interests</h3>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Current Employment Status
+                </label>
+                <select v-model="form.employment_status" required class="form-select">
+                  <option disabled value="">Select current status</option>
+                  <option value="unemployed">Unemployed</option>
+                  <option value="part_time">Part-time employment</option>
+                  <option value="full_time">Full-time employment</option>
+                  <option value="underemployed">Underemployed (seeking better job)</option>
+                  <option value="student">Student</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> Training Program Interest
+                </label>
+                <select v-model="form.training_interest" required class="form-select">
+                  <option disabled value="">Select program of interest</option>
+                  <option value="citybuild">CityBuild Academy</option>
+                  <option value="citybuild_pro">CityBuild Pro | CAPSA</option>
+                  <option value="security">Security Guard Card Program</option>
+                  <option value="construction">Construction On Ramp</option>
+                  <option value="pit_stop">Pit Stop Program</option>
+                  <option value="general">General job readiness</option>
+                  <option value="other">Other training</option>
+                </select>
+              </div>
+
+              <div class="lg:col-span-2 space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span class="text-mission-600">*</span> How did you hear about us?
+                </label>
+                <select v-model="form.referral_source" required class="form-select">
+                  <option disabled value="">Select referral source</option>
+                  <option value="friend">Friend or family member</option>
+                  <option value="social_media">Social media</option>
+                  <option value="website">Website search</option>
+                  <option value="job_center">Job center/Workforce development</option>
+                  <option value="community_org">Community organization</option>
+                  <option value="walk_in">Walk-in visit</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="lg:col-span-2 space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">Additional Notes</label>
+                <textarea 
+                  v-model="form.additional_notes" 
+                  class="form-input"
+                  rows="3"
+                  placeholder="Please share any additional information about your employment goals, barriers, or special circumstances..."
+                ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit Section -->
+          <div class="pt-8 border-t border-slate-200">
+            <div class="flex flex-col lg:flex-row gap-6 items-center justify-between">
+              <div class="text-sm text-slate-600">
+                <span class="text-mission-600 font-semibold">*</span> Required fields
+              </div>
+              <button 
+                type="submit" 
+                class="submit-button group"
+                :disabled="isSubmitting"
+              >
+                <svg v-if="isSubmitting" class="animate-spin -ml-1 mr-3 h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg v-else class="w-6 h-6 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                {{ isSubmitting ? 'Submitting...' : 'Submit Application' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Status Messages -->
+          <div v-if="error" class="bg-red-50 border border-red-200 rounded-xl p-6">
+            <div class="flex">
+              <svg class="w-6 h-6 text-red-400 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+              </svg>
+              <p class="text-red-800 font-medium">{{ error }}</p>
+            </div>
+          </div>
+
+          <div v-if="success" class="bg-green-50 border border-green-200 rounded-xl p-6">
+            <div class="flex">
+              <svg class="w-6 h-6 text-green-400 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              <p class="text-green-800 font-medium">Application submitted successfully! We'll contact you within 2-3 business days.</p>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Footer with Mission Hiring Hall branding -->
+    <div class="max-w-5xl mx-auto mt-12 text-center">
+      <div class="flex justify-center space-x-3 mb-4">
+        <div class="w-3 h-3 bg-mission-400 rounded-full animate-pulse"></div>
+        <div class="w-2 h-2 bg-mission-500 rounded-full animate-ping"></div>
+        <div class="w-3 h-3 bg-mission-600 rounded-full animate-pulse"></div>
       </div>
-  
-      <p v-if="error" class="text-red-500">{{ error }}</p>
-      <p v-if="success" class="text-green-600">Client saved successfully!</p>
-    </form>
-  </template>
-  
-  <script setup>
-  import { ref } from 'vue'
-  import axios from 'axios'
-  
-  const form = ref({
-    first_name: '',
-    last_name: '',
-    dob: '',
-    ssn: '',
-    phone: '',
-    gender: '',
-  
-    demographic_info: '',
-    language: '',
-    language_other: '',
-    orientation: '',
-    highest_degree: '',
-    employment_status: '',
-    staff_name: '',
-    nonprofit: '',
-  })
-  
-  const error = ref('')
-  const success = ref(false)
-  
-  async function handleSubmit() {
-    error.value = ''
-    success.value = false
-  
-    try {
-      const response = await axios.post('http://localhost:8000/api/clients/', form.value)
-      if (response.status === 201 || response.status === 200) {
-        success.value = true
-        form.value = {
-          first_name: '',
-          last_name: '',
-          dob: '',
-          ssn: '',
-          phone: '',
-          gender: '',
-          demographic_info: '',
-          language: '',
-          language_other: '',
-          orientation: '',
-          highest_degree: '',
-          employment_status: '',
-          staff_name: '',
-          nonprofit: '',
-        }
-      }
-    } catch (err) {
-      if (err.response?.status === 400) {
-        error.value = 'Validation error: please check input fields.'
-      } else if (err.response?.status === 409) {
-        error.value = 'A client with this SSN or phone already exists.'
-      } else {
-        error.value = 'Failed to save client. Try again.'
+      <p class="text-slate-500 text-sm">Serving San Francisco since 1971</p>
+      <p class="text-slate-400 text-xs mt-2">3080 16th Street @ Valencia, San Francisco, CA 94103</p>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import axios from 'axios'
+
+const form = ref({
+  first_name: '',
+  last_name: '',
+  dob: '',
+  ssn: '',
+  phone: '',
+  gender: '',
+  sf_resident: '',
+  neighborhood: '',
+  demographic_info: '',
+  language: '',
+  language_other: '',
+  highest_degree: '',
+  employment_status: '',
+  training_interest: '',
+  referral_source: '',
+  additional_notes: '',
+})
+
+const error = ref('')
+const success = ref(false)
+const isSubmitting = ref(false)
+
+async function handleSubmit() {
+  error.value = ''
+  success.value = false
+  isSubmitting.value = true
+
+  try {
+    const response = await axios.post('http://localhost:8000/api/clients/', form.value)
+    if (response.status === 201 || response.status === 200) {
+      success.value = true
+      form.value = {
+        first_name: '',
+        last_name: '',
+        dob: '',
+        ssn: '',
+        phone: '',
+        gender: '',
+        sf_resident: '',
+        neighborhood: '',
+        demographic_info: '',
+        language: '',
+        language_other: '',
+        highest_degree: '',
+        employment_status: '',
+        training_interest: '',
+        referral_source: '',
+        additional_notes: '',
       }
     }
+  } catch (err) {
+    if (err.response?.status === 400) {
+      error.value = 'Please check all required fields and try again.'
+    } else if (err.response?.status === 409) {
+      error.value = 'A client with this information already exists. Please contact us directly.'
+    } else {
+      error.value = 'Unable to submit application. Please try again or contact us at info@missionhiringhall.org'
+    }
+  } finally {
+    isSubmitting.value = false
   }
-  </script>
-  
-  <style scoped>
-  .input {
-    @apply w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400;
-  }
-  </style>
+}
+</script>
+
+<style scoped>
+/* All styles are now handled by Tailwind CSS classes in style.css */
+</style>
   
