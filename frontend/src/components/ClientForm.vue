@@ -290,6 +290,30 @@
             </div>
           </div>
 
+          <!-- Resume Upload Section -->
+          <div class="form-section">
+            <div class="section-header">
+              <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
+              <h3 class="text-xl font-semibold text-slate-800">Resume & Documents</h3>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">
+                Resume (Optional)
+                <span class="text-slate-400 text-sm ml-2">PDF, Word, or text files accepted</span>
+              </label>
+              <input 
+                type="file" 
+                @change="handleFileUpload" 
+                accept=".pdf,.doc,.docx,.txt"
+                class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-mission-100 file:text-mission-700 hover:file:bg-mission-200"
+              />
+              <p class="text-sm text-slate-600 mt-1">
+                Upload your resume to help us better understand your skills and experience
+              </p>
+            </div>
+          </div>
+
           <!-- Submit Section -->
           <div class="pt-8 border-t border-slate-200">
             <div class="flex flex-col lg:flex-row gap-6 items-center justify-between">
@@ -371,19 +395,66 @@ const form = ref({
   additional_notes: '',
 })
 
+const resumeFile = ref(null)
+
 const error = ref('')
 const success = ref(false)
 const isSubmitting = ref(false)
 
+const handleFileUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      error.value = 'File size must be less than 5MB'
+      event.target.value = ''
+      return
+    }
+    
+    // Check file type
+    const allowedTypes = ['.pdf', '.doc', '.docx', '.txt']
+    const fileExtension = '.' + file.name.split('.').pop().toLowerCase()
+    if (!allowedTypes.includes(fileExtension)) {
+      error.value = 'Please upload a PDF, Word, or text file'
+      event.target.value = ''
+      return
+    }
+    
+    resumeFile.value = file
+    error.value = ''
+  }
+}
 async function handleSubmit() {
   error.value = ''
   success.value = false
   isSubmitting.value = true
 
   try {
-    const response = await axios.post('http://localhost:8000/api/clients/', form.value)
+    // Create FormData for file upload
+    const formData = new FormData()
+    
+    // Add form fields
+    Object.keys(form.value).forEach(key => {
+      if (form.value[key] !== '') {
+        formData.append(key, form.value[key])
+      }
+    })
+    
+    // Add resume file if selected
+    if (resumeFile.value) {
+      formData.append('resume', resumeFile.value)
+    }
+    
+    const response = await axios.post('http://localhost:8000/api/clients/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
     if (response.status === 201 || response.status === 200) {
       success.value = true
+      
+      // Reset form
       form.value = {
         first_name: '',
         last_name: '',
@@ -402,6 +473,13 @@ async function handleSubmit() {
         referral_source: '',
         additional_notes: '',
       }
+      
+      // Reset resume file
+      resumeFile.value = null
+      
+      // Reset file input
+      const fileInput = document.querySelector('input[type="file"]')
+      if (fileInput) fileInput.value = ''
     }
   } catch (err) {
     if (err.response?.status === 400) {

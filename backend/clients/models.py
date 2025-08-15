@@ -106,6 +106,9 @@ class Client(models.Model):
     ], default='other')
     additional_notes = models.TextField(blank=True, null=True)
     
+    # Resume & Documents
+    resume = models.FileField(upload_to='resumes/', blank=True, null=True, help_text='Upload client resume')
+    
     # Status & Tracking
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     staff_name = models.CharField(max_length=100, blank=True, null=True)
@@ -135,3 +138,52 @@ class Client(models.Model):
     @property
     def is_sf_resident(self):
         return self.sf_resident == 'yes'
+    
+    @property
+    def has_resume(self):
+        return bool(self.resume)
+    
+    @property
+    def case_notes_count(self):
+        return self.casenotes.count()
+
+
+class CaseNote(models.Model):
+    """Case notes for tracking client interactions and progress"""
+    
+    NOTE_TYPE_CHOICES = [
+        ('intake', 'Intake Meeting'),
+        ('follow_up', 'Follow-up Call/Visit'),
+        ('training', 'Training Progress'),
+        ('job_search', 'Job Search Support'),
+        ('placement', 'Job Placement'),
+        ('barrier', 'Barrier Assessment'),
+        ('referral', 'Referral to Service'),
+        ('general', 'General Note')
+    ]
+    
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='casenotes')
+    staff_member = models.CharField(max_length=100, help_text='Staff member who created this note')
+    note_type = models.CharField(max_length=20, choices=NOTE_TYPE_CHOICES, default='general')
+    content = models.TextField(help_text='Case note content')
+    next_steps = models.TextField(blank=True, null=True, help_text='Next steps or action items')
+    follow_up_date = models.DateField(blank=True, null=True, help_text='When to follow up')
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Case Note'
+        verbose_name_plural = 'Case Notes'
+    
+    def __str__(self):
+        return f"{self.client.full_name} - {self.note_type} - {self.created_at.strftime('%m/%d/%Y')}"
+    
+    @property
+    def is_overdue_followup(self):
+        if not self.follow_up_date:
+            return False
+        from datetime import date
+        return date.today() > self.follow_up_date
