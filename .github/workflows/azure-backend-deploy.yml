@@ -1,0 +1,68 @@
+name: Deploy Django Backend to Azure App Service
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'backend/**'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'backend/**'
+
+env:
+  AZURE_WEBAPP_NAME: mhh-client-backend
+  AZURE_WEBAPP_PACKAGE_PATH: './backend'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
+
+    - name: Setup Python ${{ env.PYTHON_VERSION }} Environment
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: 'Create and start virtual environment'
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+
+    - name: 'Install dependencies'
+      run: |
+        source venv/bin/activate
+        pip install -r backend/requirements.txt
+
+    - name: 'Run tests'
+      run: |
+        source venv/bin/activate
+        cd backend
+        python manage.py test
+
+    - name: 'Collect static files'
+      run: |
+        source venv/bin/activate
+        cd backend
+        python manage.py collectstatic --noinput
+
+    - name: 'Deploy to Azure Web App'
+      id: deploy-to-webapp
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        slot-name: 'production'
+        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+
+    - name: 'Run database migrations'
+      run: |
+        source venv/bin/activate
+        cd backend
+        python manage.py migrate --noinput
+      env:
+        DJANGO_SETTINGS_MODULE: config.azure_settings

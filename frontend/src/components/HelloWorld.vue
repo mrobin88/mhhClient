@@ -38,7 +38,7 @@ const error = ref<string | null>(null)
 const submitForm = async () => {
   error.value = null
   try {
-    const response = await axios.post('/api/clients/', form.value)
+    await axios.post('/api/clients/', form.value)
     alert('Client saved!')
     form.value = { name: '', phone: '', ssn: '' }
   } catch (err: any) {

@@ -6,11 +6,20 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Virtual Environment
 venv/
 .venv/
 env/
+ENV/
+env.bak/
+venv.bak/
 
 # Django
 *.log
@@ -19,36 +28,158 @@ db.sqlite3
 db.sqlite3-journal
 media/
 staticfiles/
+static/
+uploads/
+user_uploads/
 
-# Environment variables
+# Environment variables and secrets
 .env
 .env.local
 .env.production
+.env.staging
+.env.development
 *.env
+.env.*
+secrets.json
+secrets.yaml
+secrets.yml
+config/secrets.py
+config/local_settings.py
 
-# IDE
+# IDE and Editor files
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
+*~
 .DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # Node.js
 node_modules/
 npm-debug.log*
 yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+.node_repl_history
 
-# Frontend build
+# Frontend build and cache
 frontend/dist/
 frontend/build/
+frontend/.cache/
+frontend/.parcel-cache/
+frontend/.next/
+frontend/.nuxt/
 
-# Logs
+# Logs and debugging
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
 
 # Temporary files
 tmp/
 temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Test coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Azure deployment files
+.azure/
+azure-deploy.py
+deploy-to-azure.sh
+startup.sh
+web.config
+
+# Local development files
+start-dev.sh
+docker-compose.yml
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Security and certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.pwd
+*.pass

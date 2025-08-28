@@ -10,20 +10,23 @@ DEBUG = False
 
 # Azure-specific settings
 ALLOWED_HOSTS = [
-    os.getenv('ALLOWED_HOSTS', '').split(','),
-    'mhh-backend-api.azurewebsites.net',
+    'mhh-client-backend.azurewebsites.net',
     'localhost',
     '127.0.0.1'
 ]
+
+# Add any additional allowed hosts from environment
+if os.getenv('ALLOWED_HOSTS'):
+    ALLOWED_HOSTS.extend(os.getenv('ALLOWED_HOSTS').split(','))
 
 # Database - Azure PostgreSQL
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DATABASE_NAME', 'mhh_client_db'),
-        'USER': os.getenv('DATABASE_USER', 'mhh_admin'),
+        'USER': os.getenv('DATABASE_USER', 'mhhsupport'),
         'PASSWORD': os.getenv('DATABASE_PASSWORD'),
-        'HOST': os.getenv('DATABASE_HOST', 'mhh-postgres-server.postgres.database.azure.com'),
+        'HOST': os.getenv('DATABASE_HOST', 'mhh-client-postgres.postgres.database.azure.com'),
         'PORT': os.getenv('DATABASE_PORT', '5432'),
         'OPTIONS': {
             'sslmode': 'require',
@@ -33,10 +36,16 @@ DATABASES = {
 
 # CORS settings for Azure Static Web App
 CORS_ALLOWED_ORIGINS = [
-    "https://mhh-frontend.azurestaticapps.net",
+    "https://mhh-client-frontend.azurestaticapps.net",
     "http://localhost:3000",
     "http://localhost:5173",
 ]
+
+# Add CORS origins from environment if provided
+if os.getenv('CORS_ALLOWED_ORIGINS'):
+    CORS_ALLOWED_ORIGINS.extend(os.getenv('CORS_ALLOWED_ORIGINS').split(','))
+
+CORS_ALLOW_CREDENTIALS = True
 
 # Security settings for production
 SECURE_SSL_REDIRECT = True
@@ -49,6 +58,14 @@ X_FRAME_OPTIONS = 'DENY'
 # Static files configuration for Azure
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
+
+# Use WhiteNoise for static file serving
+MIDDLEWARE = [
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+] + MIDDLEWARE
+
+# WhiteNoise configuration
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Logging configuration
 LOGGING = {
