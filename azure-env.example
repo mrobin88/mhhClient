@@ -1,0 +1,35 @@
+# Azure Production Environment Variables
+# Copy this to your Azure App Service Configuration
+
+# Django Settings
+SECRET_KEY=your-super-secret-key-here
+DEBUG=False
+DJANGO_SETTINGS_MODULE=config.azure_settings
+
+# Database Configuration (Azure PostgreSQL)
+DATABASE_NAME=your_database_name
+DATABASE_USER=your_database_user
+DATABASE_PASSWORD=your_database_password
+DATABASE_HOST=your_postgres_server.postgres.database.azure.com
+DATABASE_PORT=5432
+
+# CORS Configuration
+CORS_ALLOWED_ORIGINS=https://your-frontend-domain.azurestaticapps.net,http://localhost:5173
+
+# Azure Application Insights (Optional)
+APPLICATIONINSIGHTS_CONNECTION_STRING=your-application-insights-connection-string
+
+# Allowed Hosts
+ALLOWED_HOSTS=your-backend-domain.azurewebsites.net
+
+# Static Files (Azure Storage - Optional)
+AZURE_STORAGE_ACCOUNT_NAME=your-storage-account
+AZURE_STORAGE_ACCOUNT_KEY=your-storage-key
+AZURE_STORAGE_CONTAINER_NAME=staticfiles
+
+# Email Configuration (Optional)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password

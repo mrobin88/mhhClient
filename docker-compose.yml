@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: mhh_client_db
       POSTGRES_USER: mhh_user
-      POSTGRES_PASSWORD: mhh_password_2024
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mhh_password_2024}
     ports:
       - "5432:5432"
     volumes:
