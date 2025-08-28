@@ -28,25 +28,18 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: 'Create and start virtual environment'
-      run: |
-        python -m venv venv
-        source venv/bin/activate
-
     - name: 'Install dependencies'
       run: |
-        source venv/bin/activate
-        pip install -r backend/requirements.txt
+        cd backend
+        pip install -r requirements.txt
 
     - name: 'Run tests'
       run: |
-        source venv/bin/activate
         cd backend
         python manage.py test
 
     - name: 'Collect static files'
       run: |
-        source venv/bin/activate
         cd backend
         python manage.py collectstatic --noinput
 
@@ -61,7 +54,6 @@ jobs:
 
     - name: 'Run database migrations'
       run: |
-        source venv/bin/activate
         cd backend
         python manage.py migrate --noinput
       env:
