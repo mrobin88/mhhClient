@@ -32,3 +32,4 @@ A client intake and case management system for Mission Hiring Hall, serving San 
 
 Copy `env.example` to `env.local` and configure your settings.
 
+# Trigger main deployment workflow
