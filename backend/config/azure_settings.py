@@ -10,7 +10,7 @@ DEBUG = False
 
 # Azure-specific settings
 ALLOWED_HOSTS = [
-    'mhh-client-backend.azurewebsites.net',
+    'mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net',
     'localhost',
     '127.0.0.1'
 ]
@@ -36,7 +36,7 @@ DATABASES = {
 
 # CORS settings for Azure Static Web App
 CORS_ALLOWED_ORIGINS = [
-    "https://mhh-client-frontend.azurestaticapps.net",
+    "https://brave-mud-077eb1810.1.azurestaticapps.net",
     "http://localhost:3000",
     "http://localhost:5173",
 ]
@@ -48,7 +48,7 @@ if os.getenv('CORS_ALLOWED_ORIGINS'):
 CORS_ALLOW_CREDENTIALS = True
 
 # Security settings for production
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False  # Disabled to prevent redirect loops
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_BROWSER_XSS_FILTER = True
