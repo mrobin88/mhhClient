@@ -437,7 +437,7 @@ const staffMembers = computed(() => {
 // Methods
 const fetchClients = async () => {
   try {
-    const response = await axios.get('http://localhost:8000/api/clients/')
+            const response = await axios.get(`${__API_URL__}/api/clients/`)
     clients.value = response.data
   } catch (error) {
     console.error('Error fetching clients:', error)
