@@ -445,7 +445,7 @@ async function handleSubmit() {
       formData.append('resume', resumeFile.value)
     }
     
-    const response = await axios.post('http://localhost:8000/api/clients/', formData, {
+            const response = await axios.post(`${__API_URL__}/api/clients/`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }

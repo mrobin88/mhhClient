@@ -206,7 +206,7 @@ const searchClients = async () => {
   if (!searchQuery.value.trim()) return
   
   try {
-    const response = await axios.get(`http://localhost:8000/api/clients/?search=${searchQuery.value}`)
+            const response = await axios.get(`${__API_URL__}/api/clients/?search=${searchQuery.value}`)
     searchResults.value = response.data.results || response.data
   } catch (error) {
     console.error('Error searching clients:', error)
@@ -221,7 +221,7 @@ const selectClient = async (client) => {
 
 const loadCaseNotes = async (clientId) => {
   try {
-    const response = await axios.get(`http://localhost:8000/api/clients/${clientId}/case-notes/`)
+            const response = await axios.get(`${__API_URL__}/api/clients/${clientId}/case-notes/`)
     caseNotes.value = response.data
   } catch (error) {
     console.error('Error loading case notes:', error)
@@ -240,7 +240,7 @@ const addCaseNote = async () => {
       client: selectedClient.value.id
     }
     
-    const response = await axios.post('http://localhost:8000/api/case-notes/', noteData)
+            const response = await axios.post(`${__API_URL__}/api/case-notes/`, noteData)
     
     // Add to local list
     caseNotes.value.unshift(response.data)
