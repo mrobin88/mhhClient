@@ -183,3 +183,4 @@ docker-compose.local.yml
 *.pfx
 *.pwd
 *.pass
+*.zip

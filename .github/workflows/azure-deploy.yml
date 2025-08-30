@@ -34,7 +34,7 @@ jobs:
       with:
         app-name: 'mhh-client-backend'
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
-        package: ./backend
+        package: backend
 
   deploy-frontend:
     runs-on: ubuntu-latest
