@@ -28,12 +28,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('SECRET_KEY')
+SECRET_KEY = env('SECRET_KEY', default=os.getenv('SECRET_KEY'))
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env('DEBUG')
+DEBUG = env('DEBUG', default=os.getenv('DEBUG', 'False').lower() == 'true')
 
-ALLOWED_HOSTS = env('ALLOWED_HOSTS')
+ALLOWED_HOSTS = env('ALLOWED_HOSTS', default=os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(','))
 
 # Application definition
 
@@ -71,7 +71,11 @@ MIDDLEWARE = [
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
-    CORS_ALLOWED_ORIGINS = env('CORS_ALLOWED_ORIGINS')
+    cors_origins = env('CORS_ALLOWED_ORIGINS', default=os.getenv('CORS_ALLOWED_ORIGINS', ''))
+    if isinstance(cors_origins, str):
+        CORS_ALLOWED_ORIGINS = cors_origins.split(',')
+    else:
+        CORS_ALLOWED_ORIGINS = cors_origins
     CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = 'config.urls'
@@ -97,11 +101,27 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
-# Database configuration using DATABASE_URL
-DATABASES = {
-    'default': env.db('DATABASE_URL', default='sqlite:///db.sqlite3'),
-}
-DATABASES['default']['ATOMIC_REQUESTS'] = True
+# Database configuration - fallback to individual env vars if DATABASE_URL not available
+try:
+    DATABASES = {
+        'default': env.db('DATABASE_URL'),
+    }
+    DATABASES['default']['ATOMIC_REQUESTS'] = True
+except:
+    # Fallback to individual environment variables
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DATABASE_NAME', 'mhh_client_db'),
+            'USER': os.getenv('DATABASE_USER', 'mhhsupport'),
+            'PASSWORD': os.getenv('DATABASE_PASSWORD'),
+            'HOST': os.getenv('DATABASE_HOST', 'mhh-client-postgres.postgres.database.azure.com'),
+            'PORT': os.getenv('DATABASE_PORT', '5432'),
+            'OPTIONS': {
+                'sslmode': 'require',
+            },
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
