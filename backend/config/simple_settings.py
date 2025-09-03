@@ -94,8 +94,8 @@ if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
             },
         }
     }
-else:
-    # Fallback to individual environment variables
+elif os.getenv('DATABASE_PASSWORD'):
+    # Use PostgreSQL with individual environment variables
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -107,6 +107,14 @@ else:
             'OPTIONS': {
                 'sslmode': 'require',
             },
+        }
+    }
+else:
+    # Fallback to SQLite for local testing
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
 

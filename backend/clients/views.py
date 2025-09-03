@@ -2,6 +2,7 @@ from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Client, CaseNote
@@ -11,6 +12,7 @@ from django.utils import timezone
 class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
+    permission_classes = [AllowAny]  # Allow public client registration
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'training_interest', 'neighborhood', 'sf_resident', 'employment_status']
     search_fields = ['first_name', 'last_name', 'phone', 'ssn']
@@ -28,6 +30,7 @@ class ClientViewSet(viewsets.ModelViewSet):
 class CaseNoteViewSet(viewsets.ModelViewSet):
     queryset = CaseNote.objects.all()
     serializer_class = CaseNoteSerializer
+    permission_classes = [IsAuthenticated]  # Require authentication for case notes
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['note_type', 'staff_member', 'client']
     search_fields = ['content', 'staff_member', 'client__first_name', 'client__last_name']

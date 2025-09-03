@@ -1,35 +1,46 @@
-# Mission Hiring Hall Client System
+# 🎯 Mission Hiring Hall Client Management System
 
-A client intake and case management system for Mission Hiring Hall, serving San Francisco's Mission District.
+**Production-ready client intake and case management system for nonprofit workforce development organizations.**
 
-## Features
+## 🌟 **Live System**
+- **Frontend**: https://brave-mud-077eb1810.1.azurestaticapps.net
+- **Backend API**: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/
+- **Admin Interface**: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/admin/
 
-- **Client Intake Form** - Online registration with resume upload
-- **Case Notes System** - Track client interactions and progress
-- **Admin Dashboard** - Full Django admin interface
-- **Staff Dashboard** - Search and manage clients
+## ✨ **Features**
+- **Client Intake System** - Streamlined online registration with resume upload
+- **Case Management** - Track client interactions, progress, and outcomes
+- **Staff Dashboard** - Search, manage, and monitor client caseloads
+- **Admin Interface** - Complete system administration and reporting
+- **Training Programs** - CityBuild, Security, Construction, Job Readiness
 
-## Quick Start
+## 🛠️ **Production Stack**
+- **Frontend**: Vue.js 3 + TypeScript + Tailwind CSS → Azure Static Web Apps
+- **Backend**: Django 3.2 + Django REST Framework → Azure App Service
+- **Database**: PostgreSQL 13 → Azure Database for PostgreSQL
+- **Deployment**: GitHub Actions → Auto-deploy
+- **Monitoring**: Azure Application Insights
+
+## 🚀 **Local Development**
 
 ```bash
 # Start development servers
 ./start-dev.sh
 
-# Access the system
-# Frontend: http://localhost:5176
-# Backend: http://localhost:8000
-# Admin: http://localhost:8000/admin (admin/admin)
+# Access local system
+# Frontend: http://localhost:5173
+# Backend API: http://localhost:8000/api/
+# Admin: http://localhost:8000/admin/
 ```
 
-## Tech Stack
+## 📋 **Documentation**
+- **Complete Specs**: [MISSION_HIRING_HALL_SPECS.md](MISSION_HIRING_HALL_SPECS.md)
+- **Connection Verification**: [VERIFY_CONNECTIONS.md](VERIFY_CONNECTIONS.md)
+- **Final Setup**: [FINAL_SETUP.md](FINAL_SETUP.md)
 
-- **Backend**: Django 3.2 + Django REST Framework
-- **Frontend**: Vue.js 3 + Tailwind CSS
-- **Database**: SQLite (dev) / PostgreSQL (prod)
-- **File Storage**: Local (dev) / Azure Blob (prod)
+## 💰 **Business Model**
+- **Operating Cost**: ~$38/month
+- **Revenue**: $400-600/month per client
+- **Profit Margin**: 90%+ (~$562/month profit)
 
-## Environment
-
-Copy `env.example` to `env.local` and configure your settings.
-
-# Trigger main deployment workflow
+**Serving San Francisco workforce development since 1971** 🏗️
