@@ -51,6 +51,7 @@ jobs:
         slot-name: 'production'
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
         package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        startup-command: 'bash startup.sh'
 
     - name: 'Run database migrations'
       run: |
