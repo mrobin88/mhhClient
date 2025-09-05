@@ -57,4 +57,4 @@ jobs:
         cd backend
         python manage.py migrate --noinput
       env:
-        DJANGO_SETTINGS_MODULE: config.azure_settings
+        DJANGO_SETTINGS_MODULE: config.production_settings

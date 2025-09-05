@@ -38,9 +38,5 @@
 - **Connection Verification**: [VERIFY_CONNECTIONS.md](VERIFY_CONNECTIONS.md)
 - **Final Setup**: [FINAL_SETUP.md](FINAL_SETUP.md)
 
-## 💰 **Business Model**
-- **Operating Cost**: ~$38/month
-- **Revenue**: $400-600/month per client
-- **Profit Margin**: 90%+ (~$562/month profit)
 
 **Serving San Francisco workforce development since 1971** 🏗️
