@@ -43,12 +43,16 @@ jobs:
         cd backend
         python manage.py collectstatic --noinput
 
+    - name: 'Make startup.sh executable'
+      run: |
+        cd backend
+        chmod +x startup.sh
+
     - name: 'Deploy to Azure Web App'
       id: deploy-to-webapp
       uses: azure/webapps-deploy@v2
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        slot-name: 'production'
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
         package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
         startup-command: 'bash startup.sh'
