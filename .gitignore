@@ -183,3 +183,14 @@ docker-compose.local.yml
 *.pwd
 *.pass
 *.zip
+
+# Deployment artifacts and build files
+*.tar.gz
+*.tgz
+backend-container-deploy.tar.gz
+build/
+dist/
+*.egg-info/
+
+# WeasyPrint cache
+.weasyprint-cache/

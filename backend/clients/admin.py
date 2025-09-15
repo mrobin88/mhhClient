@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import Client, CaseNote
+from .models import Client, CaseNote, Document
 
 @admin.register(CaseNote)
 class CaseNoteAdmin(admin.ModelAdmin):
@@ -95,3 +95,31 @@ class ClientAdmin(admin.ModelAdmin):
         updated = queryset.update(status='completed')
         self.message_user(request, f'{updated} clients marked as completed.')
     mark_completed.short_description = "Mark selected clients as completed"
+
+
+@admin.register(Document)
+class DocumentAdmin(admin.ModelAdmin):
+    list_display = ['client', 'title', 'doc_type', 'file_size_mb', 'uploaded_by', 'created_at']
+    list_filter = ['doc_type', 'created_at', 'uploaded_by']
+    search_fields = ['client__first_name', 'client__last_name', 'title', 'uploaded_by']
+    readonly_fields = ['created_at', 'updated_at', 'file_size', 'content_type']
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('Document Information', {
+            'fields': ('client', 'title', 'doc_type', 'file')
+        }),
+        ('Metadata', {
+            'fields': ('file_size', 'content_type', 'uploaded_by', 'notes')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def file_size_mb(self, obj):
+        if obj.file_size:
+            return f"{obj.file_size_mb} MB"
+        return "Unknown"
+    file_size_mb.short_description = 'File Size'

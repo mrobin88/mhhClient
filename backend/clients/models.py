@@ -1,4 +1,6 @@
 from django.db import models
+from django.core.files.storage import default_storage
+from django.urls import reverse
 
 class Client(models.Model):
     GENDER_CHOICES = [
@@ -146,6 +148,10 @@ class Client(models.Model):
     @property
     def case_notes_count(self):
         return self.casenotes.count()
+    
+    @property
+    def documents_count(self):
+        return self.documents.count()
 
 
 class CaseNote(models.Model):
@@ -187,3 +193,61 @@ class CaseNote(models.Model):
             return False
         from datetime import date
         return date.today() > self.follow_up_date
+
+
+class Document(models.Model):
+    """Client document storage with Azure Blob Storage integration"""
+    
+    DOC_TYPE_CHOICES = [
+        ('resume', 'Resume'),
+        ('intake', 'Intake Form'),
+        ('consent', 'Consent Form'),
+        ('id', 'Identification'),
+        ('certificate', 'Certificate/Credential'),
+        ('reference', 'Reference Letter'),
+        ('other', 'Other Document')
+    ]
+    
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='documents')
+    title = models.CharField(max_length=255, help_text='Document title or description')
+    doc_type = models.CharField(max_length=20, choices=DOC_TYPE_CHOICES, default='other')
+    file = models.FileField(upload_to='client-docs/', help_text='Upload document file')
+    
+    # Metadata
+    file_size = models.PositiveIntegerField(null=True, blank=True, help_text='File size in bytes')
+    content_type = models.CharField(max_length=100, blank=True, null=True)
+    uploaded_by = models.CharField(max_length=100, help_text='Staff member who uploaded this document')
+    notes = models.TextField(blank=True, null=True, help_text='Additional notes about this document')
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Document'
+        verbose_name_plural = 'Documents'
+    
+    def __str__(self):
+        return f"{self.client.full_name} - {self.title}"
+    
+    def save(self, *args, **kwargs):
+        """Auto-populate file metadata on save"""
+        if self.file:
+            self.file_size = self.file.size
+            self.content_type = getattr(self.file.file, 'content_type', None)
+        super().save(*args, **kwargs)
+    
+    @property
+    def file_size_mb(self):
+        """Return file size in MB"""
+        if self.file_size:
+            return round(self.file_size / (1024 * 1024), 2)
+        return 0
+    
+    @property
+    def download_url(self):
+        """Generate secure download URL"""
+        if self.file:
+            return reverse('document-download', kwargs={'pk': self.pk})
+        return None
