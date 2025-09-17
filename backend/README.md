@@ -49,4 +49,4 @@ python deploy_production.py
 - `GET /api/clients/?search=query` - Client search
 - `GET/POST /api/case-notes/` - Case notes
 - `GET /api/clients/{id}/case-notes/` - Client case notes
-- `/admin/` - Django admin interface
+- `/admin/` - Django admin interface# Trigger deployment - Wed Sep 17 15:40:10 PDT 2025
