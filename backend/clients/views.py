@@ -24,8 +24,11 @@ from .storage import generate_document_sas_url
 try:
     from weasyprint import HTML, CSS
     WEASYPRINT_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as e:
+    # OSError occurs when system dependencies (like gobject-2.0-0) are missing in Azure
     WEASYPRINT_AVAILABLE = False
+    HTML = None
+    CSS = None
 from django.utils import timezone
 
 class ClientViewSet(viewsets.ModelViewSet):
