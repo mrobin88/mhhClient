@@ -35,6 +35,12 @@ class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        # Allow public client registration (create); require auth otherwise
+        if self.action in ['create']:
+            return [AllowAny()]
+        return super().get_permissions()
     
     @action(detail=False, methods=['get'])
     def export_csv(self, request):
