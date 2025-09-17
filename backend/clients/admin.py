@@ -2,11 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-<<<<<<< HEAD
 from .models import Client, CaseNote, Document, PitStopApplication
-=======
-from .models import Client, CaseNote, PitStopApplication
->>>>>>> 92acc44 (Pit Stop Program: backend model/serializer/viewset/routes + client fields; frontend ClientForm Pit Stop section + StaffDashboard PDF; add run-local-azure.sh; add migration)
 
 @admin.register(CaseNote)
 class CaseNoteAdmin(admin.ModelAdmin):
