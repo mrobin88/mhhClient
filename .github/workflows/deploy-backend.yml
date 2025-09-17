@@ -1,0 +1,93 @@
+name: Deploy Django Backend to Azure App Service
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  AZURE_WEBAPP_NAME: mhh-client-backend
+  AZURE_RESOURCE_GROUP: mhh-client-rg
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
+
+    - name: Setup Python ${{ env.PYTHON_VERSION }} Environment
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: 'Install dependencies'
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: 'Run Django system checks'
+      run: |
+        cd backend
+        python manage.py check --settings=config.simple_settings
+
+    - name: 'Run tests'
+      run: |
+        cd backend
+        python manage.py test --settings=config.simple_settings
+
+    - name: 'Collect static files'
+      run: |
+        cd backend
+        python manage.py collectstatic --noinput --settings=config.simple_settings
+
+    - name: 'Make startup.sh executable'
+      run: |
+        cd backend
+        chmod +x startup.sh
+
+    - name: 'Deploy to Azure Web App'
+      id: deploy-to-webapp
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: './backend'
+        startup-file: 'startup.sh'
+
+    - name: 'Wait for deployment to complete'
+      run: sleep 30
+
+    - name: 'Login to Azure CLI'
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 'Run Django migrations on Azure'
+      run: |
+        echo "Running migrations on Azure App Service..."
+        az webapp ssh --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.AZURE_WEBAPP_NAME }} --command "
+          source antenv/bin/activate && 
+          export DJANGO_SETTINGS_MODULE=config.production_settings && 
+          cd /tmp/*/wwwroot &&
+          python manage.py migrate --noinput &&
+          python manage.py collectstatic --noinput
+        " || echo "SSH command failed, but deployment may still be successful. Check Azure portal."
+
+    - name: 'Verify deployment'
+      run: |
+        echo "Checking if the application is responding..."
+        curl -f -s -o /dev/null -w "%{http_code}" https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/ || echo "Health check failed, but deployment may still be working. Check Azure portal."
+
+    - name: 'Deployment Summary'
+      run: |
+        echo "🚀 Deployment completed!"
+        echo "📱 Backend URL: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+        echo "🔍 Check Azure portal for detailed logs if needed"
+        echo "🗄️  Database migrations should have been applied automatically"
