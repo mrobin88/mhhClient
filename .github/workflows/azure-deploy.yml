@@ -1,10 +1,8 @@
-name: Deploy to Azure
+name: Deploy to Azure (DISABLED - Use deploy-backend.yml instead)
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  # Disabled - use deploy-backend.yml instead
+  workflow_dispatch: # Only manual trigger
 
 jobs:
   deploy-backend:
