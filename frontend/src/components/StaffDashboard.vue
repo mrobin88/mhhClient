@@ -172,12 +172,20 @@
             <h3 class="text-lg font-semibold text-slate-800">Client Records</h3>
             <div class="flex items-center space-x-4">
               <span class="text-sm text-slate-600">{{ filteredClients.length }} of {{ clients.length }} clients</span>
+            <div class="flex gap-2">
               <button 
                 @click="exportData"
                 class="bg-mission-600 hover:bg-mission-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
               >
                 Export Data
               </button>
+              <button 
+                @click="exportPitStopPDF"
+                class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                Pit Stop PDF
+              </button>
+            </div>
             </div>
           </div>
         </div>
@@ -360,6 +368,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
+import jsPDF from 'jspdf'
 
 // Reactive data
 const clients = ref([])
@@ -476,6 +485,40 @@ const editClient = (client) => {
 const exportData = () => {
   // TODO: Implement export functionality
   console.log('Export data')
+}
+
+const exportPitStopPDF = async () => {
+  try {
+    const res = await axios.get(`${__API_URL__}/api/pitstop-applications/report/`)
+    const rows = res.data
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+    const margin = 40
+    let y = margin
+    doc.setFontSize(16)
+    doc.text('Pit Stop Applicants Report', margin, y)
+    y += 24
+    doc.setFontSize(10)
+    const header = ['Client', 'Phone', 'Email', 'Position', 'Start Date', 'Type']
+    doc.text(header.join('  |  '), margin, y)
+    y += 14
+    doc.setLineWidth(0.5); doc.line(margin, y, 612 - margin, y); y += 10
+    rows.forEach((r) => {
+      const line = [
+        String(r.client || ''),
+        String(r.phone || ''),
+        String(r.email || ''),
+        String(r.position || ''),
+        r.start_date ? new Date(r.start_date).toLocaleDateString() : '',
+        String(r.employment_desired || ''),
+      ].join('  |  ')
+      doc.text(line, margin, y)
+      y += 14
+      if (y > 720) { doc.addPage(); y = margin }
+    })
+    doc.save('pitstop_applicants.pdf')
+  } catch (e) {
+    console.error('PDF export failed', e)
+  }
 }
 
 const getProgramLabel = (program) => {

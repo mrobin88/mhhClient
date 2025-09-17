@@ -2,7 +2,11 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import Client, CaseNote, Document
+<<<<<<< HEAD
+from .models import Client, CaseNote, Document, PitStopApplication
+=======
+from .models import Client, CaseNote, PitStopApplication
+>>>>>>> 92acc44 (Pit Stop Program: backend model/serializer/viewset/routes + client fields; frontend ClientForm Pit Stop section + StaffDashboard PDF; add run-local-azure.sh; add migration)
 
 @admin.register(CaseNote)
 class CaseNoteAdmin(admin.ModelAdmin):
@@ -36,7 +40,7 @@ class CaseNoteAdmin(admin.ModelAdmin):
 
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'phone', 'neighborhood', 'training_interest', 'status', 'has_resume', 'case_notes_count', 'created_at']
+    list_display = ['full_name', 'phone', 'email', 'neighborhood', 'training_interest', 'status', 'has_resume', 'case_notes_count', 'created_at']
     list_filter = ['status', 'training_interest', 'neighborhood', 'sf_resident', 'employment_status', 'created_at']
     search_fields = ['first_name', 'last_name', 'phone', 'ssn']
     readonly_fields = ['created_at', 'updated_at', 'case_notes_count']
@@ -44,7 +48,10 @@ class ClientAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Personal Information', {
-            'fields': ('first_name', 'last_name', 'dob', 'ssn', 'phone', 'gender')
+            'fields': ('first_name', 'middle_name', 'last_name', 'dob', 'ssn', 'phone', 'email', 'gender')
+        }),
+        ('Address', {
+            'fields': ('address', 'city', 'state', 'zip_code')
         }),
         ('San Francisco Residency', {
             'fields': ('sf_resident', 'neighborhood', 'demographic_info', 'language', 'language_other')
@@ -123,3 +130,10 @@ class DocumentAdmin(admin.ModelAdmin):
             return f"{obj.file_size_mb} MB"
         return "Unknown"
     file_size_mb.short_description = 'File Size'
+@admin.register(PitStopApplication)
+class PitStopApplicationAdmin(admin.ModelAdmin):
+    list_display = ['client', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'created_at']
+    list_filter = ['employment_desired', 'can_work_us', 'is_veteran', 'created_at']
+    search_fields = ['client__first_name', 'client__last_name', 'position_applied_for']
+    date_hierarchy = 'created_at'
+    readonly_fields = ['created_at', 'updated_at']

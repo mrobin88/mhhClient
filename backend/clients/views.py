@@ -13,10 +13,12 @@ from django.views import View
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
 
-from .models import Client, CaseNote, Document
-from .serializers import ClientSerializer, CaseNoteSerializer
+from .models import Client, CaseNote, Document, PitStopApplication
+from .serializers import ClientSerializer, CaseNoteSerializer, PitStopApplicationSerializer
 from .storage import generate_document_sas_url
 
 try:
@@ -24,7 +26,7 @@ try:
     WEASYPRINT_AVAILABLE = True
 except ImportError:
     WEASYPRINT_AVAILABLE = False
-
+from django.utils import timezone
 
 class ClientViewSet(viewsets.ModelViewSet):
     """
@@ -196,3 +198,40 @@ def client_dashboard_stats(request):
     }
     
     return JsonResponse(stats)
+
+    def overdue_followups(self, request):
+        """Get case notes with overdue follow-ups"""
+        overdue_notes = CaseNote.objects.filter(
+            follow_up_date__lt=timezone.now().date()
+        ).exclude(follow_up_date__isnull=True)
+        serializer = self.get_serializer(overdue_notes, many=True)
+        return Response(serializer.data)
+
+
+class PitStopApplicationViewSet(viewsets.ModelViewSet):
+    queryset = PitStopApplication.objects.select_related('client').all()
+    serializer_class = PitStopApplicationSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['employment_desired', 'can_work_us', 'is_veteran']
+    search_fields = ['client__first_name', 'client__last_name', 'position_applied_for']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    @action(detail=False, methods=['get'])
+    def report(self, request):
+        """Simple report of pit stop applicants for staff/funders"""
+        qs = self.get_queryset()
+        data = [
+            {
+                'client': obj.client.full_name,
+                'phone': obj.client.phone,
+                'email': obj.client.email,
+                'position': obj.position_applied_for,
+                'start_date': obj.available_start_date,
+                'employment_desired': obj.employment_desired,
+                'created_at': obj.created_at,
+            }
+            for obj in qs
+        ]
+        return Response(data)

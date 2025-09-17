@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Client, CaseNote
+from .models import Client, CaseNote, PitStopApplication
 
 class ClientSerializer(serializers.ModelSerializer):
     age = serializers.ReadOnlyField()
@@ -17,5 +17,14 @@ class CaseNoteSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CaseNote
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class PitStopApplicationSerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source='client.full_name', read_only=True)
+
+    class Meta:
+        model = PitStopApplication
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']

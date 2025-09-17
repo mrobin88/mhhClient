@@ -80,11 +80,19 @@ class Client(models.Model):
 
     # Personal Information
     first_name = models.CharField(max_length=50)
+    middle_name = models.CharField(max_length=50, blank=True, null=True)
     last_name = models.CharField(max_length=50)
     dob = models.DateField()
     ssn = models.CharField(max_length=11, blank=True, null=True)
-    phone = models.CharField(max_length=15)
+    phone = models.CharField(max_length=20)
+    email = models.EmailField(blank=True, null=True)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
+
+    # Address
+    address = models.CharField(max_length=255, blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    state = models.CharField(max_length=50, blank=True, null=True)
+    zip_code = models.CharField(max_length=20, blank=True, null=True)
     
     # San Francisco Residency & Background
     sf_resident = models.CharField(max_length=10, choices=[('yes', 'Yes'), ('no', 'No')], default='yes')
@@ -125,11 +133,19 @@ class Client(models.Model):
         verbose_name_plural = 'Clients'
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name}"
+        parts = [self.first_name]
+        if self.middle_name:
+            parts.append(self.middle_name)
+        parts.append(self.last_name)
+        return " ".join(parts)
     
     @property
     def full_name(self):
-        return f"{self.first_name} {self.last_name}"
+        parts = [self.first_name]
+        if self.middle_name:
+            parts.append(self.middle_name)
+        parts.append(self.last_name)
+        return " ".join(parts)
     
     @property
     def age(self):
@@ -197,7 +213,7 @@ class CaseNote(models.Model):
 
 class Document(models.Model):
     """Client document storage with Azure Blob Storage integration"""
-    
+
     DOC_TYPE_CHOICES = [
         ('resume', 'Resume'),
         ('intake', 'Intake Form'),
@@ -205,49 +221,103 @@ class Document(models.Model):
         ('id', 'Identification'),
         ('certificate', 'Certificate/Credential'),
         ('reference', 'Reference Letter'),
-        ('other', 'Other Document')
+        ('other', 'Other Document'),
     ]
-    
+
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='documents')
     title = models.CharField(max_length=255, help_text='Document title or description')
     doc_type = models.CharField(max_length=20, choices=DOC_TYPE_CHOICES, default='other')
     file = models.FileField(upload_to='client-docs/', help_text='Upload document file')
-    
+
     # Metadata
     file_size = models.PositiveIntegerField(null=True, blank=True, help_text='File size in bytes')
     content_type = models.CharField(max_length=100, blank=True, null=True)
     uploaded_by = models.CharField(max_length=100, help_text='Staff member who uploaded this document')
     notes = models.TextField(blank=True, null=True, help_text='Additional notes about this document')
-    
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Document'
         verbose_name_plural = 'Documents'
-    
+
     def __str__(self):
         return f"{self.client.full_name} - {self.title}"
-    
+
     def save(self, *args, **kwargs):
         """Auto-populate file metadata on save"""
         if self.file:
             self.file_size = self.file.size
             self.content_type = getattr(self.file.file, 'content_type', None)
         super().save(*args, **kwargs)
-    
+
     @property
     def file_size_mb(self):
         """Return file size in MB"""
         if self.file_size:
             return round(self.file_size / (1024 * 1024), 2)
         return 0
-    
+
     @property
     def download_url(self):
         """Generate secure download URL"""
         if self.file:
             return reverse('document-download', kwargs={'pk': self.pk})
         return None
+
+
+class PitStopApplication(models.Model):
+    """Application details for the Pit Stop Program"""
+
+    SHIFT_CHOICES = [
+        ('7-4', '7am-4pm'),
+        ('8-5', '8am-5pm'),
+        ('9-5', '9am-5pm'),
+        ('10-7', '10am-7pm'),
+        ('12-9', '12pm-9pm'),
+        ('18-3', '6pm-3am'),
+        ('21-6', '9pm-6am'),
+        ('23-8', '11pm-8am'),
+    ]
+
+    EMPLOYMENT_DESIRED_CHOICES = [
+        ('full_time', 'Full-time'),
+        ('part_time', 'Part-time'),
+        ('relief_list', 'Relief List'),
+    ]
+
+    # Link to client
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='pitstop_applications')
+
+    # Legal + veteran
+    can_work_us = models.BooleanField(default=False)
+    is_veteran = models.BooleanField(default=False)
+
+    # Position and start
+    position_applied_for = models.CharField(max_length=100)
+    available_start_date = models.DateField(blank=True, null=True)
+    employment_desired = models.CharField(max_length=20, choices=EMPLOYMENT_DESIRED_CHOICES)
+
+    # Weekly availability: store days selected and preferred shifts
+    available_days = models.JSONField(default=list, help_text='List of days available e.g. ["Mon","Tue"]')
+    preferred_shifts = models.JSONField(default=list, help_text='List of shift codes from SHIFT_CHOICES')
+
+    # Employment history (last job)
+    employment_history = models.JSONField(default=list, help_text='Last job with fields: company, city, state, manager, phone, title, responsibilities, start_date, end_date')
+
+    # Education history (free form)
+    education_history = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Pit Stop Application'
+        verbose_name_plural = 'Pit Stop Applications'
+
+    def __str__(self):
+        return f"PitStop Application - {self.client.full_name} - {self.position_applied_for}"

@@ -61,6 +61,16 @@
               </div>
 
               <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">Middle Name</label>
+                <input 
+                  v-model="form.middle_name" 
+                  type="text" 
+                  class="form-input"
+                  placeholder="Enter middle name"
+                />
+              </div>
+
+              <div class="space-y-3">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> Last Name
                 </label>
@@ -100,6 +110,16 @@
               </div>
 
               <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">Email</label>
+                <input 
+                  v-model="form.email" 
+                  type="email" 
+                  class="form-input"
+                  placeholder="name@example.com"
+                />
+              </div>
+
+              <div class="space-y-3">
                 <label class="block text-sm font-semibold text-slate-700">SSN (Optional)</label>
                 <input 
                   v-model="form.ssn" 
@@ -122,6 +142,32 @@
                   <option value="O">Other</option>
                   <option value="P">Prefer not to say</option>
                 </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Address Section -->
+          <div class="space-y-6">
+            <div class="section-header">
+              <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
+              <h3 class="text-2xl font-semibold text-slate-800">Address</h3>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              <div class="lg:col-span-2 space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">Street Address</label>
+                <input v-model="form.address" type="text" class="form-input" placeholder="123 Main St" />
+              </div>
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">City</label>
+                <input v-model="form.city" type="text" class="form-input" placeholder="San Francisco" />
+              </div>
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">State</label>
+                <input v-model="form.state" type="text" class="form-input" placeholder="CA" />
+              </div>
+              <div class="space-y-3">
+                <label class="block text-sm font-semibold text-slate-700">Zip</label>
+                <input v-model="form.zip_code" type="text" class="form-input" placeholder="94103" />
               </div>
             </div>
           </div>
@@ -262,6 +308,79 @@
                 </select>
               </div>
 
+              <!-- Pit Stop Specific Fields -->
+              <div v-if="form.training_interest === 'pit_stop'" class="lg:col-span-2 space-y-6 p-6 border rounded-xl bg-slate-50">
+                <h4 class="text-xl font-semibold text-slate-800">Pit Stop Application</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label class="form-label">Are you legally able to work in the U.S.?</label>
+                    <select v-model="pitstop.can_work_us" class="form-select">
+                      <option :value="true">Yes</option>
+                      <option :value="false">No</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="form-label">Are you a veteran?</label>
+                    <select v-model="pitstop.is_veteran" class="form-select">
+                      <option :value="false">No</option>
+                      <option :value="true">Yes</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="form-label">Position you are applying for</label>
+                    <input v-model="pitstop.position_applied_for" type="text" class="form-input" placeholder="Pit Stop Attendant" />
+                  </div>
+                  <div>
+                    <label class="form-label">Available Start Date</label>
+                    <input v-model="pitstop.available_start_date" type="date" class="form-input" />
+                  </div>
+                  <div>
+                    <label class="form-label">Employment desired</label>
+                    <div class="flex gap-4">
+                      <label class="inline-flex items-center"><input type="radio" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
+                      <label class="inline-flex items-center"><input type="radio" value="part_time" v-model="pitstop.employment_desired" class="mr-2"/> Part-time</label>
+                      <label class="inline-flex items-center"><input type="radio" value="relief_list" v-model="pitstop.employment_desired" class="mr-2"/> Relief List</label>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label">Schedule Availability (Mon-Sun)</label>
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <label v-for="day in days" :key="day" class="inline-flex items-center bg-white px-3 py-2 rounded border">
+                      <input type="checkbox" :value="day" v-model="pitstop.available_days" class="mr-2" /> {{ day }}
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label">Preferred Shifts</label>
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <label v-for="shift in shifts" :key="shift.value" class="inline-flex items-center bg-white px-3 py-2 rounded border">
+                      <input type="checkbox" :value="shift.value" v-model="pitstop.preferred_shifts" class="mr-2" /> {{ shift.label }}
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label">Employment History (Last Job)</label>
+                  <div class="p-4 bg-white rounded border space-y-3 mb-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input v-model="pitstop.employment_history[0].company" class="form-input" placeholder="Company name" />
+                      <input v-model="pitstop.employment_history[0].title" class="form-input" placeholder="Job title/role" />
+                      <input v-model="pitstop.employment_history[0].city" class="form-input" placeholder="City" />
+                      <input v-model="pitstop.employment_history[0].state" class="form-input" placeholder="State" />
+                      <input v-model="pitstop.employment_history[0].manager" class="form-input" placeholder="Manager name" />
+                      <input v-model="pitstop.employment_history[0].phone" class="form-input" placeholder="Manager phone" />
+                      <input v-model="pitstop.employment_history[0].start_date" type="date" class="form-input" />
+                      <input v-model="pitstop.employment_history[0].end_date" type="date" class="form-input" />
+                    </div>
+                    <textarea v-model="pitstop.employment_history[0].responsibilities" class="form-input" rows="2" placeholder="Responsibilities"></textarea>
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label">Education History</label>
+                  <textarea v-model="pitstop.education_history" class="form-input" rows="3" placeholder="Schools, certifications, etc."></textarea>
+                </div>
+              </div>
+
               <div class="lg:col-span-2 space-y-3">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> How did you hear about us?
@@ -379,11 +498,17 @@ import { getApiUrl } from '../config/api'
 
 const form = ref({
   first_name: '',
+  middle_name: '',
   last_name: '',
   dob: '',
   ssn: '',
   phone: '',
+  email: '',
   gender: '',
+  address: '',
+  city: '',
+  state: '',
+  zip_code: '',
   sf_resident: '',
   neighborhood: '',
   demographic_info: '',
@@ -394,6 +519,32 @@ const form = ref({
   training_interest: '',
   referral_source: '',
   additional_notes: '',
+})
+
+const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+const shifts = [
+  { value: '7-4', label: '7am-4pm' },
+  { value: '8-5', label: '8am-5pm' },
+  { value: '9-5', label: '9am-5pm' },
+  { value: '10-7', label: '10am-7pm' },
+  { value: '12-9', label: '12pm-9pm' },
+  { value: '18-3', label: '6pm-3am' },
+  { value: '21-6', label: '9pm-6am' },
+  { value: '23-8', label: '11pm-8am' },
+]
+
+const pitstop = ref({
+  can_work_us: false,
+  is_veteran: false,
+  position_applied_for: 'Pit Stop Attendant',
+  available_start_date: '',
+  employment_desired: 'full_time',
+  available_days: [],
+  preferred_shifts: [],
+  employment_history: [
+    { company: '', title: '', city: '', state: '', manager: '', phone: '', start_date: '', end_date: '', responsibilities: '' }
+  ],
+  education_history: '',
 })
 
 const resumeFile = ref(null)
@@ -446,7 +597,7 @@ async function handleSubmit() {
       formData.append('resume', resumeFile.value)
     }
     
-            const response = await axios.post(getApiUrl('/api/clients/'), formData, {
+    const response = await axios.post(getApiUrl('/api/clients/'), formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -455,14 +606,37 @@ async function handleSubmit() {
     if (response.status === 201 || response.status === 200) {
       success.value = true
       
+      // If Pit Stop, create related application
+      if (form.value.training_interest === 'pit_stop') {
+        const clientId = response.data.id
+        await axios.post(getApiUrl('/api/pitstop-applications/'), {
+          client: clientId,
+          can_work_us: pitstop.value.can_work_us,
+          is_veteran: pitstop.value.is_veteran,
+          position_applied_for: pitstop.value.position_applied_for,
+          available_start_date: pitstop.value.available_start_date || null,
+          employment_desired: pitstop.value.employment_desired,
+          available_days: pitstop.value.available_days,
+          preferred_shifts: pitstop.value.preferred_shifts,
+          employment_history: pitstop.value.employment_history,
+          education_history: pitstop.value.education_history,
+        })
+      }
+
       // Reset form
       form.value = {
         first_name: '',
+        middle_name: '',
         last_name: '',
         dob: '',
         ssn: '',
         phone: '',
+        email: '',
         gender: '',
+        address: '',
+        city: '',
+        state: '',
+        zip_code: '',
         sf_resident: '',
         neighborhood: '',
         demographic_info: '',
@@ -475,6 +649,19 @@ async function handleSubmit() {
         additional_notes: '',
       }
       
+      // Reset pitstop
+      pitstop.value = {
+        can_work_us: false,
+        is_veteran: false,
+        position_applied_for: 'Pit Stop Attendant',
+        available_start_date: '',
+        employment_desired: 'full_time',
+        available_days: [],
+        preferred_shifts: [],
+        employment_history: [],
+        education_history: '',
+      }
+
       // Reset resume file
       resumeFile.value = null
       
