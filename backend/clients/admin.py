@@ -2,7 +2,20 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from django.db.models import Count, Q
+from datetime import datetime, timedelta
+import csv
+import io
 from .models import Client, CaseNote, Document, PitStopApplication
+
+# Try to import WeasyPrint for PDF generation
+try:
+    from weasyprint import HTML, CSS
+    WEASYPRINT_AVAILABLE = True
+except (ImportError, OSError):
+    WEASYPRINT_AVAILABLE = False
 
 @admin.register(CaseNote)
 class CaseNoteAdmin(admin.ModelAdmin):
@@ -36,9 +49,9 @@ class CaseNoteAdmin(admin.ModelAdmin):
 
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'phone', 'email', 'neighborhood', 'training_interest', 'status', 'has_resume', 'case_notes_count', 'created_at']
-    list_filter = ['status', 'training_interest', 'neighborhood', 'sf_resident', 'employment_status', 'created_at']
-    search_fields = ['first_name', 'last_name', 'phone', 'ssn']
+    list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'job_placed', 'program_completed_date', 'has_resume', 'case_notes_count', 'created_at']
+    list_filter = ['status', 'training_interest', 'job_placed', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
+    search_fields = ['first_name', 'last_name', 'phone', 'ssn', 'job_title', 'job_company']
     readonly_fields = ['created_at', 'updated_at', 'case_notes_count']
     date_hierarchy = 'created_at'
     
@@ -64,6 +77,9 @@ class ClientAdmin(admin.ModelAdmin):
         ('Status & Tracking', {
             'fields': ('status', 'staff_name')
         }),
+        ('Program Completion & Job Placement', {
+            'fields': ('program_completed_date', 'job_placed', 'job_placement_date', 'job_title', 'job_company', 'job_hourly_wage')
+        }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
@@ -87,7 +103,7 @@ class ClientAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related('casenotes')
     
-    actions = ['mark_active', 'mark_completed', 'export_to_csv']
+    actions = ['mark_active', 'mark_completed', 'mark_job_placed', 'export_to_csv', 'export_program_report', 'export_job_placement_report', 'export_client_profiles_pdf']
     
     def mark_active(self, request, queryset):
         updated = queryset.update(status='active')
@@ -95,9 +111,121 @@ class ClientAdmin(admin.ModelAdmin):
     mark_active.short_description = "Mark selected clients as active"
     
     def mark_completed(self, request, queryset):
-        updated = queryset.update(status='completed')
-        self.message_user(request, f'{updated} clients marked as completed.')
+        from django.utils import timezone
+        updated = queryset.update(status='completed', program_completed_date=timezone.now().date())
+        self.message_user(request, f'{updated} clients marked as completed with today\'s date.')
     mark_completed.short_description = "Mark selected clients as completed"
+    
+    def mark_job_placed(self, request, queryset):
+        from django.utils import timezone
+        updated = queryset.update(job_placed=True, job_placement_date=timezone.now().date())
+        self.message_user(request, f'{updated} clients marked as job placed with today\'s date.')
+    mark_job_placed.short_description = "Mark selected clients as job placed"
+    
+    def export_program_report(self, request, queryset):
+        """Export program completion and job placement report"""
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="program_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Client Name', 'Phone', 'Email', 'Program', 'Status', 'Program Completed Date',
+            'Job Placed', 'Job Placement Date', 'Job Title', 'Company', 'Hourly Wage', 'Created Date'
+        ])
+        
+        for client in queryset.select_related():
+            writer.writerow([
+                client.full_name,
+                client.phone,
+                client.email or '',
+                client.get_training_interest_display(),
+                client.get_status_display(),
+                client.program_completed_date.strftime('%Y-%m-%d') if client.program_completed_date else '',
+                'Yes' if client.job_placed else 'No',
+                client.job_placement_date.strftime('%Y-%m-%d') if client.job_placement_date else '',
+                client.job_title or '',
+                client.job_company or '',
+                f'${client.job_hourly_wage}' if client.job_hourly_wage else '',
+                client.created_at.strftime('%Y-%m-%d')
+            ])
+        
+        return response
+    export_program_report.short_description = "Export program completion & job placement report"
+    
+    def export_job_placement_report(self, request, queryset):
+        """Export detailed job placement report for placed clients only"""
+        placed_clients = queryset.filter(job_placed=True)
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="job_placements_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Client Name', 'Phone', 'Email', 'Program Completed', 'Job Title', 'Company', 
+            'Hourly Wage', 'Placement Date', 'Days to Placement', 'Program Type'
+        ])
+        
+        for client in placed_clients:
+            days_to_placement = ''
+            if client.program_completed_date and client.job_placement_date:
+                days_to_placement = (client.job_placement_date - client.program_completed_date).days
+            
+            writer.writerow([
+                client.full_name,
+                client.phone,
+                client.email or '',
+                client.program_completed_date.strftime('%Y-%m-%d') if client.program_completed_date else '',
+                client.job_title or '',
+                client.job_company or '',
+                f'${client.job_hourly_wage}' if client.job_hourly_wage else '',
+                client.job_placement_date.strftime('%Y-%m-%d') if client.job_placement_date else '',
+                str(days_to_placement) if days_to_placement != '' else '',
+                client.get_training_interest_display()
+            ])
+        
+        return response
+    export_job_placement_report.short_description = "Export job placement report (placed clients only)"
+    
+    def export_client_profiles_pdf(self, request, queryset):
+        """Export client profiles as PDF documents"""
+        if not WEASYPRINT_AVAILABLE:
+            self.message_user(request, 'PDF generation is not available. WeasyPrint is not installed.', level='error')
+            return
+        
+        if queryset.count() > 10:
+            self.message_user(request, 'Please select 10 or fewer clients for PDF export to avoid timeout.', level='warning')
+            return
+        
+        try:
+            # Create a combined PDF with all selected client profiles
+            combined_html = ""
+            
+            for client in queryset.prefetch_related('casenotes'):
+                case_notes = client.casenotes.all()[:5]  # Latest 5 case notes
+                
+                html_content = render_to_string('admin/clients/client_profile.html', {
+                    'client': client,
+                    'case_notes': case_notes,
+                    'generated_at': datetime.now()
+                })
+                
+                combined_html += html_content + '<div style="page-break-after: always;"></div>'
+            
+            # Generate PDF
+            pdf_buffer = io.BytesIO()
+            HTML(string=combined_html).write_pdf(pdf_buffer)
+            pdf_buffer.seek(0)
+            
+            response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
+            filename = f"client_profiles_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            return response
+            
+        except Exception as e:
+            self.message_user(request, f'PDF generation failed: {str(e)}', level='error')
+    
+    export_client_profiles_pdf.short_description = "Export client profiles as PDF"
 
 
 @admin.register(Document)

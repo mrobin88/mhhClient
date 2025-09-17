@@ -123,6 +123,14 @@ class Client(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     staff_name = models.CharField(max_length=100, blank=True, null=True)
     
+    # Program Completion & Job Placement Tracking
+    program_completed_date = models.DateField(blank=True, null=True, help_text="Date when client completed their program")
+    job_placed = models.BooleanField(default=False, help_text="Was client placed in a job after program completion?")
+    job_placement_date = models.DateField(blank=True, null=True, help_text="Date when client was placed in job")
+    job_title = models.CharField(max_length=100, blank=True, null=True, help_text="Job title/position client was placed in")
+    job_company = models.CharField(max_length=100, blank=True, null=True, help_text="Company where client was placed")
+    job_hourly_wage = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, help_text="Hourly wage for placed job")
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
