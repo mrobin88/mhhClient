@@ -256,8 +256,36 @@ class DocumentAdmin(admin.ModelAdmin):
     file_size_mb.short_description = 'File Size'
 @admin.register(PitStopApplication)
 class PitStopApplicationAdmin(admin.ModelAdmin):
-    list_display = ['client', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'created_at']
+    list_display = ['client', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'available_days_summary', 'created_at']
     list_filter = ['employment_desired', 'can_work_us', 'is_veteran', 'created_at']
     search_fields = ['client__first_name', 'client__last_name', 'position_applied_for']
     date_hierarchy = 'created_at'
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at', 'schedule_summary']
+    
+    def available_days_summary(self, obj):
+        """Show summary of available days"""
+        if not obj.weekly_schedule:
+            return "No schedule set"
+        days_with_times = [day for day, times in obj.weekly_schedule.items() if times]
+        return ", ".join(days_with_times) if days_with_times else "No days available"
+    available_days_summary.short_description = 'Available Days'
+    
+    def schedule_summary(self, obj):
+        """Show detailed schedule summary"""
+        if not obj.weekly_schedule:
+            return "No schedule set"
+        
+        summary = []
+        for day, times in obj.weekly_schedule.items():
+            if times:
+                time_labels = []
+                for time_code in times:
+                    # Convert time code to label
+                    for choice in obj.SHIFT_CHOICES:
+                        if choice[0] == time_code:
+                            time_labels.append(choice[1])
+                            break
+                summary.append(f"{day}: {', '.join(time_labels)}")
+        
+        return format_html('<br>'.join(summary)) if summary else "No availability set"
+    schedule_summary.short_description = 'Weekly Schedule'

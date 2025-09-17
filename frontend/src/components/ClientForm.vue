@@ -344,19 +344,32 @@
                   </div>
                 </div>
                 <div>
-                  <label class="form-label">Schedule Availability (Mon-Sun)</label>
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <label v-for="day in days" :key="day" class="inline-flex items-center bg-white px-3 py-2 rounded border">
-                      <input type="checkbox" :value="day" v-model="pitstop.available_days" class="mr-2" /> {{ day }}
-                    </label>
-                  </div>
-                </div>
-                <div>
-                  <label class="form-label">Preferred Shifts</label>
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <label v-for="shift in shifts" :key="shift.value" class="inline-flex items-center bg-white px-3 py-2 rounded border">
-                      <input type="checkbox" :value="shift.value" v-model="pitstop.preferred_shifts" class="mr-2" /> {{ shift.label }}
-                    </label>
+                  <label class="form-label">Weekly Schedule Availability</label>
+                  <div class="space-y-4">
+                    <div v-for="day in days" :key="day" class="bg-white p-4 rounded border">
+                      <div class="flex items-center mb-3">
+                        <input 
+                          type="checkbox" 
+                          :id="'day-' + day"
+                          :checked="isDaySelected(day)"
+                          @change="toggleDay(day)"
+                          class="mr-3 h-4 w-4 text-blue-600"
+                        />
+                        <label :for="'day-' + day" class="text-lg font-semibold">{{ day }}</label>
+                      </div>
+                      <div v-if="isDaySelected(day)" class="ml-7 grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <label v-for="shift in shifts" :key="shift.value" class="inline-flex items-center text-sm">
+                          <input 
+                            type="checkbox" 
+                            :value="shift.value"
+                            :checked="isTimeSelectedForDay(day, shift.value)"
+                            @change="toggleTimeForDay(day, shift.value)"
+                            class="mr-2 h-3 w-3 text-blue-600"
+                          />
+                          {{ shift.label }}
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div>
@@ -539,8 +552,7 @@ const pitstop = ref({
   position_applied_for: 'Pit Stop Attendant',
   available_start_date: '',
   employment_desired: 'full_time',
-  available_days: [],
-  preferred_shifts: [],
+  weekly_schedule: {},
   employment_history: [
     { company: '', title: '', city: '', state: '', manager: '', phone: '', start_date: '', end_date: '', responsibilities: '' }
   ],
@@ -576,6 +588,41 @@ const handleFileUpload = (event) => {
     error.value = ''
   }
 }
+
+// Schedule management methods
+const isDaySelected = (day) => {
+  return pitstop.value.weekly_schedule[day] && pitstop.value.weekly_schedule[day].length > 0
+}
+
+const isTimeSelectedForDay = (day, timeSlot) => {
+  return pitstop.value.weekly_schedule[day] && pitstop.value.weekly_schedule[day].includes(timeSlot)
+}
+
+const toggleDay = (day) => {
+  if (!pitstop.value.weekly_schedule[day] || pitstop.value.weekly_schedule[day].length === 0) {
+    // Day not selected, select it with no time slots initially
+    pitstop.value.weekly_schedule[day] = []
+  } else {
+    // Day is selected, deselect it
+    delete pitstop.value.weekly_schedule[day]
+  }
+}
+
+const toggleTimeForDay = (day, timeSlot) => {
+  if (!pitstop.value.weekly_schedule[day]) {
+    pitstop.value.weekly_schedule[day] = []
+  }
+  
+  const index = pitstop.value.weekly_schedule[day].indexOf(timeSlot)
+  if (index > -1) {
+    // Time slot exists, remove it
+    pitstop.value.weekly_schedule[day].splice(index, 1)
+  } else {
+    // Time slot doesn't exist, add it
+    pitstop.value.weekly_schedule[day].push(timeSlot)
+  }
+}
+
 async function handleSubmit() {
   error.value = ''
   success.value = false
@@ -656,9 +703,10 @@ async function handleSubmit() {
         position_applied_for: 'Pit Stop Attendant',
         available_start_date: '',
         employment_desired: 'full_time',
-        available_days: [],
-        preferred_shifts: [],
-        employment_history: [],
+        weekly_schedule: {},
+        employment_history: [
+          { company: '', title: '', city: '', state: '', manager: '', phone: '', start_date: '', end_date: '', responsibilities: '' }
+        ],
         education_history: '',
       }
 

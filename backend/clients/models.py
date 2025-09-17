@@ -309,9 +309,11 @@ class PitStopApplication(models.Model):
     available_start_date = models.DateField(blank=True, null=True)
     employment_desired = models.CharField(max_length=20, choices=EMPLOYMENT_DESIRED_CHOICES)
 
-    # Weekly availability: store days selected and preferred shifts
-    available_days = models.JSONField(default=list, help_text='List of days available e.g. ["Mon","Tue"]')
-    preferred_shifts = models.JSONField(default=list, help_text='List of shift codes from SHIFT_CHOICES')
+    # Weekly availability: store schedule for each day with time preferences
+    weekly_schedule = models.JSONField(
+        default=dict, 
+        help_text='Weekly schedule: {"Mon": ["7-4", "8-5"], "Tue": ["9-5"], ...} - each day can have multiple time slots'
+    )
 
     # Employment history (last job)
     employment_history = models.JSONField(default=list, help_text='Last job with fields: company, city, state, manager, phone, title, responsibilities, start_date, end_date')
@@ -329,3 +331,14 @@ class PitStopApplication(models.Model):
 
     def __str__(self):
         return f"PitStop Application - {self.client.full_name} - {self.position_applied_for}"
+    
+    @property
+    def available_days_list(self):
+        """Get list of days that have any time slots available"""
+        if not self.weekly_schedule:
+            return []
+        return [day for day, times in self.weekly_schedule.items() if times]
+    
+    def get_times_for_day(self, day):
+        """Get list of time slots for a specific day"""
+        return self.weekly_schedule.get(day, [])
