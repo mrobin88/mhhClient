@@ -274,3 +274,9 @@ if os.getenv('REDIS_URL'):
     }
     SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
     SESSION_CACHE_ALIAS = 'default'
+
+# Admin site customization
+from django.contrib import admin
+admin.site.site_header = "Mission Hiring Hall Administration"
+admin.site.site_title = "MHH Admin"
+admin.site.index_title = "Welcome to Mission Hiring Hall Administration"
