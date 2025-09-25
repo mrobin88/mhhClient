@@ -1,4 +1,4 @@
-# 🎯 Django Backend - Mission Hiring Hall
+# 🎯 Django Backend - Client Services
 
 **Production Django API backend for client management system.**
 

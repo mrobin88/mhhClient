@@ -4,7 +4,7 @@
     <div class="max-w-7xl mx-auto mb-8">
       <div class="text-center">
         <h1 class="text-4xl font-bold text-slate-800 mb-2">
-          <span class="text-mission-600">Mission Hiring Hall</span> Staff Dashboard
+          <span class="text-mission-600">Client Services</span> Staff Dashboard
         </h1>
         <p class="text-xl text-slate-600">Client Management & Reporting System</p>
       </div>

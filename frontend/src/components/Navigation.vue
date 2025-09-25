@@ -11,7 +11,7 @@
               </svg>
             </div>
             <div class="text-xl font-bold text-slate-800">
-              <span class="text-mission-600">Mission</span> Hiring Hall
+              <span class="text-mission-600">Client</span> Services
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
-# 🎯 Mission Hiring Hall Client Management System
+# 🎯 Client Services Management System
 
-**Production-ready client intake and case management system for nonprofit workforce development organizations.**
+**Production-ready client intake and case management system for service organizations.**
 
 ## 🌟 **Live System**
 - **Frontend**: https://brave-mud-077eb1810.1.azurestaticapps.net
@@ -12,7 +12,7 @@
 - **Case Management** - Track client interactions, progress, and outcomes
 - **Staff Dashboard** - Search, manage, and monitor client caseloads
 - **Admin Interface** - Complete system administration and reporting
-- **Training Programs** - CityBuild, Security, Construction, Job Readiness
+- **Service Programs** - Various program offerings and services
 
 ## 🛠️ **Production Stack**
 - **Frontend**: Vue.js 3 + TypeScript + Tailwind CSS → Azure Static Web Apps
@@ -39,4 +39,4 @@
 - **Final Setup**: [FINAL_SETUP.md](FINAL_SETUP.md)
 
 
-**Serving San Francisco workforce development since 1971** 🏗️
+**Professional client services management platform** 🏗️

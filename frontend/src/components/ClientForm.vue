@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-gradient py-12 px-4">
-    <!-- Header with Mission Hiring Hall branding -->
+    <!-- Header with organization branding -->
     <div class="max-w-5xl mx-auto mb-12 text-center">
       <div class="relative">
         <!-- Decorative background elements -->
@@ -9,9 +9,9 @@
           <div class="w-12 h-12 border-2 border-mission-500 rounded-full absolute opacity-30 animate-ping"></div>
         </div>
         <h1 class="text-5xl font-bold text-slate-800 relative z-10 mb-4">
-          <span class="text-mission-600">Mission Hiring Hall</span> Client Intake
+          <span class="text-mission-600">Client Services</span> Portal
         </h1>
-        <p class="text-xl text-slate-600 relative z-10">San Francisco Employment & Training Services</p>
+        <p class="text-xl text-slate-600 relative z-10">Professional Service Management System</p>
         <div class="mt-4 flex justify-center space-x-2">
           <div class="w-2 h-2 bg-mission-400 rounded-full"></div>
           <div class="w-2 h-2 bg-mission-500 rounded-full"></div>
@@ -33,7 +33,7 @@
               </svg>
               New Client Registration
             </h2>
-            <p class="text-mission-100 text-lg">Complete the form below to register for employment services</p>
+            <p class="text-mission-100 text-lg">Complete the form below to register for services</p>
           </div>
         </div>
 
@@ -491,15 +491,15 @@
       </form>
     </div>
 
-    <!-- Footer with Mission Hiring Hall branding -->
+    <!-- Footer with organization branding -->
     <div class="max-w-5xl mx-auto mt-12 text-center">
       <div class="flex justify-center space-x-3 mb-4">
         <div class="w-3 h-3 bg-mission-400 rounded-full animate-pulse"></div>
         <div class="w-2 h-2 bg-mission-500 rounded-full animate-ping"></div>
         <div class="w-3 h-3 bg-mission-600 rounded-full animate-pulse"></div>
       </div>
-      <p class="text-slate-500 text-sm">Serving San Francisco since 1971</p>
-      <p class="text-slate-400 text-xs mt-2">3080 16th Street @ Valencia, San Francisco, CA 94103</p>
+      <p class="text-slate-500 text-sm">Professional Client Services</p>
+      <p class="text-slate-400 text-xs mt-2">Connecting people with opportunities</p>
     </div>
   </div>
 </template>

@@ -1,5 +1,5 @@
 """
-PRODUCTION-READY Azure Settings for Mission Hiring Hall
+PRODUCTION-READY Azure Settings for Client Services
 PostgreSQL + Vue Frontend + Django Admin
 """
 
@@ -277,6 +277,6 @@ if os.getenv('REDIS_URL'):
 
 # Admin site customization
 from django.contrib import admin
-admin.site.site_header = "Mission Hiring Hall Administration"
-admin.site.site_title = "MHH Admin"
-admin.site.index_title = "Welcome to Mission Hiring Hall Administration"
+admin.site.site_header = "Client Services Administration"
+admin.site.site_title = "CS Admin"
+admin.site.index_title = "Welcome to Client Services Administration"

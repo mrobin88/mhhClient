@@ -13,13 +13,13 @@ def home_redirect(request):
 def api_info(request):
     """Simple API info page"""
     return HttpResponse("""
-    <h1>Mission Hiring Hall API</h1>
+    <h1>Client Services API</h1>
     <p>Available endpoints:</p>
     <ul>
         <li><a href="/admin/">/admin/</a> - Django Admin</li>
         <li><a href="/api/">/api/</a> - REST API</li>
         <li><a href="/api/clients/">/api/clients/</a> - Client Management</li>
-        <li><a href="/api/pitstop-applications/">/api/pitstop-applications/</a> - Pit Stop Applications</li>
+        <li><a href="/api/pitstop-applications/">/api/pitstop-applications/</a> - Applications</li>
     </ul>
     """)
 

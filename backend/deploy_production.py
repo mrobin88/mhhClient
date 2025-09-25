@@ -147,7 +147,7 @@ def generate_startup_script():
 # Azure App Service Startup Script for Django
 set -e
 
-echo "🚀 Starting Mission Hiring Hall Backend..."
+echo "🚀 Starting Client Services Backend..."
 
 # Install dependencies
 echo "📦 Installing dependencies..."
@@ -212,7 +212,7 @@ def test_admin_functionality():
 
 def main():
     """Main deployment function"""
-    print("🚀 PRODUCTION DEPLOYMENT - Mission Hiring Hall")
+    print("🚀 PRODUCTION DEPLOYMENT - Client Services")
     print("PostgreSQL + Vue Frontend + Django Admin")
     print("=" * 60)
     

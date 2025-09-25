@@ -1,4 +1,4 @@
-// API Configuration for Mission Hiring Hall Client System
+// API Configuration for Client Management System
 // Handles environment-specific API URLs
 
 // PRODUCTION API Configuration - Updated to match your actual Azure deployment
