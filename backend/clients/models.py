@@ -117,7 +117,7 @@ class Client(models.Model):
     additional_notes = models.TextField(blank=True, null=True)
     
     # Resume & Documents
-    resume = models.FileField(upload_to='resumes/', blank=True, null=True, help_text='Upload client resume')
+    resume = models.FileField(upload_to='client-docs/resumes/', blank=True, null=True, help_text='Upload client resume')
     
     # Status & Tracking
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
