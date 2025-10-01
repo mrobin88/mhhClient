@@ -36,12 +36,12 @@ jobs:
     - name: 'Run tests'
       run: |
         cd backend
-        python manage.py test
+        python manage.py test --settings=config.simple_settings
 
     - name: 'Collect static files'
       run: |
         cd backend
-        python manage.py collectstatic --noinput
+        python manage.py collectstatic --noinput --settings=config.simple_settings
 
     - name: 'Make startup.sh executable'
       run: |

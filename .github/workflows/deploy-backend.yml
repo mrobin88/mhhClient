@@ -1,12 +1,8 @@
 name: Deploy Django Backend to Azure App Service
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/deploy-backend.yml'
-  workflow_dispatch: # Allow manual triggering
+  # Disabled - use azure-backend-deploy.yml instead
+  workflow_dispatch: # Only manual trigger
 
 env:
   AZURE_WEBAPP_NAME: mhh-client-backend
@@ -71,14 +67,9 @@ jobs:
 
     - name: 'Run migrations via Azure CLI'
       run: |
-        echo "Running Django migrations on Azure..."
-        az webapp ssh --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.AZURE_WEBAPP_NAME }} --command "
-          source antenv/bin/activate && 
-          export DJANGO_SETTINGS_MODULE=config.production_settings && 
-          cd /tmp/8*/wwwroot &&
-          python manage.py migrate --noinput &&
-          echo 'Migrations completed successfully'
-        " || echo "SSH migration failed, but startup.sh should handle it automatically"
+        echo "Migrations will run automatically via startup.sh during deployment"
+        echo "startup.sh contains: python manage.py migrate --noinput"
+        echo "No manual migration needed - handled by App Service startup"
 
     - name: 'Verify deployment'
       run: |
