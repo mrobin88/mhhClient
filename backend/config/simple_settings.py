@@ -165,3 +165,9 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
 }
+
+# Admin site customization
+from django.contrib import admin
+admin.site.site_header = "Client Admin"
+admin.site.site_title = "Client Admin"
+admin.site.index_title = "Welcome to Client Admin"

@@ -656,18 +656,34 @@ async function handleSubmit() {
       // If Pit Stop, create related application
       if (form.value.training_interest === 'pit_stop') {
         const clientId = response.data.id
-        await axios.post(getApiUrl('/api/pitstop-applications/'), {
-          client: clientId,
-          can_work_us: pitstop.value.can_work_us,
-          is_veteran: pitstop.value.is_veteran,
-          position_applied_for: pitstop.value.position_applied_for,
-          available_start_date: pitstop.value.available_start_date || null,
-          employment_desired: pitstop.value.employment_desired,
-          available_days: pitstop.value.available_days,
-          preferred_shifts: pitstop.value.preferred_shifts,
-          employment_history: pitstop.value.employment_history,
-          education_history: pitstop.value.education_history,
-        })
+        try {
+          await axios.post(getApiUrl('/api/pitstop-applications/'), {
+            client: clientId,
+            can_work_us: pitstop.value.can_work_us,
+            is_veteran: pitstop.value.is_veteran,
+            position_applied_for: pitstop.value.position_applied_for,
+            available_start_date: pitstop.value.available_start_date || null,
+            employment_desired: pitstop.value.employment_desired,
+            weekly_schedule: pitstop.value.weekly_schedule,
+            employment_history: pitstop.value.employment_history,
+            education_history: pitstop.value.education_history,
+          })
+        } catch (pitstopError) {
+          console.error('Pit Stop application submission failed:', pitstopError)
+          console.error('Pit Stop data being sent:', {
+            client: clientId,
+            can_work_us: pitstop.value.can_work_us,
+            is_veteran: pitstop.value.is_veteran,
+            position_applied_for: pitstop.value.position_applied_for,
+            available_start_date: pitstop.value.available_start_date || null,
+            employment_desired: pitstop.value.employment_desired,
+            weekly_schedule: pitstop.value.weekly_schedule,
+            employment_history: pitstop.value.employment_history,
+            education_history: pitstop.value.education_history,
+          })
+          // Don't throw error here - client was created successfully
+          error.value = 'Client created successfully, but Pit Stop application failed to save. Please contact support.'
+        }
       }
 
       // Reset form
