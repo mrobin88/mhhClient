@@ -8,13 +8,16 @@ cd /home/site/wwwroot
 
 echo "Starting Django application setup..."
 
+# Set Django settings module
+export DJANGO_SETTINGS_MODULE=config.production_settings
+
 # Run database migrations
 echo "Running database migrations..."
-python manage.py migrate --noinput
+python manage.py migrate --noinput --settings=config.production_settings
 
 # Collect static files
 echo "Collecting static files..."
-python manage.py collectstatic --noinput
+python manage.py collectstatic --noinput --settings=config.production_settings
 
 echo "Setup complete. Starting Gunicorn..."
 
