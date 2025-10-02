@@ -18,6 +18,7 @@ DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 # Azure production hosts - UPDATED TO MATCH YOUR ACTUAL DEPLOYMENT
 ALLOWED_HOSTS = [
     'mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net',
+    '169.254.130.2',  # Azure internal IP
     'localhost',
     '127.0.0.1'
 ]
