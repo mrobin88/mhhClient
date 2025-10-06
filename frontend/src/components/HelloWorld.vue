@@ -26,6 +26,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import axios from 'axios'
+import { getApiUrl } from '../config/api'
 
 const form = ref({
   name: '',
@@ -38,7 +39,7 @@ const error = ref<string | null>(null)
 const submitForm = async () => {
   error.value = null
   try {
-    await axios.post('/api/clients/', form.value)
+    await axios.post(getApiUrl('/api/clients/'), form.value)
     alert('Client saved!')
     form.value = { name: '', phone: '', ssn: '' }
   } catch (err: any) {
