@@ -36,6 +36,8 @@ jobs:
     - name: 'Run tests'
       run: |
         cd backend
+        # Set minimal env vars for test database
+        export DATABASE_PASSWORD=test
         python manage.py test --settings=config.production_settings
 
     - name: 'Collect static files'
