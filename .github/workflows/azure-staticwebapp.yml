@@ -38,7 +38,7 @@ jobs:
           cd frontend
           npm run build
         env:
-          VITE_API_URL: https://mhh-client-backend.azurewebsites.net
+          VITE_API_URL: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net
       
       - name: Build And Deploy
         id: builddeploy
