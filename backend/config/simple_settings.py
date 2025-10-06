@@ -27,7 +27,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_filters',
     'core',
-    'users',
+    'users.apps.UsersConfig',
     'clients',
     'corsheaders',
 ]
@@ -166,8 +166,4 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Admin site customization
-from django.contrib import admin
-admin.site.site_header = "Client Admin"
-admin.site.site_title = "Client Admin"
-admin.site.index_title = "Welcome to Client Admin"
+# Admin site customization moved to users.apps.UsersConfig.ready() to avoid AppRegistryNotReady
