@@ -644,11 +644,15 @@ async function handleSubmit() {
       formData.append('resume', resumeFile.value)
     }
     
-    const response = await axios.post(getApiUrl('/api/clients/'), formData, {
+    const url = getApiUrl('/api/clients/')
+    console.log('[Submit] POST', url)
+    const response = await axios.post(url, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
-      }
+      },
+      validateStatus: () => true
     })
+    console.log('[Submit] Response', response.status, response.data)
     
     if (response.status === 201 || response.status === 200) {
       success.value = true
@@ -734,6 +738,8 @@ async function handleSubmit() {
       if (fileInput) fileInput.value = ''
     }
   } catch (err) {
+    // Network or CORS-layer errors (no response)
+    console.error('[Submit] Error', err)
     if (err.response?.status === 400) {
       error.value = 'Please check all required fields and try again.'
     } else if (err.response?.status === 409) {

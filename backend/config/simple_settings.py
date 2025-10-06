@@ -55,6 +55,10 @@ else:
     CORS_ALLOWED_ORIGINS = cors_origins.split(',') if cors_origins else []
     CORS_ALLOW_CREDENTIALS = True
 
+# CSRF trusted origins (comma-separated list in env)
+csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = csrf_origins.split(',') if csrf_origins else []
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
