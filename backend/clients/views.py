@@ -14,6 +14,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
@@ -38,12 +39,19 @@ class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
     permission_classes = [IsAuthenticated]
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
 
     def get_permissions(self):
         # Allow public client registration (create); require auth otherwise
         if self.action in ['create']:
             return [AllowAny()]
         return super().get_permissions()
+
+    def get_authenticators(self):
+        # Skip SessionAuthentication (and its CSRF check) for public create
+        if getattr(self, 'action', None) == 'create':
+            return []
+        return super().get_authenticators()
     
     @action(detail=False, methods=['get'])
     def export_csv(self, request):
