@@ -1,5 +1,7 @@
 from django.db import models
 from django.core.files.storage import default_storage
+
+# Import extended models at the end of file to avoid circular imports
 from django.urls import reverse
 
 class Client(models.Model):
@@ -342,3 +344,7 @@ class PitStopApplication(models.Model):
     def get_times_for_day(self, day):
         """Get list of time slots for a specific day"""
         return self.weekly_schedule.get(day, [])
+
+
+# Import extended models for worker dispatch system
+from .models_extensions import WorkSite, ClientAvailability, WorkAssignment, CallOutLog
