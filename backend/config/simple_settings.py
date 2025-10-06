@@ -53,11 +53,27 @@ if DEBUG:
 else:
     cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
     CORS_ALLOWED_ORIGINS = cors_origins.split(',') if cors_origins else []
+    # Accept all Azure Static Web Apps subdomains (e.g., with/without shard like .1.)
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        r"^https://.*\\.azurestaticapps\\.net$",
+        r"^https://.*\\.azurewebsites\\.net$",
+    ]
     CORS_ALLOW_CREDENTIALS = True
+    CORS_ALLOW_HEADERS = list(set([
+        'accept', 'accept-encoding', 'authorization', 'content-type', 'dnt', 'origin', 'user-agent', 'x-csrftoken', 'x-requested-with'
+    ]))
 
 # CSRF trusted origins (comma-separated list in env)
 csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '')
-CSRF_TRUSTED_ORIGINS = csrf_origins.split(',') if csrf_origins else []
+if csrf_origins:
+    CSRF_TRUSTED_ORIGINS = csrf_origins.split(',')
+else:
+    # Default to known frontend/backends if env not set
+    CSRF_TRUSTED_ORIGINS = [
+        'https://brave-mud-077eb1810.azurestaticapps.net',
+        'https://brave-mud-077eb1810.1.azurestaticapps.net',
+        'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net',
+    ]
 
 ROOT_URLCONF = 'config.urls'
 
