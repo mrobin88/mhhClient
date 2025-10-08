@@ -347,23 +347,26 @@
                   <label class="form-label">Weekly Schedule Availability</label>
                   <div class="space-y-4">
                     <div v-for="day in days" :key="day" class="bg-white p-4 rounded border">
-                      <div class="flex items-center mb-3">
-                        <input 
-                          type="checkbox" 
-                          :id="'day-' + day"
-                          :checked="isDaySelected(day)"
-                          @change="toggleDay(day)"
-                          class="mr-3 h-4 w-4 text-blue-600"
-                        />
-                        <label :for="'day-' + day" class="text-lg font-semibold">{{ day }}</label>
-                      </div>
-                      <div v-if="isDaySelected(day)" class="ml-7 grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <div class="mb-3 text-lg font-semibold">{{ day }}</div>
+                      <div class="ml-1 grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <label class="inline-flex items-center text-sm">
+                          <input
+                            type="radio"
+                            :name="'slot-' + day"
+                            value="none"
+                            :checked="getSelectedTimeForDay(day) === 'none'"
+                            @change="setSelectedTimeForDay(day, 'none')"
+                            class="mr-2 h-3 w-3 text-blue-600"
+                          />
+                          Not available
+                        </label>
                         <label v-for="shift in shifts" :key="shift.value" class="inline-flex items-center text-sm">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="radio"
+                            :name="'slot-' + day"
                             :value="shift.value"
-                            :checked="isTimeSelectedForDay(day, shift.value)"
-                            @change="toggleTimeForDay(day, shift.value)"
+                            :checked="getSelectedTimeForDay(day) === shift.value"
+                            @change="setSelectedTimeForDay(day, shift.value)"
                             class="mr-2 h-3 w-3 text-blue-600"
                           />
                           {{ shift.label }}
@@ -584,37 +587,17 @@ const handleFileUpload = (event) => {
   }
 }
 
-// Schedule management methods
-const isDaySelected = (day) => {
-  return pitstop.value.weekly_schedule[day] && pitstop.value.weekly_schedule[day].length > 0
+// Weekly schedule: single selection per day
+const getSelectedTimeForDay = (day) => {
+  const slots = pitstop.value.weekly_schedule[day]
+  return slots && slots.length > 0 ? slots[0] : 'none'
 }
 
-const isTimeSelectedForDay = (day, timeSlot) => {
-  return pitstop.value.weekly_schedule[day] && pitstop.value.weekly_schedule[day].includes(timeSlot)
-}
-
-const toggleDay = (day) => {
-  if (!pitstop.value.weekly_schedule[day] || pitstop.value.weekly_schedule[day].length === 0) {
-    // Day not selected, select it with no time slots initially
-    pitstop.value.weekly_schedule[day] = []
-  } else {
-    // Day is selected, deselect it
+const setSelectedTimeForDay = (day, value) => {
+  if (value === 'none') {
     delete pitstop.value.weekly_schedule[day]
-  }
-}
-
-const toggleTimeForDay = (day, timeSlot) => {
-  if (!pitstop.value.weekly_schedule[day]) {
-    pitstop.value.weekly_schedule[day] = []
-  }
-  
-  const index = pitstop.value.weekly_schedule[day].indexOf(timeSlot)
-  if (index > -1) {
-    // Time slot exists, remove it
-    pitstop.value.weekly_schedule[day].splice(index, 1)
   } else {
-    // Time slot doesn't exist, add it
-    pitstop.value.weekly_schedule[day].push(timeSlot)
+    pitstop.value.weekly_schedule[day] = [value]
   }
 }
 
