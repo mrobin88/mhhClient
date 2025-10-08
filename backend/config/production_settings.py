@@ -74,6 +74,16 @@ if os.getenv('CORS_ALLOWED_ORIGINS'):
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only allow all origins in debug mode
 
+# CSRF trusted origins
+_csrf_from_env = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if _csrf_from_env:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_from_env.split(',') if o.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net',
+        'https://*.azurestaticapps.net',
+    ]
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [

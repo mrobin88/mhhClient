@@ -287,10 +287,13 @@ class Document(models.Model):
 
     @property
     def download_url(self):
-        """Generate secure download URL"""
-        if self.file:
-            return reverse('document-download', kwargs={'pk': self.pk})
-        return None
+        """Generate secure download URL (preferred SAS, fallback to API route)."""
+        if not self.file:
+            return None
+        sas = self.generate_sas_download_url()
+        if sas:
+            return sas
+        return reverse('document-download', kwargs={'pk': self.pk})
 
 
 class PitStopApplication(models.Model):
