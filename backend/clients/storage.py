@@ -15,8 +15,9 @@ class AzurePrivateStorage(AzureStorage):
     """
     account_name = os.getenv('AZURE_ACCOUNT_NAME')
     account_key = os.getenv('AZURE_ACCOUNT_KEY')
-    azure_container = 'client-docs'
-    expiration_secs = None  # No public access
+    azure_container = os.getenv('AZURE_CONTAINER', 'client-docs')
+    # Generate short-lived SAS URLs when calling file.url
+    expiration_secs = int(os.getenv('AZURE_URL_EXPIRATION_SECS', '900'))
     overwrite_files = False  # Don't overwrite existing files
     
     def __init__(self, *args, **kwargs):
@@ -38,11 +39,18 @@ def generate_document_sas_url(blob_name, expiry_minutes=15):
     """
     account_name = os.getenv('AZURE_ACCOUNT_NAME')
     account_key = os.getenv('AZURE_ACCOUNT_KEY')
-    container_name = 'client-docs'
+    container_name = os.getenv('AZURE_CONTAINER', 'client-docs')
     
     if not all([account_name, account_key]):
         raise ValueError("Azure storage credentials not configured")
     
+    # Normalize blob name: strip leading slashes and container prefix if present
+    if blob_name.startswith('/'):
+        blob_name = blob_name.lstrip('/')
+    prefix = f"{container_name}/"
+    if blob_name.startswith(prefix):
+        blob_name = blob_name[len(prefix):]
+
     # Generate SAS token
     sas_token = generate_blob_sas(
         account_name=account_name,
