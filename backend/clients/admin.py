@@ -8,6 +8,8 @@ from django.db.models import Count, Q
 from datetime import datetime, timedelta
 import csv
 import io
+from django.shortcuts import redirect
+from django.contrib import messages
 from .models import Client, CaseNote, Document, PitStopApplication
 
 # Try to import WeasyPrint for PDF generation
@@ -226,6 +228,20 @@ class ClientAdmin(admin.ModelAdmin):
             self.message_user(request, f'PDF generation failed: {str(e)}', level='error')
     
     export_client_profiles_pdf.short_description = "Export client profiles as PDF"
+
+    # --- Safe delete handling ---
+    def response_delete(self, request, obj_display, obj_id):
+        """Redirect to the admin index after successful delete to avoid heavy related lookups."""
+        messages.success(request, f"Deleted {obj_display} successfully.")
+        return redirect('admin:index')
+
+    def delete_view(self, request, object_id, extra_context=None):
+        """Wrap delete view to handle unexpected errors gracefully and redirect to admin index."""
+        try:
+            return super().delete_view(request, object_id, extra_context=extra_context)
+        except Exception as exc:  # Guard against unexpected cascade/introspection errors
+            messages.error(request, f"Delete failed due to: {exc}")
+            return redirect('admin:index')
 
 
 @admin.register(Document)
