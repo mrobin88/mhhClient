@@ -67,13 +67,12 @@ else:
 # CSRF trusted origins (comma-separated list in env)
 csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '')
 if csrf_origins:
-    CSRF_TRUSTED_ORIGINS = csrf_origins.split(',')
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins.split(',') if o.strip()]
 else:
-    # Default to known frontend/backends if env not set
+    # Defaults suitable for production deployment
     CSRF_TRUSTED_ORIGINS = [
-        'https://brave-mud-077eb1810.azurestaticapps.net',
-        'https://brave-mud-077eb1810.1.azurestaticapps.net',
         'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net',
+        'https://*.azurestaticapps.net',
     ]
 
 ROOT_URLCONF = 'config.urls'

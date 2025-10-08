@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'storages',  # Django-storages for Azure Blob Storage
     'core',
-    'users',
+    'users.apps.UsersConfig',
     'clients',
 ]
 
