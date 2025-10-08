@@ -283,14 +283,9 @@ class PitStopApplication(models.Model):
     """Application details for the Pit Stop Program"""
 
     SHIFT_CHOICES = [
-        ('7-4', '7am-4pm'),
-        ('8-5', '8am-5pm'),
-        ('9-5', '9am-5pm'),
-        ('10-7', '10am-7pm'),
-        ('12-9', '12pm-9pm'),
-        ('18-3', '6pm-3am'),
-        ('21-6', '9pm-6am'),
-        ('23-8', '11pm-8am'),
+        ('6-12', '6am-12pm'),
+        ('13-21', '1pm-9pm'),
+        ('22-5', '10pm-5am'),
     ]
 
     EMPLOYMENT_DESIRED_CHOICES = [

@@ -536,14 +536,9 @@ const form = ref({
 
 const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 const shifts = [
-  { value: '7-4', label: '7am-4pm' },
-  { value: '8-5', label: '8am-5pm' },
-  { value: '9-5', label: '9am-5pm' },
-  { value: '10-7', label: '10am-7pm' },
-  { value: '12-9', label: '12pm-9pm' },
-  { value: '18-3', label: '6pm-3am' },
-  { value: '21-6', label: '9pm-6am' },
-  { value: '23-8', label: '11pm-8am' },
+  { value: '6-12', label: '6am-12pm' },
+  { value: '13-21', label: '1pm-9pm' },
+  { value: '22-5', label: '10pm-5am' },
 ]
 
 const pitstop = ref({

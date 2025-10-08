@@ -28,6 +28,10 @@ class WorkSite(models.Model):
     # Shift information
     typical_start_time = models.TimeField(help_text='Typical shift start time')
     typical_end_time = models.TimeField(help_text='Typical shift end time')
+    available_time_slots = models.JSONField(
+        default=list,
+        help_text='Available time slots: ["6-12", "13-21", "22-5"]'
+    )
     max_workers_per_shift = models.IntegerField(default=2, help_text='Maximum workers per shift')
     
     # Status
@@ -73,11 +77,23 @@ class ClientAvailability(models.Model):
         ('sunday', 'Sunday')
     ]
     
+    TIME_SLOT_CHOICES = [
+        ('6-12', '6am-12pm'),
+        ('13-21', '1pm-9pm'),
+        ('22-5', '10pm-5am'),
+    ]
+    
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='availability')
     
     # Regular weekly availability
     day_of_week = models.CharField(max_length=10, choices=DAY_CHOICES)
     available = models.BooleanField(default=True)
+    preferred_time_slots = models.JSONField(
+        default=list,
+        help_text='List of preferred time slots: ["6-12", "13-21", "22-5"]'
+    )
+    
+    # Legacy time fields (for backward compatibility)
     start_time = models.TimeField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
     
