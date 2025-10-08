@@ -258,10 +258,14 @@ class Document(models.Model):
         return f"{self.client.full_name} - {self.title}"
 
     def save(self, *args, **kwargs):
-        """Auto-populate file metadata on save"""
-        if self.file:
-            self.file_size = self.file.size
-            self.content_type = getattr(self.file.file, 'content_type', None)
+        """Auto-populate file metadata on save; fail-soft if storage backend errors."""
+        try:
+            if self.file:
+                self.file_size = self.file.size
+                self.content_type = getattr(self.file.file, 'content_type', None)
+        except Exception:
+            # If storage backend is unreachable, skip metadata but still save DB row
+            pass
         super().save(*args, **kwargs)
 
     @property

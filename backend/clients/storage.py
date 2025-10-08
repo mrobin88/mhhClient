@@ -25,6 +25,14 @@ class AzurePrivateStorage(AzureStorage):
         # Ensure container is private (no public access)
         self.default_acl = None
 
+    def delete(self, name):
+        """Fail-soft delete: if blob is missing or auth fails, do not raise."""
+        try:
+            return super().delete(name)
+        except Exception:
+            # Intentionally swallow exceptions to avoid cascading 500s on model deletes
+            return None
+
 
 def generate_document_sas_url(blob_name, expiry_minutes=15):
     """

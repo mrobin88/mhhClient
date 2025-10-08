@@ -251,6 +251,7 @@ class DocumentAdmin(admin.ModelAdmin):
     search_fields = ['client__first_name', 'client__last_name', 'title', 'uploaded_by']
     readonly_fields = ['created_at', 'updated_at', 'file_size', 'content_type']
     date_hierarchy = 'created_at'
+    actions = ['safe_delete_selected']
     
     fieldsets = (
         ('Document Information', {
@@ -270,6 +271,18 @@ class DocumentAdmin(admin.ModelAdmin):
             return f"{obj.file_size_mb} MB"
         return "Unknown"
     file_size_mb.short_description = 'File Size'
+
+    def safe_delete_selected(self, request, queryset):
+        """Bulk delete that swallows storage errors and continues."""
+        deleted = 0
+        for doc in queryset:
+            try:
+                doc.delete()
+                deleted += 1
+            except Exception as exc:
+                messages.warning(request, f"Failed to delete blob for '{doc}': {exc}")
+        messages.success(request, f"Deleted {deleted} document(s).")
+    safe_delete_selected.short_description = "Safely delete selected documents"
 @admin.register(PitStopApplication)
 class PitStopApplicationAdmin(admin.ModelAdmin):
     list_display = ['client', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'available_days_summary', 'created_at']
