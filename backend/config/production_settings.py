@@ -147,22 +147,19 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Media files - Azure Blob Storage Configuration
-MEDIA_URL = '/media/'
+"""Public blob access: serve media from Azure Blob static URLs."""
+AZURE_ACCOUNT_NAME = os.getenv('AZURE_ACCOUNT_NAME')
+AZURE_CONTAINER = os.getenv('AZURE_CONTAINER', 'client-docs')
+if AZURE_ACCOUNT_NAME:
+    MEDIA_URL = f'https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/'
+else:
+    MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Azure Blob Storage for client documents
+# Public container: still use django-storages backend for uploads
 if os.getenv('AZURE_ACCOUNT_NAME') and os.getenv('AZURE_ACCOUNT_KEY'):
-    # Use Azure Blob Storage for file uploads in production
     DEFAULT_FILE_STORAGE = 'clients.storage.AzurePrivateStorage'
-    
-    # Azure Storage settings
-    AZURE_ACCOUNT_NAME = os.getenv('AZURE_ACCOUNT_NAME')
-    AZURE_ACCOUNT_KEY = os.getenv('AZURE_ACCOUNT_KEY')
-    AZURE_CONTAINER = 'client-docs'
-    AZURE_CUSTOM_DOMAIN = f'{AZURE_ACCOUNT_NAME}.blob.core.windows.net'
 else:
-    # Fallback to local file storage for development
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 
 # Default primary key field type

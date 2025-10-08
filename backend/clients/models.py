@@ -270,13 +270,8 @@ class Document(models.Model):
 
     def generate_sas_download_url(self, expiry_minutes=15):
         """Generate a signed Azure SAS URL for direct download."""
-        if not self.file:
-            return None
-        try:
-            from .storage import generate_document_sas_url
-            return generate_document_sas_url(self.file.name, expiry_minutes=expiry_minutes)
-        except Exception:
-            return None
+        # Public access: SAS not needed; use direct URL
+        return self.file.url if self.file else None
 
     @property
     def file_size_mb(self):

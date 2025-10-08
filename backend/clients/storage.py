@@ -16,8 +16,8 @@ class AzurePrivateStorage(AzureStorage):
     account_name = os.getenv('AZURE_ACCOUNT_NAME')
     account_key = os.getenv('AZURE_ACCOUNT_KEY')
     azure_container = os.getenv('AZURE_CONTAINER', 'client-docs')
-    # Generate short-lived SAS URLs when calling file.url
-    expiration_secs = int(os.getenv('AZURE_URL_EXPIRATION_SECS', '900'))
+    # Public container: return direct URLs (no SAS)
+    expiration_secs = None
     overwrite_files = False  # Don't overwrite existing files
     
     def __init__(self, *args, **kwargs):
