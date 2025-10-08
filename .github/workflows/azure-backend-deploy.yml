@@ -18,7 +18,21 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_USER: testuser
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
     - name: 'Checkout GitHub Action'
       uses: actions/checkout@v4
@@ -36,6 +50,12 @@ jobs:
     - name: 'Run tests'
       run: |
         cd backend
+        # Set test database to PostgreSQL to match production
+        export DATABASE_PASSWORD="testpass"
+        export DATABASE_NAME="testdb"
+        export DATABASE_USER="testuser"
+        export DATABASE_HOST="localhost"
+        export DATABASE_PORT="5432"
         python manage.py test --settings=config.simple_settings
 
     - name: 'Collect static files'
