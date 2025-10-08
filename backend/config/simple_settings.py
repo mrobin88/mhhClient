@@ -102,6 +102,10 @@ if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
     # Parse DATABASE_URL
     import urllib.parse as urlparse
     url = urlparse.urlparse(DATABASE_URL)
+    host = url.hostname or ''
+    # Decide SSL mode: disable for localhost, require otherwise; allow override via env
+    default_sslmode = 'disable' if host in ('localhost', '127.0.0.1') else 'require'
+    sslmode = os.getenv('DATABASE_SSLMODE', default_sslmode)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -111,22 +115,25 @@ if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
             'HOST': url.hostname,
             'PORT': url.port or 5432,
             'OPTIONS': {
-                'sslmode': 'require',
+                'sslmode': sslmode,
             },
         }
     }
 elif os.getenv('DATABASE_PASSWORD'):
     # Use PostgreSQL with individual environment variables
+    host = os.getenv('DATABASE_HOST', 'mhh-client-postgres.postgres.database.azure.com')
+    default_sslmode = 'disable' if host in ('localhost', '127.0.0.1') else 'require'
+    sslmode = os.getenv('DATABASE_SSLMODE', default_sslmode)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.getenv('DATABASE_NAME', 'mhh_client_db'),
             'USER': os.getenv('DATABASE_USER', 'mhhsupport'),
             'PASSWORD': os.getenv('DATABASE_PASSWORD'),
-            'HOST': os.getenv('DATABASE_HOST', 'mhh-client-postgres.postgres.database.azure.com'),
+            'HOST': host,
             'PORT': os.getenv('DATABASE_PORT', '5432'),
             'OPTIONS': {
-                'sslmode': 'require',
+                'sslmode': sslmode,
             },
         }
     }

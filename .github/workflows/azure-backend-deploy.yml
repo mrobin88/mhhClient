@@ -51,6 +51,7 @@ jobs:
       run: |
         cd backend
         # Set test database to PostgreSQL to match production
+        export DATABASE_SSLMODE=disable
         export DATABASE_PASSWORD="testpass"
         export DATABASE_NAME="testdb"
         export DATABASE_USER="testuser"
