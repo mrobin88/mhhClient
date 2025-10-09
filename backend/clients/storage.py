@@ -25,6 +25,20 @@ class AzurePrivateStorage(AzureStorage):
         # Ensure container is private (no public access)
         self.default_acl = None
 
+    def _normalize_name(self, name: str) -> str:
+        if not name:
+            return name
+        name = name.lstrip('/')
+        prefix = f"{self.azure_container}/"
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+        return name
+
+    def url(self, name):
+        # Normalize legacy names that include the container prefix twice
+        name = self._normalize_name(name)
+        return super().url(name)
+
     def delete(self, name):
         """Fail-soft delete: if blob is missing or auth fails, do not raise."""
         try:

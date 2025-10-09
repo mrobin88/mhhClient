@@ -119,7 +119,7 @@ class Client(models.Model):
     additional_notes = models.TextField(blank=True, null=True)
     
     # Resume & Documents
-    resume = models.FileField(upload_to='client-docs/resumes/', blank=True, null=True, help_text='Upload client resume')
+    resume = models.FileField(upload_to='resumes/', blank=True, null=True, help_text='Upload client resume')
     
     # Status & Tracking
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -237,7 +237,7 @@ class Document(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='documents')
     title = models.CharField(max_length=255, help_text='Document title or description')
     doc_type = models.CharField(max_length=20, choices=DOC_TYPE_CHOICES, default='other')
-    file = models.FileField(upload_to='client-docs/', help_text='Upload document file')
+    file = models.FileField(upload_to='documents/', help_text='Upload document file')
 
     # Metadata
     file_size = models.PositiveIntegerField(null=True, blank=True, help_text='File size in bytes')
