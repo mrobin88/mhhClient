@@ -337,9 +337,9 @@
                   <div>
                     <label class="form-label">Employment desired</label>
                     <div class="flex gap-4">
-                      <label class="inline-flex items-center"><input type="radio" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
-                      <label class="inline-flex items-center"><input type="radio" value="part_time" v-model="pitstop.employment_desired" class="mr-2"/> Part-time</label>
-                      <label class="inline-flex items-center"><input type="radio" value="relief_list" v-model="pitstop.employment_desired" class="mr-2"/> Relief List</label>
+                      <label class="inline-flex items-center"><input type="checkbox" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
+                      <label class="inline-flex items-center"><input type="checkbox" value="part_time" v-model="pitstop.employment_desired" class="mr-2"/> Part-time</label>
+                      <label class="inline-flex items-center"><input type="checkbox" value="relief_list" v-model="pitstop.employment_desired" class="mr-2"/> Relief List</label>
                     </div>
                   </div>
                 </div>
@@ -348,25 +348,13 @@
                   <div class="space-y-4">
                     <div v-for="day in days" :key="day" class="bg-white p-4 rounded border">
                       <div class="mb-3 text-lg font-semibold">{{ day }}</div>
-                      <div class="ml-1 grid grid-cols-2 md:grid-cols-4 gap-2">
-                        <label class="inline-flex items-center text-sm">
-                          <input
-                            type="radio"
-                            :name="'slot-' + day"
-                            value="none"
-                            :checked="getSelectedTimeForDay(day) === 'none'"
-                            @change="setSelectedTimeForDay(day, 'none')"
-                            class="mr-2 h-3 w-3 text-blue-600"
-                          />
-                          Not available
-                        </label>
+                      <div class="ml-1 grid grid-cols-2 md:grid-cols-3 gap-2">
                         <label v-for="shift in shifts" :key="shift.value" class="inline-flex items-center text-sm">
                           <input
-                            type="radio"
-                            :name="'slot-' + day"
+                            type="checkbox"
                             :value="shift.value"
-                            :checked="getSelectedTimeForDay(day) === shift.value"
-                            @change="setSelectedTimeForDay(day, shift.value)"
+                            :checked="isTimeSelectedForDay(day, shift.value)"
+                            @change="toggleTimeForDay(day, shift.value)"
                             class="mr-2 h-3 w-3 text-blue-600"
                           />
                           {{ shift.label }}
@@ -539,9 +527,15 @@ const form = ref({
 
 const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 const shifts = [
-  { value: '6-12', label: '6am-12pm' },
-  { value: '13-21', label: '1pm-9pm' },
-  { value: '22-5', label: '10pm-5am' },
+  { value: '7-4', label: '7:00AM - 4:00PM' },
+  { value: '8-5', label: '8:00AM - 5:00PM' },
+  { value: '9-6', label: '9:00AM - 6:00PM' },
+  { value: '10-7', label: '10:00AM - 7:00PM' },
+  { value: '11-8', label: '11:00AM - 8:00PM' },
+  { value: '12-9', label: '12:00PM - 9:00PM' },
+  { value: '18-3', label: '6:00PM - 3:00AM' },
+  { value: '21-6', label: '9:00PM - 6:00AM' },
+  { value: '23-8', label: '11:00PM - 8:00AM' },
 ]
 
 const pitstop = ref({
@@ -587,17 +581,24 @@ const handleFileUpload = (event) => {
   }
 }
 
-// Weekly schedule: single selection per day
-const getSelectedTimeForDay = (day) => {
-  const slots = pitstop.value.weekly_schedule[day]
-  return slots && slots.length > 0 ? slots[0] : 'none'
+// Weekly schedule: multiple selections per day
+const isTimeSelectedForDay = (day, value) => {
+  const slots = pitstop.value.weekly_schedule[day] || []
+  return slots.includes(value)
 }
 
-const setSelectedTimeForDay = (day, value) => {
-  if (value === 'none') {
+const toggleTimeForDay = (day, value) => {
+  const current = pitstop.value.weekly_schedule[day] || []
+  const idx = current.indexOf(value)
+  if (idx >= 0) {
+    current.splice(idx, 1)
+  } else {
+    current.push(value)
+  }
+  if (current.length === 0) {
     delete pitstop.value.weekly_schedule[day]
   } else {
-    pitstop.value.weekly_schedule[day] = [value]
+    pitstop.value.weekly_schedule[day] = [...current]
   }
 }
 
