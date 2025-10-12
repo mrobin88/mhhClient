@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.files.storage import default_storage
+import logging
 
 # Import extended models at the end of file to avoid circular imports
 from django.urls import reverse
@@ -263,15 +264,46 @@ class Document(models.Model):
             if self.file:
                 self.file_size = self.file.size
                 self.content_type = getattr(self.file.file, 'content_type', None)
+                try:
+                    # Log storage path and computed URL for troubleshooting
+                    logging.getLogger('clients').info(
+                        'Saving Document %s: blob_name=%s url=%s',
+                        self.pk or 'new',
+                        getattr(self.file, 'name', ''),
+                        getattr(self.file, 'url', ''),
+                    )
+                except Exception:
+                    # Accessing url may fail if storage not available yet
+                    pass
         except Exception:
             # If storage backend is unreachable, skip metadata but still save DB row
             pass
         super().save(*args, **kwargs)
 
     def generate_sas_download_url(self, expiry_minutes=15):
-        """Generate a signed Azure SAS URL for direct download."""
-        # Public access: SAS not needed; use direct URL
-        return self.file.url if self.file else None
+        """Generate a signed Azure SAS URL for direct download.
+        If storage is configured to generate signed URLs automatically, use file.url.
+        Otherwise, fall back to explicit SAS generation utility.
+        """
+        if not self.file:
+            return None
+        try:
+            # If backend is Azure with expiration set, this will already be a SAS URL
+            url = self.file.url
+            if url and 'blob.core.windows.net' in url:
+                return url
+        except Exception as exc:
+            logging.getLogger('clients').warning('Failed to read file.url for Document %s: %s', self.pk, exc)
+        # Fallback: manually generate SAS URL using stored blob name
+        try:
+            from .storage import generate_document_sas_url
+            blob_name = self.file.name
+            sas_url = generate_document_sas_url(blob_name, expiry_minutes=expiry_minutes)
+            logging.getLogger('clients').info('Generated SAS URL for Document %s blob=%s', self.pk, blob_name)
+            return sas_url
+        except Exception as exc:
+            logging.getLogger('clients').error('SAS generation failed for Document %s: %s', self.pk, exc)
+            return None
 
     @property
     def file_size_mb(self):

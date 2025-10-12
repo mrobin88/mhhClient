@@ -21,6 +21,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Client, CaseNote, Document, PitStopApplication
 from .serializers import ClientSerializer, CaseNoteSerializer, PitStopApplicationSerializer
 from .storage import generate_document_sas_url
+import logging
 
 try:
     from weasyprint import HTML, CSS
@@ -172,20 +173,20 @@ class DocumentDownloadView(View):
             if not request.user.is_authenticated:
                 raise Http404("Document not found")
             
-            # Generate SAS URL for secure download
+            # Generate SAS URL for secure download (prefer model helper)
             if document.file:
                 try:
-                    # Extract blob name from file path
-                    blob_name = document.file.name
-                    sas_url = generate_document_sas_url(blob_name, expiry_minutes=15)
-                    
+                    sas_url = document.generate_sas_download_url(expiry_minutes=15)
+                    if not sas_url:
+                        raise ValueError('SAS URL generation returned empty')
+                    logging.getLogger('clients').info('Download URL generated for Document %s: %s', document.pk, sas_url)
                     return JsonResponse({
                         'download_url': sas_url,
                         'filename': document.title,
                         'expires_in_minutes': 15
                     })
-                    
                 except Exception as e:
+                    logging.getLogger('clients').error('Download URL generation failed for Document %s: %s', document.pk, e)
                     return JsonResponse({
                         'error': f'Failed to generate download URL: {str(e)}'
                     }, status=500)

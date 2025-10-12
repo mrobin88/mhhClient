@@ -3,6 +3,8 @@ Azure Blob Storage configuration for client documents
 """
 
 import os
+import logging
+from urllib.parse import quote
 from django.conf import settings
 from storages.backends.azure_storage import AzureStorage
 from azure.storage.blob import generate_blob_sas, BlobSasPermissions
@@ -16,9 +18,10 @@ class AzurePrivateStorage(AzureStorage):
     account_name = os.getenv('AZURE_ACCOUNT_NAME')
     account_key = os.getenv('AZURE_ACCOUNT_KEY')
     azure_container = os.getenv('AZURE_CONTAINER', 'client-docs')
-    # Public container: return direct URLs (no SAS)
-    expiration_secs = None
-    overwrite_files = False  # Don't overwrite existing files
+    # Private container: generate short-lived SAS in urls
+    expiration_secs = 15 * 60  # 15 minutes
+    # Do not overwrite existing files
+    overwrite_files = False
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -70,7 +73,9 @@ def generate_document_sas_url(blob_name, expiry_minutes=15):
     )
     
     # Construct the full URL
-    blob_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{blob_name}"
+    # URL-encode blob path but keep slashes
+    encoded_blob_path = quote(blob_name, safe='/')
+    blob_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{encoded_blob_path}"
     return f"{blob_url}?{sas_token}"
 
 
@@ -82,6 +87,7 @@ def get_azure_container_client():
     
     account_name = os.getenv('AZURE_ACCOUNT_NAME')
     account_key = os.getenv('AZURE_ACCOUNT_KEY')
+    container_name = os.getenv('AZURE_CONTAINER', 'client-docs')
     
     if not all([account_name, account_key]):
         return None
@@ -90,5 +96,15 @@ def get_azure_container_client():
         account_url=f"https://{account_name}.blob.core.windows.net",
         credential=account_key
     )
-    
-    return blob_service_client.get_container_client('client-docs')
+    container_client = blob_service_client.get_container_client(container_name)
+    try:
+        exists = container_client.exists()
+        if not exists:
+            logging.getLogger('clients').warning(
+                "Azure blob container does not exist: account=%s container=%s",
+                account_name,
+                container_name,
+            )
+    except Exception as exc:
+        logging.getLogger('clients').warning("Failed to verify Azure container existence: %s", exc)
+    return container_client
