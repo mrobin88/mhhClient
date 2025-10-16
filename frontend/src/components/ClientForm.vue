@@ -337,9 +337,9 @@
                   <div>
                     <label class="form-label">Employment desired</label>
                     <div class="flex gap-4">
-                      <label class="inline-flex items-center"><input type="checkbox" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
-                      <label class="inline-flex items-center"><input type="checkbox" value="part_time" v-model="pitstop.employment_desired" class="mr-2"/> Part-time</label>
-                      <label class="inline-flex items-center"><input type="checkbox" value="relief_list" v-model="pitstop.employment_desired" class="mr-2"/> Relief List</label>
+                      <label class="inline-flex items-center"><input type="radio" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
+                      <label class="inline-flex items-center"><input type="radio" value="part_time" v-model="pitstop.employment_desired" class="mr-2"/> Part-time</label>
+                      <label class="inline-flex items-center"><input type="radio" value="relief_list" v-model="pitstop.employment_desired" class="mr-2"/> Relief List</label>
                     </div>
                   </div>
                 </div>
@@ -525,7 +525,7 @@ const form = ref({
   additional_notes: '',
 })
 
-const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 const shifts = [
   { value: '7-4', label: '7:00AM - 4:00PM' },
   { value: '8-5', label: '8:00AM - 5:00PM' },
@@ -701,7 +701,7 @@ async function handleSubmit() {
         is_veteran: false,
         position_applied_for: 'Pit Stop Attendant',
         available_start_date: '',
-        employment_desired: 'full_time',
+        employment_desired: [],
         weekly_schedule: {},
         employment_history: [
           { company: '', title: '', city: '', state: '', manager: '', phone: '', start_date: '', end_date: '', responsibilities: '' }
