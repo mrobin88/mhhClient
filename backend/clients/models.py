@@ -326,17 +326,15 @@ class Document(models.Model):
 class PitStopApplication(models.Model):
     """Application details for the Pit Stop Program"""
 
-    SHIFT_CHOICES = [
-        ('6-12', '6am-12pm'),
-        ('13-21', '1pm-9pm'),
-        ('22-5', '10pm-5am'),
-    ]
-
+    # Employment type choices (stored as JSONField array in employment_desired)
     EMPLOYMENT_DESIRED_CHOICES = [
         ('full_time', 'Full-time'),
         ('part_time', 'Part-time'),
         ('relief_list', 'Relief List'),
     ]
+    
+    # Shift time slots used in weekly_schedule JSONField
+    # Frontend uses: '7-4', '8-5', '9-6', '10-7', '11-8', '12-9', '18-3', '21-6', '23-8'
 
     # Link to client
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='pitstop_applications')
@@ -348,7 +346,10 @@ class PitStopApplication(models.Model):
     # Position and start
     position_applied_for = models.CharField(max_length=100)
     available_start_date = models.DateField(blank=True, null=True)
-    employment_desired = models.CharField(max_length=20, choices=EMPLOYMENT_DESIRED_CHOICES)
+    employment_desired = models.JSONField(
+        default=list,
+        help_text='Employment types desired: ["full_time", "part_time", "relief_list"] - can select multiple'
+    )
 
     # Weekly availability: store schedule for each day with time preferences
     weekly_schedule = models.JSONField(
