@@ -53,13 +53,13 @@ class CaseNoteAdmin(admin.ModelAdmin):
 class ClientAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'job_placed', 'program_completed_date', 'has_resume', 'case_notes_count', 'created_at']
     list_filter = ['status', 'training_interest', 'job_placed', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
-    search_fields = ['first_name', 'last_name', 'phone', 'ssn', 'job_title', 'job_company']
-    readonly_fields = ['created_at', 'updated_at', 'case_notes_count']
+    search_fields = ['first_name', 'last_name', 'phone', 'job_title', 'job_company']
+    readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn']
     date_hierarchy = 'created_at'
     
     fieldsets = (
         ('Personal Information', {
-            'fields': ('first_name', 'middle_name', 'last_name', 'dob', 'ssn', 'phone', 'email', 'gender')
+            'fields': ('first_name', 'middle_name', 'last_name', 'dob', 'masked_ssn', 'phone', 'email', 'gender')
         }),
         ('Address', {
             'fields': ('address', 'city', 'state', 'zip_code')
@@ -101,6 +101,54 @@ class ClientAdmin(admin.ModelAdmin):
             return format_html('<a href="{}">{} notes</a>', url, count)
         return '0 notes'
     case_notes_count.short_description = 'Case Notes'
+    
+    def masked_ssn(self, obj):
+        """Show masked SSN (only last 4 digits) for non-superusers"""
+        if not obj.ssn:
+            return format_html('<span style="color: gray;">Not provided</span>')
+        
+        # Get request from threadlocal or check if we're in a superuser context
+        from django.contrib.admin.views.main import ChangeList
+        request = getattr(self, '_current_request', None)
+        
+        # Superusers can see full SSN
+        if request and request.user.is_superuser:
+            return obj.ssn
+        
+        # Mask SSN for regular users - show only last 4 digits
+        if len(obj.ssn) >= 4:
+            return f"XXX-XX-{obj.ssn[-4:]}"
+        return "XXX-XX-XXXX"
+    
+    masked_ssn.short_description = 'SSN'
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Store request for later use and configure readonly fields"""
+        self._current_request = request
+        readonly = list(super().get_readonly_fields(request, obj))
+        # masked_ssn is always readonly since it's a display method
+        return readonly
+    
+    def get_fields(self, request, obj=None):
+        """Allow superusers to edit actual SSN field"""
+        self._current_request = request
+        fields = list(super().get_fields(request, obj))
+        
+        # For superusers, show both masked view and editable SSN field
+        if request.user.is_superuser and obj:
+            # Find where masked_ssn is and add actual ssn field after it
+            personal_info_fields = list(self.fieldsets[0][1]['fields'])
+            if 'masked_ssn' in personal_info_fields and 'ssn' not in personal_info_fields:
+                # Replace masked_ssn with ssn for superusers in edit mode
+                idx = personal_info_fields.index('masked_ssn')
+                personal_info_fields[idx] = 'ssn'
+                self.fieldsets = (
+                    ('Personal Information', {
+                        'fields': tuple(personal_info_fields)
+                    }),
+                ) + self.fieldsets[1:]
+        
+        return fields
     
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related('casenotes')
