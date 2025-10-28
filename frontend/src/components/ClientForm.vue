@@ -196,24 +196,28 @@
               </div>
               <div>
                 <label class="form-label">Weekly Schedule Availability</label>
-                <p class="text-xs text-slate-600 mb-3">Click time slots when available to work</p>
-                <div class="space-y-2">
-                  <div v-for="day in days" :key="day" class="bg-white p-3 rounded-lg border border-slate-200">
-                    <div class="flex items-center gap-3">
-                      <span class="text-sm font-semibold text-slate-700 w-24 flex-shrink-0">{{ day }}</span>
-                      <div class="flex flex-wrap gap-2">
-                        <button
-                          v-for="shift in shifts"
-                          :key="shift.value"
-                          type="button"
-                          @click="toggleTimeForDay(day, shift.value)"
-                          :class="[
-                            'time-slot-compact',
-                            isTimeSelectedForDay(day, shift.value) ? 'time-slot-active' : 'time-slot-inactive'
-                          ]"
-                        >
-                          {{ shift.label }}
-                        </button>
+                <p class="text-xs text-slate-600 mb-3">Select all available time slots</p>
+                <div class="overflow-x-auto">
+                  <div class="min-w-[640px] space-y-2">
+                    <div v-for="day in days" :key="day" class="bg-white p-2.5 rounded-lg border border-slate-200">
+                      <div class="grid grid-cols-[100px_1fr] gap-3 items-center">
+                        <span class="text-sm font-semibold text-slate-700">{{ day }}</span>
+                        <div class="grid grid-cols-3 gap-2">
+                          <button
+                            v-for="shift in shifts"
+                            :key="shift.value"
+                            type="button"
+                            @click="toggleTimeForDay(day, shift.value)"
+                            :class="[
+                              'time-slot-compact',
+                              isTimeSelectedForDay(day, shift.value) ? 'time-slot-active' : 'time-slot-inactive'
+                            ]"
+                            :title="shift.label"
+                          >
+                            <span class="font-semibold">{{ shift.value }}</span>
+                            <span class="text-[10px] block leading-tight opacity-75">{{ getShiftLabel(shift.value) }}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -713,6 +717,21 @@ const toggleTimeForDay = (day, value) => {
   }
 }
 
+const getShiftLabel = (value) => {
+  const labels = {
+    '7-4': '7am-4pm',
+    '8-5': '8am-5pm',
+    '9-6': '9am-6pm',
+    '10-7': '10am-7pm',
+    '11-8': '11am-8pm',
+    '12-9': '12pm-9pm',
+    '18-3': '6pm-3am',
+    '21-6': '9pm-6am',
+    '23-8': '11pm-8am',
+  }
+  return labels[value] || value
+}
+
 async function handleSubmit() {
   formAttempted.value = true
   error.value = ''
@@ -1048,15 +1067,19 @@ async function handleSubmit() {
 
 /* Time Slot Compact Styles */
 .time-slot-compact {
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.375rem;
-  border: 1.5px solid #e2e8f0;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  border: 2px solid #e2e8f0;
   background: white;
   transition: all 0.15s ease;
   cursor: pointer;
   font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
 }
 
 .time-slot-inactive {
@@ -1067,6 +1090,7 @@ async function handleSubmit() {
   border-color: #3b82f6;
   background: #eff6ff;
   color: #2563eb;
+  transform: translateY(-1px);
 }
 
 .time-slot-active {
@@ -1076,7 +1100,7 @@ async function handleSubmit() {
 }
 
 .time-slot-compact:active {
-  transform: scale(0.95);
+  transform: scale(0.97);
 }
 </style>
   
