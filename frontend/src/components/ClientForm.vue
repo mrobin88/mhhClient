@@ -195,29 +195,26 @@
                 </div>
               </div>
               <div>
-                <label class="form-label text-lg mb-4">Weekly Schedule Availability</label>
-                <p class="text-sm text-slate-600 mb-4">Select all time slots when you're available to work</p>
-                <div class="space-y-5">
-                  <div v-for="day in days" :key="day" class="bg-gradient-to-br from-white to-slate-50 p-5 rounded-xl border-2 border-slate-200 shadow-sm">
-                    <div class="mb-4 flex items-center">
-                      <span class="text-xl font-bold text-slate-800">{{ day }}</span>
-                      <span v-if="pitstop.weekly_schedule[day]?.length" class="ml-3 px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
-                        {{ pitstop.weekly_schedule[day].length }} slot{{ pitstop.weekly_schedule[day].length > 1 ? 's' : '' }}
-                      </span>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      <button
-                        v-for="shift in shifts"
-                        :key="shift.value"
-                        type="button"
-                        @click="toggleTimeForDay(day, shift.value)"
-                        :class="[
-                          'time-slot-button',
-                          isTimeSelectedForDay(day, shift.value) ? 'time-slot-active' : 'time-slot-inactive'
-                        ]"
-                      >
-                        <span class="text-sm font-semibold">{{ shift.label }}</span>
-                      </button>
+                <label class="form-label">Weekly Schedule Availability</label>
+                <p class="text-xs text-slate-600 mb-3">Click time slots when available to work</p>
+                <div class="space-y-2">
+                  <div v-for="day in days" :key="day" class="bg-white p-3 rounded-lg border border-slate-200">
+                    <div class="flex items-center gap-3">
+                      <span class="text-sm font-semibold text-slate-700 w-24 flex-shrink-0">{{ day }}</span>
+                      <div class="flex flex-wrap gap-2">
+                        <button
+                          v-for="shift in shifts"
+                          :key="shift.value"
+                          type="button"
+                          @click="toggleTimeForDay(day, shift.value)"
+                          :class="[
+                            'time-slot-compact',
+                            isTimeSelectedForDay(day, shift.value) ? 'time-slot-active' : 'time-slot-inactive'
+                          ]"
+                        >
+                          {{ shift.label }}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1049,58 +1046,37 @@ async function handleSubmit() {
   transform: scale(0.98);
 }
 
-/* Time Slot Button Styles */
-.time-slot-button {
-  padding: 0.875rem 1rem;
-  border-radius: 0.75rem;
-  border: 2px solid #e2e8f0;
+/* Time Slot Compact Styles */
+.time-slot-compact {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1.5px solid #e2e8f0;
   background: white;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   cursor: pointer;
-  text-align: center;
+  font-size: 0.75rem;
   font-weight: 600;
-  position: relative;
+  white-space: nowrap;
 }
 
 .time-slot-inactive {
   color: #64748b;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .time-slot-inactive:hover {
   border-color: #3b82f6;
   background: #eff6ff;
   color: #2563eb;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
 }
 
 .time-slot-active {
   border-color: #3b82f6;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: #3b82f6;
   color: white;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-  transform: scale(1.02);
 }
 
-.time-slot-active::before {
-  content: '✓';
-  position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
-  width: 1.25rem;
-  height: 1.25rem;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: bold;
-}
-
-.time-slot-button:active {
-  transform: scale(0.97);
+.time-slot-compact:active {
+  transform: scale(0.95);
 }
 </style>
   
