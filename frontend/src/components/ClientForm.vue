@@ -53,19 +53,19 @@
               </div>
 
               <!-- Program Cards Grid -->
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 <!-- CityBuild Academy -->
                 <button
                   type="button"
                   @click="form.training_interest = 'citybuild'"
                   :class="[
-                    'program-card',
+                    'program-card program-card-construction',
                     form.training_interest === 'citybuild' ? 'program-card-active' : 'program-card-inactive'
                   ]"
                 >
-                  <div class="text-4xl mb-3">🏗️</div>
-                  <h4 class="text-lg font-bold text-slate-800 mb-2">CityBuild Academy</h4>
-                  <p class="text-sm text-slate-600">Pre-apprenticeship construction training program</p>
+                  <div class="text-5xl mb-4">🏗️</div>
+                  <h4 class="text-xl font-bold text-slate-900 mb-3">CityBuild Academy</h4>
+                  <p class="text-base text-slate-700 leading-relaxed">Pre-apprenticeship construction training program</p>
                 </button>
 
                 <!-- CityBuild Pro -->
@@ -73,13 +73,13 @@
                   type="button"
                   @click="form.training_interest = 'citybuild_pro'"
                   :class="[
-                    'program-card',
+                    'program-card program-card-pro',
                     form.training_interest === 'citybuild_pro' ? 'program-card-active' : 'program-card-inactive'
                   ]"
                 >
-                  <div class="text-4xl mb-3">⚡</div>
-                  <h4 class="text-lg font-bold text-slate-800 mb-2">CityBuild Pro | CAPSA</h4>
-                  <p class="text-sm text-slate-600">Advanced construction skills & certification</p>
+                  <div class="text-5xl mb-4">⚡</div>
+                  <h4 class="text-xl font-bold text-slate-900 mb-3">CityBuild Pro | CAPSA</h4>
+                  <p class="text-base text-slate-700 leading-relaxed">Advanced construction skills & certification</p>
                 </button>
 
                 <!-- Security Guard -->
@@ -87,13 +87,13 @@
                   type="button"
                   @click="form.training_interest = 'security'"
                   :class="[
-                    'program-card',
+                    'program-card program-card-security',
                     form.training_interest === 'security' ? 'program-card-active' : 'program-card-inactive'
                   ]"
                 >
-                  <div class="text-4xl mb-3">🛡️</div>
-                  <h4 class="text-lg font-bold text-slate-800 mb-2">Security Guard Card</h4>
-                  <p class="text-sm text-slate-600">Professional security training & licensing</p>
+                  <div class="text-5xl mb-4">🛡️</div>
+                  <h4 class="text-xl font-bold text-slate-900 mb-3">Security Guard Card</h4>
+                  <p class="text-base text-slate-700 leading-relaxed">Professional security training & licensing</p>
                 </button>
 
                 <!-- Construction On Ramp -->
@@ -101,13 +101,13 @@
                   type="button"
                   @click="form.training_interest = 'construction'"
                   :class="[
-                    'program-card',
+                    'program-card program-card-onramp',
                     form.training_interest === 'construction' ? 'program-card-active' : 'program-card-inactive'
                   ]"
                 >
-                  <div class="text-4xl mb-3">🔨</div>
-                  <h4 class="text-lg font-bold text-slate-800 mb-2">Construction On Ramp</h4>
-                  <p class="text-sm text-slate-600">Entry-level construction skills bootcamp</p>
+                  <div class="text-5xl mb-4">🔨</div>
+                  <h4 class="text-xl font-bold text-slate-900 mb-3">Construction On Ramp</h4>
+                  <p class="text-base text-slate-700 leading-relaxed">Entry-level construction skills bootcamp</p>
                 </button>
 
                 <!-- Pit Stop Program -->
@@ -115,13 +115,13 @@
                   type="button"
                   @click="form.training_interest = 'pit_stop'"
                   :class="[
-                    'program-card',
+                    'program-card program-card-pitstop',
                     form.training_interest === 'pit_stop' ? 'program-card-active' : 'program-card-inactive'
                   ]"
                 >
-                  <div class="text-4xl mb-3">🚻</div>
-                  <h4 class="text-lg font-bold text-slate-800 mb-2">Pit Stop Program</h4>
-                  <p class="text-sm text-slate-600">Community restroom attendant opportunities</p>
+                  <div class="text-5xl mb-4">🚻</div>
+                  <h4 class="text-xl font-bold text-slate-900 mb-3">Pit Stop Program</h4>
+                  <p class="text-base text-slate-700 leading-relaxed">Community restroom attendant opportunities</p>
                 </button>
 
                 <!-- General Job Readiness -->
@@ -129,13 +129,13 @@
                   type="button"
                   @click="form.training_interest = 'general'"
                   :class="[
-                    'program-card',
+                    'program-card program-card-general',
                     form.training_interest === 'general' ? 'program-card-active' : 'program-card-inactive'
                   ]"
                 >
-                  <div class="text-4xl mb-3">💼</div>
-                  <h4 class="text-lg font-bold text-slate-800 mb-2">General Job Readiness</h4>
-                  <p class="text-sm text-slate-600">Build skills for any career path</p>
+                  <div class="text-5xl mb-4">💼</div>
+                  <h4 class="text-xl font-bold text-slate-900 mb-3">General Job Readiness</h4>
+                  <p class="text-base text-slate-700 leading-relaxed">Build skills for any career path</p>
                 </button>
 
                 <!-- Other Training -->
@@ -143,13 +143,13 @@
                   type="button"
                   @click="form.training_interest = 'other'"
                   :class="[
-                    'program-card',
+                    'program-card program-card-other',
                     form.training_interest === 'other' ? 'program-card-active' : 'program-card-inactive'
                   ]"
                 >
-                  <div class="text-4xl mb-3">✨</div>
-                  <h4 class="text-lg font-bold text-slate-800 mb-2">Other Programs</h4>
-                  <p class="text-sm text-slate-600">Explore additional training options</p>
+                  <div class="text-5xl mb-4">✨</div>
+                  <h4 class="text-xl font-bold text-slate-900 mb-3">Other Programs</h4>
+                  <p class="text-base text-slate-700 leading-relaxed">Explore additional training options</p>
                 </button>
               </div>
 
@@ -195,21 +195,29 @@
                 </div>
               </div>
               <div>
-                <label class="form-label">Weekly Schedule Availability</label>
-                <div class="space-y-4">
-                  <div v-for="day in days" :key="day" class="bg-white p-4 rounded border">
-                    <div class="mb-3 text-lg font-semibold">{{ day }}</div>
-                    <div class="ml-1 grid grid-cols-2 md:grid-cols-3 gap-2">
-                      <label v-for="shift in shifts" :key="shift.value" class="inline-flex items-center text-sm">
-                        <input
-                          type="checkbox"
-                          :value="shift.value"
-                          :checked="isTimeSelectedForDay(day, shift.value)"
-                          @change="toggleTimeForDay(day, shift.value)"
-                          class="mr-2 h-3 w-3 text-blue-600"
-                        />
-                        {{ shift.label }}
-                      </label>
+                <label class="form-label text-lg mb-4">Weekly Schedule Availability</label>
+                <p class="text-sm text-slate-600 mb-4">Select all time slots when you're available to work</p>
+                <div class="space-y-5">
+                  <div v-for="day in days" :key="day" class="bg-gradient-to-br from-white to-slate-50 p-5 rounded-xl border-2 border-slate-200 shadow-sm">
+                    <div class="mb-4 flex items-center">
+                      <span class="text-xl font-bold text-slate-800">{{ day }}</span>
+                      <span v-if="pitstop.weekly_schedule[day]?.length" class="ml-3 px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                        {{ pitstop.weekly_schedule[day].length }} slot{{ pitstop.weekly_schedule[day].length > 1 ? 's' : '' }}
+                      </span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <button
+                        v-for="shift in shifts"
+                        :key="shift.value"
+                        type="button"
+                        @click="toggleTimeForDay(day, shift.value)"
+                        :class="[
+                          'time-slot-button',
+                          isTimeSelectedForDay(day, shift.value) ? 'time-slot-active' : 'time-slot-inactive'
+                        ]"
+                      >
+                        <span class="text-sm font-semibold">{{ shift.label }}</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -842,15 +850,16 @@ async function handleSubmit() {
 <style scoped>
 /* Program Card Styles */
 .program-card {
-  padding: 1.5rem;
-  border-radius: 1rem;
-  border: 2px solid transparent;
+  padding: 2rem;
+  border-radius: 1.25rem;
+  border: 3px solid transparent;
   background: white;
   text-align: center;
   transition: all 0.3s ease;
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  min-height: 220px;
 }
 
 .program-card::before {
@@ -860,7 +869,6 @@ async function handleSubmit() {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(249, 115, 22, 0.02) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
   z-index: 0;
@@ -871,15 +879,125 @@ async function handleSubmit() {
   z-index: 1;
 }
 
+/* Program-specific colors */
+.program-card-construction::before {
+  background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, rgba(249, 115, 22, 0.03) 100%);
+}
+.program-card-construction.program-card-inactive {
+  border-color: #fed7aa;
+}
+.program-card-construction.program-card-inactive:hover {
+  border-color: #ea580c;
+  box-shadow: 0 10px 25px rgba(234, 88, 12, 0.2);
+}
+.program-card-construction.program-card-active {
+  border-color: #ea580c;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  box-shadow: 0 10px 30px rgba(234, 88, 12, 0.3);
+}
+
+.program-card-pro::before {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.08) 0%, rgba(147, 51, 234, 0.03) 100%);
+}
+.program-card-pro.program-card-inactive {
+  border-color: #e9d5ff;
+}
+.program-card-pro.program-card-inactive:hover {
+  border-color: #a855f7;
+  box-shadow: 0 10px 25px rgba(168, 85, 247, 0.2);
+}
+.program-card-pro.program-card-active {
+  border-color: #a855f7;
+  background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+  box-shadow: 0 10px 30px rgba(168, 85, 247, 0.3);
+}
+
+.program-card-security::before {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(2, 132, 199, 0.03) 100%);
+}
+.program-card-security.program-card-inactive {
+  border-color: #bfdbfe;
+}
+.program-card-security.program-card-inactive:hover {
+  border-color: #0ea5e9;
+  box-shadow: 0 10px 25px rgba(14, 165, 233, 0.2);
+}
+.program-card-security.program-card-active {
+  border-color: #0ea5e9;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  box-shadow: 0 10px 30px rgba(14, 165, 233, 0.3);
+}
+
+.program-card-onramp::before {
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.08) 0%, rgba(249, 115, 22, 0.03) 100%);
+}
+.program-card-onramp.program-card-inactive {
+  border-color: #fed7aa;
+}
+.program-card-onramp.program-card-inactive:hover {
+  border-color: #fb923c;
+  box-shadow: 0 10px 25px rgba(251, 146, 60, 0.2);
+}
+.program-card-onramp.program-card-active {
+  border-color: #fb923c;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  box-shadow: 0 10px 30px rgba(251, 146, 60, 0.3);
+}
+
+.program-card-pitstop::before {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(22, 163, 74, 0.03) 100%);
+}
+.program-card-pitstop.program-card-inactive {
+  border-color: #bbf7d0;
+}
+.program-card-pitstop.program-card-inactive:hover {
+  border-color: #22c55e;
+  box-shadow: 0 10px 25px rgba(34, 197, 94, 0.2);
+}
+.program-card-pitstop.program-card-active {
+  border-color: #22c55e;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
+}
+
+.program-card-general::before {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(37, 99, 235, 0.03) 100%);
+}
+.program-card-general.program-card-inactive {
+  border-color: #bfdbfe;
+}
+.program-card-general.program-card-inactive:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.2);
+}
+.program-card-general.program-card-active {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+}
+
+.program-card-other::before {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.08) 0%, rgba(219, 39, 119, 0.03) 100%);
+}
+.program-card-other.program-card-inactive {
+  border-color: #fbcfe8;
+}
+.program-card-other.program-card-inactive:hover {
+  border-color: #ec4899;
+  box-shadow: 0 10px 25px rgba(236, 72, 153, 0.2);
+}
+.program-card-other.program-card-active {
+  border-color: #ec4899;
+  background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+  box-shadow: 0 10px 30px rgba(236, 72, 153, 0.3);
+}
+
 .program-card-inactive {
-  border-color: #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .program-card-inactive:hover {
-  border-color: #f97316;
-  box-shadow: 0 8px 16px rgba(249, 115, 22, 0.15);
-  transform: translateY(-4px);
+  transform: translateY(-6px);
 }
 
 .program-card-inactive:hover::before {
@@ -887,10 +1005,7 @@ async function handleSubmit() {
 }
 
 .program-card-active {
-  border-color: #f97316;
-  background: linear-gradient(135deg, #fff7ed 0%, #ffffff 100%);
-  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.25);
-  transform: scale(1.02);
+  transform: scale(1.03);
 }
 
 .program-card-active::before {
@@ -900,36 +1015,92 @@ async function handleSubmit() {
 .program-card-active::after {
   content: '✓';
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  width: 2rem;
-  height: 2rem;
-  background: #f97316;
+  top: 1rem;
+  right: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: currentColor;
   color: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 1rem;
+  font-size: 1.25rem;
   z-index: 2;
   animation: checkmark-pop 0.3s ease;
 }
 
+.program-card-construction.program-card-active::after { background: #ea580c; }
+.program-card-pro.program-card-active::after { background: #a855f7; }
+.program-card-security.program-card-active::after { background: #0ea5e9; }
+.program-card-onramp.program-card-active::after { background: #fb923c; }
+.program-card-pitstop.program-card-active::after { background: #22c55e; }
+.program-card-general.program-card-active::after { background: #3b82f6; }
+.program-card-other.program-card-active::after { background: #ec4899; }
+
 @keyframes checkmark-pop {
-  0% {
-    transform: scale(0);
-  }
-  50% {
-    transform: scale(1.2);
-  }
-  100% {
-    transform: scale(1);
-  }
+  0% { transform: scale(0) rotate(-45deg); }
+  50% { transform: scale(1.3) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
 }
 
 .program-card:active {
   transform: scale(0.98);
+}
+
+/* Time Slot Button Styles */
+.time-slot-button {
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  border: 2px solid #e2e8f0;
+  background: white;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-align: center;
+  font-weight: 600;
+  position: relative;
+}
+
+.time-slot-inactive {
+  color: #64748b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.time-slot-inactive:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.time-slot-active {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transform: scale(1.02);
+}
+
+.time-slot-active::before {
+  content: '✓';
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.time-slot-button:active {
+  transform: scale(0.97);
 }
 </style>
   
