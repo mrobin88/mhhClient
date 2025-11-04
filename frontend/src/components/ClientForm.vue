@@ -121,7 +121,7 @@
                 >
                   <div class="text-5xl mb-4">🚻</div>
                   <h4 class="text-xl font-bold text-slate-900 mb-3">Pit Stop Program</h4>
-                  <p class="text-base text-slate-700 leading-relaxed">Community restroom attendant opportunities</p>
+                  <p class="text-base text-slate-700 leading-relaxed">Community attendant opportunities</p>
                 </button>
 
                 <!-- General Job Readiness -->
