@@ -21,7 +21,7 @@
 - **Deployment**: GitHub Actions → Auto-deploy
 - **Monitoring**: Azure Application Insights
 
-## 🚀 **Local Development**
+##  **Local Development**
 
 ```bash
 # Start development servers
@@ -40,3 +40,4 @@
 
 
 **Professional client services management platform** 🏗️
+
