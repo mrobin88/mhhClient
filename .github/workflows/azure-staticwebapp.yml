@@ -1,14 +1,10 @@
-name: Deploy Vue.js Frontend to Azure Static Web Apps
+name: Azure Static Web Apps CI/CD
 
 on:
   push:
     branches: [ main, master ]
-    paths:
-      - 'frontend/**'
   pull_request:
     branches: [ main, master ]
-    paths:
-      - 'frontend/**'
 
 jobs:
   build_and_deploy_job:
