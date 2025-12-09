@@ -14,9 +14,8 @@ import ClientForm from './components/ClientForm.vue'
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Roboto', system-ui, sans-serif;
+  font-weight: 500;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -28,7 +27,7 @@ html {
 
 /* Focus styles for accessibility */
 *:focus {
-  outline: 2px solid #f97316;
+  outline: 2px solid #14b8a6;
   outline-offset: 2px;
 }
 </style>
