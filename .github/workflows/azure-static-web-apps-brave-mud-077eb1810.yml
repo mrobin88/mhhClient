@@ -15,10 +15,29 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
           lfs: false
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+      
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+        env:
+          VITE_API_URL: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net
       
       - name: Build And Deploy
         id: builddeploy
@@ -27,11 +46,10 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          ###### Repository/Build Configurations ######
-          app_location: "frontend" # App source code path (no leading slash)
-          api_location: "" # Api source code path - optional
-          output_location: "dist" # Built app content directory
-          ###### End of Repository/Build Configurations ######
+          app_location: "frontend"
+          output_location: "dist"
+          app_artifact_location: "frontend/dist"
+          skip_app_build: true
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
