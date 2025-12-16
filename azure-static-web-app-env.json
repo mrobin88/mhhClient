@@ -1,0 +1,7 @@
+[
+  {
+    "name": "VITE_API_URL",
+    "value": "https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net",
+    "description": "Backend API URL for frontend application"
+  }
+]
