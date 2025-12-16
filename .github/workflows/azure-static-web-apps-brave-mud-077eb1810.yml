@@ -38,6 +38,11 @@ jobs:
           npm run build
         env:
           VITE_API_URL: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net
+
+      - name: Verify build artifacts
+        run: |
+          ls -la frontend/dist || (echo "dist folder missing" && exit 1)
+          find frontend/dist -maxdepth 2 -type f | head -50
       
       - name: Build And Deploy
         id: builddeploy
@@ -48,7 +53,6 @@ jobs:
           action: "upload"
           app_location: "frontend"
           output_location: "dist"
-          app_artifact_location: "frontend/dist"
           skip_app_build: true
 
   close_pull_request_job:
