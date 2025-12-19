@@ -10,6 +10,7 @@ import csv
 import io
 from django.shortcuts import redirect
 from django.contrib import messages
+from django.utils import timezone
 from .models import Client, CaseNote, Document, PitStopApplication
 
 # Try to import WeasyPrint for PDF generation
@@ -18,6 +19,99 @@ try:
     WEASYPRINT_AVAILABLE = True
 except (ImportError, OSError):
     WEASYPRINT_AVAILABLE = False
+
+
+class CaseNoteInline(admin.TabularInline):
+    """Inline admin for displaying case notes as a timestamped list on Client admin page"""
+    model = CaseNote
+    extra = 0  # Don't show empty forms by default - use "Add another Case Note" button
+    readonly_fields = ['formatted_timestamp', 'overdue_indicator']
+    fields = ['formatted_timestamp', 'overdue_indicator', 'staff_member', 'note_type', 'content', 'next_steps', 'follow_up_date']
+    ordering = ['-created_at']  # Newest first
+    can_delete = True
+    verbose_name = 'Case Note'
+    verbose_name_plural = 'Case Notes Timeline (Each row = ONE separate entry)'
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Show formatted timestamp only for existing notes"""
+        readonly = list(super().get_readonly_fields(request, obj))
+        if obj and obj.pk:  # Existing case note
+            readonly.append('formatted_timestamp')
+            readonly.append('overdue_indicator')
+        return readonly
+    
+    class Media:
+        css = {
+            'all': ('admin/css/custom-case-notes.css',)
+        }
+        js = ('admin/js/case-notes-helper.js',)
+    
+    def overdue_indicator(self, obj):
+        """Show overdue follow-up indicator"""
+        if not obj or not obj.pk:
+            return format_html('<em style="color: #999;">New</em>')
+        
+        if obj.is_overdue_followup:
+            return format_html(
+                '<span style="background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">⚠️ OVERDUE</span>'
+            )
+        elif obj.follow_up_date:
+            from datetime import date
+            days_until = (obj.follow_up_date - date.today()).days
+            if days_until <= 3:
+                return format_html(
+                    '<span style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">Due in {} day{}</span>',
+                    days_until,
+                    's' if days_until != 1 else ''
+                )
+        return format_html('<span style="color: #10b981;">✓</span>')
+    overdue_indicator.short_description = 'Status'
+    
+    def formatted_timestamp(self, obj):
+        """Display formatted timestamp with relative time"""
+        if not obj or not obj.pk or not obj.created_at:
+            return format_html('<em style="color: #999;">New note</em>')
+        
+        # Format: "Jan 15, 2025 at 2:30 PM"
+        formatted = obj.created_at.strftime('%b %d, %Y at %I:%M %p')
+        
+        # Add relative time
+        now = timezone.now()
+        if obj.created_at.tzinfo:
+            diff = now - obj.created_at
+        else:
+            # Handle naive datetime
+            diff = timezone.make_aware(now) - timezone.make_aware(obj.created_at)
+        
+        if diff.days > 0:
+            relative = f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
+        elif diff.seconds >= 3600:
+            hours = diff.seconds // 3600
+            relative = f"{hours} hour{'s' if hours > 1 else ''} ago"
+        elif diff.seconds >= 60:
+            minutes = diff.seconds // 60
+            relative = f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+        else:
+            relative = "just now"
+        
+        return format_html(
+            '<div style="line-height: 1.4;">'
+            '<strong style="color: #1976d2; display: block; font-size: 13px;">{}</strong>'
+            '<small style="color: #64748b; font-size: 11px;">{}</small>'
+            '</div>',
+            formatted,
+            relative
+        )
+    formatted_timestamp.short_description = 'Timestamp'
+    
+    def has_add_permission(self, request, obj=None):
+        """Allow adding new case notes"""
+        return True
+    
+    def has_change_permission(self, request, obj=None):
+        """Allow editing case notes"""
+        return True
+
 
 @admin.register(CaseNote)
 class CaseNoteAdmin(admin.ModelAdmin):
@@ -32,10 +126,12 @@ class CaseNoteAdmin(admin.ModelAdmin):
             'fields': ('client', 'staff_member')
         }),
         ('Note Details', {
-            'fields': ('note_type', 'content', 'next_steps')
+            'fields': ('note_type', 'content', 'next_steps'),
+            'description': '⚠️ IMPORTANT: Each case note should be ONE entry. If you have multiple dated entries (e.g., "09/02/2025...", "09/09/2025..."), create SEPARATE case notes for each date.'
         }),
         ('Follow-up', {
-            'fields': ('follow_up_date',)
+            'fields': ('follow_up_date',),
+            'description': 'Set a follow-up date to receive email alerts when it\'s due or overdue.'
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
@@ -45,9 +141,88 @@ class CaseNoteAdmin(admin.ModelAdmin):
     
     def is_overdue(self, obj):
         if obj.is_overdue_followup:
-            return format_html('<span style="color: red; font-weight: bold;">OVERDUE</span>')
-        return format_html('<span style="color: green;">On Track</span>')
+            return format_html('<span style="color: red; font-weight: bold;">⚠️ OVERDUE</span>')
+        elif obj.follow_up_date:
+            from datetime import date
+            days_until = (obj.follow_up_date - date.today()).days
+            if days_until <= 3:
+                return format_html('<span style="color: orange;">Due in {} day{}</span>', days_until, 's' if days_until != 1 else '')
+        return format_html('<span style="color: green;">✓ On Track</span>')
     is_overdue.short_description = 'Follow-up Status'
+    
+    actions = ['send_followup_alerts_action']
+    
+    def send_followup_alerts_action(self, request, queryset):
+        """Admin action to send follow-up alerts for selected case notes"""
+        from clients.notifications import send_followup_alert
+        from users.models import StaffUser
+        
+        sent = 0
+        errors = 0
+        
+        for note in queryset:
+            if not note.follow_up_date:
+                continue
+            
+            # Try to find user email
+            user_email = None
+            try:
+                user = StaffUser.objects.filter(
+                    username__iexact=note.staff_member
+                ).first()
+                if not user:
+                    name_parts = note.staff_member.split()
+                    if len(name_parts) >= 2:
+                        user = StaffUser.objects.filter(
+                            first_name__iexact=name_parts[0],
+                            last_name__iexact=name_parts[-1]
+                        ).first()
+                if user and user.email:
+                    user_email = user.email
+            except:
+                pass
+            
+            if not user_email:
+                from django.conf import settings
+                user_email = getattr(settings, 'CASE_NOTE_ALERT_EMAIL', None)
+                if not user_email:
+                    admin_user = StaffUser.objects.filter(is_superuser=True).first()
+                    if admin_user and admin_user.email:
+                        user_email = admin_user.email
+            
+            if user_email:
+                if send_followup_alert(note, user_email):
+                    sent += 1
+                else:
+                    errors += 1
+            else:
+                errors += 1
+        
+        if sent > 0:
+            self.message_user(request, f'✅ Sent {sent} follow-up alert email(s)')
+        if errors > 0:
+            self.message_user(request, f'❌ {errors} error(s) occurred', level='error')
+    
+    send_followup_alerts_action.short_description = "Send follow-up alert emails for selected case notes"
+    
+    def changelist_view(self, request, extra_context=None):
+        """Add overdue follow-ups alert to changelist"""
+        response = super().changelist_view(request, extra_context)
+        
+        if hasattr(response, 'context_data'):
+            overdue_count = CaseNote.objects.filter(
+                follow_up_date__lt=timezone.now().date()
+            ).exclude(follow_up_date__isnull=True).count()
+            
+            if overdue_count > 0:
+                from django.contrib import messages
+                messages.warning(
+                    request,
+                    f'⚠️ You have {overdue_count} case note(s) with overdue follow-ups! Check the list below.',
+                    extra_tags='alert'
+                )
+        
+        return response
 
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
@@ -56,6 +231,54 @@ class ClientAdmin(admin.ModelAdmin):
     search_fields = ['first_name', 'last_name', 'phone', 'job_title', 'job_company']
     readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn']
     date_hierarchy = 'created_at'
+    inlines = [CaseNoteInline]  # Add case notes as inline list
+    
+    def get_urls(self):
+        """Add custom URL for quick case note addition"""
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<path:object_id>/add-case-note/',
+                self.admin_site.admin_view(self.add_case_note_view),
+                name='clients_client_add_case_note',
+            ),
+        ]
+        return custom_urls + urls
+    
+    def add_case_note_view(self, request, object_id):
+        """Quick add case note view"""
+        from django.shortcuts import get_object_or_404, redirect
+        from django.contrib import messages
+        from django.template.response import TemplateResponse
+        
+        client = get_object_or_404(Client, pk=object_id)
+        
+        if request.method == 'POST':
+            try:
+                note = CaseNote.objects.create(
+                    client=client,
+                    staff_member=request.user.get_full_name() or request.user.username,
+                    note_type=request.POST.get('note_type', 'general'),
+                    content=request.POST.get('content', ''),
+                    next_steps=request.POST.get('next_steps', '') or None,
+                    follow_up_date=request.POST.get('follow_up_date') or None,
+                )
+                messages.success(request, f'Case note added successfully for {client.full_name}!')
+                return redirect('admin:clients_client_change', object_id)
+            except Exception as e:
+                messages.error(request, f'Error adding case note: {str(e)}')
+        
+        # GET request - show quick add form
+        context = {
+            **self.admin_site.each_context(request),
+            'title': f'Add Case Note - {client.full_name}',
+            'client': client,
+            'opts': self.model._meta,
+            'has_view_permission': self.has_view_permission(request, client),
+            'note_types': CaseNote.NOTE_TYPE_CHOICES,
+        }
+        return TemplateResponse(request, 'admin/clients/quick_add_case_note.html', context)
     
     fieldsets = (
         ('Personal Information', {
