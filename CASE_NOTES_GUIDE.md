@@ -44,12 +44,8 @@ The case notes system has been improved to make it clear that **each case note s
 
 **Option 2: Quick Add Form**
 1. Go to Admin → Clients → Select a client
-2. Click the **"➕ Add Case Note"** button at the top right of the page
-3. Fill in the form:
-   - Note Type (Required)
-   - Content (Required - ONE entry per case note)
-   - Next Steps (Optional)
-   - Follow-up Date (Optional)
+2. Click "Add Case Note" button (if available)
+3. Fill in the form
 4. Click "Add Case Note"
 5. You'll be redirected back to the client page with your new case note visible in the timeline
 
