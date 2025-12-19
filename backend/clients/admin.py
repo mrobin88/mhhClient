@@ -150,7 +150,66 @@ class CaseNoteAdmin(admin.ModelAdmin):
         return format_html('<span style="color: green;">✓ On Track</span>')
     is_overdue.short_description = 'Follow-up Status'
     
-    actions = ['send_followup_alerts_action']
+    actions = ['export_to_csv', 'send_followup_alerts_action']
+    
+    def export_to_csv(self, request, queryset):
+        """Export selected case notes to CSV format"""
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="case_notes_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        
+        writer = csv.writer(response)
+        
+        # Write header row
+        writer.writerow([
+            'Case Note ID',
+            'Client Name',
+            'Client Phone',
+            'Client Email',
+            'Note Type',
+            'Staff Member',
+            'Content',
+            'Next Steps',
+            'Follow-up Date',
+            'Follow-up Status',
+            'Created At',
+            'Updated At'
+        ])
+        
+        # Write data rows
+        for note in queryset.select_related('client'):
+            # Calculate follow-up status
+            followup_status = ''
+            if note.follow_up_date:
+                from datetime import date
+                days_diff = (note.follow_up_date - date.today()).days
+                if days_diff < 0:
+                    followup_status = f'OVERDUE ({abs(days_diff)} days)'
+                elif days_diff == 0:
+                    followup_status = 'Due Today'
+                else:
+                    followup_status = f'Due in {days_diff} day{"s" if days_diff > 1 else ""}'
+            else:
+                followup_status = 'No follow-up'
+            
+            writer.writerow([
+                note.id,
+                note.client.full_name,
+                note.client.phone,
+                note.client.email or '',
+                note.get_note_type_display(),
+                note.staff_member,
+                note.content,
+                note.next_steps or '',
+                note.follow_up_date.strftime('%Y-%m-%d') if note.follow_up_date else '',
+                followup_status,
+                note.created_at.strftime('%Y-%m-%d %H:%M:%S') if note.created_at else '',
+                note.updated_at.strftime('%Y-%m-%d %H:%M:%S') if note.updated_at else '',
+            ])
+        
+        self.message_user(request, f'✅ Exported {queryset.count()} case note(s) to CSV')
+        return response
+    
+    export_to_csv.short_description = "Export selected case notes to CSV"
     
     def send_followup_alerts_action(self, request, queryset):
         """Admin action to send follow-up alerts for selected case notes"""
