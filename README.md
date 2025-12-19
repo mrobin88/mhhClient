@@ -3,7 +3,7 @@
 **Production-ready client intake and case management system for service organizations.**
 
 ## 🌟 **Live System**
-- **Frontend**: https://brave-mud-077eb1810.1.azurestaticapps.net
+- **Frontend**: https://blue-glacier-0c5f06410.3.azurestaticapps.net/
 - **Backend API**: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/
 - **Admin Interface**: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/admin/
 
@@ -40,5 +40,6 @@
 
 
 **Professional client services management platform** 🏗️
+
 
 # Teal UI Deployment
