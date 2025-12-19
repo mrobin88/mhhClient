@@ -115,11 +115,12 @@ class CaseNoteInline(admin.TabularInline):
 
 @admin.register(CaseNote)
 class CaseNoteAdmin(admin.ModelAdmin):
-    list_display = ['client', 'note_type', 'staff_member', 'created_at', 'follow_up_date', 'is_overdue']
+    list_display = ['formatted_date', 'client', 'note_type', 'content_preview', 'follow_up_date', 'is_overdue']
     list_filter = ['note_type', 'staff_member', 'created_at', 'follow_up_date']
     search_fields = ['client__first_name', 'client__last_name', 'content', 'staff_member']
     date_hierarchy = 'created_at'
     readonly_fields = ['created_at', 'updated_at']
+    list_per_page = 50
     
     fieldsets = (
         ('Client Information', {
@@ -209,7 +210,25 @@ class CaseNoteAdmin(admin.ModelAdmin):
         self.message_user(request, f'✅ Exported {queryset.count()} case note(s) to CSV')
         return response
     
-    export_to_csv.short_description = "Export selected case notes to CSV"
+    export_to_csv.short_description = "Download selected case notes in CSV"
+    
+    def formatted_date(self, obj):
+        """Display formatted date"""
+        if obj.created_at:
+            return obj.created_at.strftime('%Y-%m-%d')
+        return '-'
+    formatted_date.short_description = 'Date'
+    formatted_date.admin_order_field = 'created_at'
+    
+    def content_preview(self, obj):
+        """Display content preview (first 100 chars)"""
+        if obj.content:
+            preview = obj.content[:100]
+            if len(obj.content) > 100:
+                preview += '...'
+            return preview
+        return '-'
+    content_preview.short_description = 'Note'
     
     def send_followup_alerts_action(self, request, queryset):
         """Admin action to send follow-up alerts for selected case notes"""
