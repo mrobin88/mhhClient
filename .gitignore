@@ -166,7 +166,6 @@ dmypy.json
 .azure/
 azure-deploy.py
 deploy-to-azure.sh
-# startup.sh   # <-- Do not ignore startup.sh, needed for Azure deployment
 
 # Local development files
 start-dev.sh

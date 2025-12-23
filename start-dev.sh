@@ -19,7 +19,6 @@ trap cleanup SIGINT SIGTERM
 
 # Start Django Backend
 echo "🐍 Starting Django Backend..."
-cd backend
 
 if [ ! -d "venv" ]; then
     echo "📦 Creating virtual environment..."
