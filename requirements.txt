@@ -33,4 +33,3 @@ weasyprint==61.2
 # Monitoring (optional)
 opencensus-ext-django==0.8.0
 opencensus-ext-logging==0.1.0
-# Deployment trigger
