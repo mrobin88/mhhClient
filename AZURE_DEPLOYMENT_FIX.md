@@ -1,32 +1,49 @@
 # Azure Deployment Fix Instructions
 
+## The Problem
+
+Django is not installed in the Python environment. The logs show:
+- Gunicorn starts but can't import Django
+- Virtual environment activation is failing silently
+- Oryx build may not be installing dependencies
+
 ## Issues Fixed
 
 1. ✅ **requirements.txt** - Copied to root so Azure Oryx can detect it
-2. ✅ **startup.sh** - Created in root with proper pathing and settings
+2. ✅ **startup.sh** - Enhanced with dependency installation and better error handling
 3. ✅ **Settings module** - Updated to use `config.settings` (auto-detects Azure)
+4. ✅ **build.sh** - Added build script for Oryx
 
-## Azure Portal Configuration
+## Azure Portal Configuration - CRITICAL
 
-### Option 1: Use the startup.sh script (Recommended)
+### Step 1: Update Startup Command
 
-In Azure Portal → App Service → Configuration → General Settings:
+Go to: **Azure Portal → Your App Service → Configuration → General Settings**
 
-**Startup Command:**
-```
-bash startup.sh
-```
+**Find "Startup Command" and replace it with:**
 
-### Option 2: Simple Gunicorn command
-
-If the startup script doesn't work, use this simpler command:
-
-**Startup Command:**
-```
-cd backend && python -m gunicorn --bind=0.0.0.0:8000 --timeout 600 --workers 2 config.wsgi:application
+```bash
+bash /home/site/wwwroot/startup.sh
 ```
 
-**Important:** Make sure to set `DJANGO_SETTINGS_MODULE=config.settings` in Application Settings (not in the startup command).
+**OR use this direct command (if startup.sh doesn't work):**
+
+```bash
+cd /home/site/wwwroot/backend && source /home/site/wwwroot/antenv/bin/activate && pip install -r requirements.txt && export DJANGO_SETTINGS_MODULE=config.settings && python manage.py migrate --noinput && exec python -m gunicorn --bind=0.0.0.0:8000 --timeout 600 --workers 2 config.wsgi:application
+```
+
+### Step 2: Verify Application Settings
+
+In **Configuration → Application Settings**, ensure:
+
+- `DJANGO_SETTINGS_MODULE` = `config.settings` (NOT `config.simple_settings`)
+- `SCM_DO_BUILD_DURING_DEPLOYMENT` = `true` (if this setting exists)
+
+### Step 3: Check Deployment Center
+
+Go to **Deployment Center** and verify:
+- Build provider is set correctly
+- Oryx should detect `requirements.txt` in root and build automatically
 
 ## Application Settings Required
 
