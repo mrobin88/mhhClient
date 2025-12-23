@@ -1,0 +1,225 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.quick-add-case-note {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.quick-add-case-note h1 {
+    color: #1e3a8a;
+    border-bottom: 2px solid #3b82f6;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.form-row {
+    margin-bottom: 20px;
+}
+
+.form-row label {
+    display: block;
+    font-weight: 600;
+    color: #1e3a8a;
+    margin-bottom: 8px;
+}
+
+.form-row label small {
+    font-weight: normal;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.form-row input[type="text"],
+.form-row input[type="date"],
+.form-row select,
+.form-row textarea {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-row textarea {
+    min-height: 100px;
+    font-family: inherit;
+}
+
+.important-notice {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 15px;
+    margin: 20px 0;
+    border-radius: 4px;
+}
+
+.important-notice strong {
+    color: #92400e;
+}
+
+.submit-row {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 10px;
+}
+
+.submit-row input[type="submit"] {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.submit-row input[type="submit"]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(30, 58, 138, 0.3);
+}
+
+.submit-row .button {
+    background: #e2e8f0;
+    color: #475569;
+    padding: 12px 24px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.submit-row .button:hover {
+    background: #cbd5e1;
+}
+
+.recent-notes {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 2px solid #e2e8f0;
+}
+
+.recent-notes h2 {
+    color: #1e3a8a;
+    font-size: 18px;
+    margin-bottom: 15px;
+}
+
+.note-preview {
+    background: #f8fafc;
+    border-left: 3px solid #3b82f6;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+.note-preview strong {
+    color: #1e3a8a;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.note-preview p {
+    color: #64748b;
+    margin: 0;
+    font-size: 14px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="quick-add-case-note">
+    <h1>➕ Add Case Note for {{ client.full_name }}</h1>
+    
+    <div class="important-notice">
+        <strong>⚠️ IMPORTANT:</strong> Each case note should be <strong>ONE separate entry</strong>. 
+        If you have multiple dated entries (e.g., "09/02/2025 Referral Date...", "09/09/2025 Intake..."), 
+        create <strong>SEPARATE case notes</strong> for each date. Use the "Add another Case Note" button 
+        to create multiple entries.
+    </div>
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="form-row">
+            <label>
+                Note Type: <small>(Required)</small>
+            </label>
+            <select name="note_type" required>
+                {% for value, label in note_types %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-row">
+            <label>
+                Content: <small>(This will be ONE entry - add separate entries for different dates)</small>
+            </label>
+            <textarea name="content" rows="6" required 
+                placeholder="Enter case note content here. Each dated entry should be a separate case note."></textarea>
+        </div>
+        
+        <div class="form-row">
+            <label>Next Steps: <small>(Optional)</small></label>
+            <textarea name="next_steps" rows="3" 
+                placeholder="Optional next steps or action items"></textarea>
+        </div>
+        
+        <div class="form-row">
+            <label>
+                Follow-up Date: <small>(Optional - you'll receive email alerts)</small>
+            </label>
+            <input type="date" name="follow_up_date" />
+            <small style="display: block; margin-top: 5px; color: #64748b;">
+                Set a follow-up date to receive email alerts when it's due or overdue.
+            </small>
+        </div>
+        
+        <div class="submit-row">
+            <input type="submit" value="Add Case Note" class="default" />
+            <a href="{% url 'admin:clients_client_change' client.pk %}" class="button">Cancel</a>
+        </div>
+    </form>
+    
+    {% if client.casenotes.exists %}
+    <div class="recent-notes">
+        <h2>📋 Recent Case Notes for {{ client.full_name }}</h2>
+        {% for note in client.casenotes.all|slice:":5" %}
+        <div class="note-preview">
+            <strong>{{ note.created_at|date:"M d, Y" }} - {{ note.get_note_type_display }}</strong>
+            <p>{{ note.content|truncatewords:30 }}</p>
+            {% if note.follow_up_date %}
+                <small style="color: #f59e0b;">
+                    Follow-up: {{ note.follow_up_date|date:"M d, Y" }}
+                    {% if note.is_overdue_followup %}
+                        <strong style="color: #ef4444;">(OVERDUE)</strong>
+                    {% endif %}
+                </small>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

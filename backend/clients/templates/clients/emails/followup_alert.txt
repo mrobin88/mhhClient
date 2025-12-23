@@ -1,0 +1,38 @@
+CASE NOTE FOLLOW-UP ALERT
+==========================
+
+{% if is_overdue %}⚠️ OVERDUE Follow-up{% else %}📅 Follow-up Due Soon{% endif %}
+
+Status: {{ status }}
+
+CLIENT INFORMATION
+------------------
+Client: {{ client.full_name }}
+Phone: {{ client.phone }}
+{% if client.email %}Email: {{ client.email }}{% endif %}
+
+CASE NOTE DETAILS
+-----------------
+Note Type: {{ case_note.get_note_type_display }}
+Created: {{ case_note.created_at|date:"F d, Y at g:i A" }}
+Staff Member: {{ case_note.staff_member }}
+Follow-up Date: {{ follow_up_date|date:"F d, Y" }}
+
+NOTE CONTENT
+------------
+{{ case_note.content }}
+
+{% if case_note.next_steps %}
+NEXT STEPS
+---------
+{{ case_note.next_steps }}
+{% endif %}
+
+{% if admin_url %}
+View in Admin: {{ admin_url }}
+{% endif %}
+
+---
+This is an automated alert from Mission Hiring Hall Client Management System.
+You received this email because a case note has a follow-up date that is {% if is_overdue %}overdue{% else %}due soon{% endif %}.
+
