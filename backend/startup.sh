@@ -17,11 +17,11 @@ echo "Working directory: $(pwd)"
 echo "Python version: $(python --version)"
 
 # Set Django settings module
-export DJANGO_SETTINGS_MODULE=config.simple_settings
+export DJANGO_SETTINGS_MODULE=config.settings
 
 # Run migrations (with timeout to prevent hanging)
 echo "Running database migrations..."
-timeout 60 python manage.py migrate --noinput --settings=config.simple_settings 2>&1 || {
+timeout 60 python manage.py migrate --noinput --settings=config.settings 2>&1 || {
     echo "WARNING: Migrations may have failed or were skipped"
 }
 
