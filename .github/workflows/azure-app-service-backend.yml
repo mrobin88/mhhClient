@@ -10,6 +10,7 @@ on:
       - 'manage.py'
       - 'requirements.txt'
       - 'runtime.txt'
+      - 'setup.py'
       - 'startup.sh'
       - '.deployment'
       - '.github/workflows/azure-app-service-backend.yml'
@@ -43,4 +44,4 @@ jobs:
         uses: azure/webapps-deploy@v2
         with:
           app-name: 'mhh-client-backend'
-          package: '.'
+          package: '.'  # Ensure this is the folder containing manage.py
