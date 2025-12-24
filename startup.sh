@@ -19,7 +19,7 @@ elif [ -d "/home/site/wwwroot/.venv" ]; then
 fi
 
 # Set Django settings
-export DJANGO_SETTINGS_MODULE=config.simple_settings
+export DJANGO_SETTINGS_MODULE=config.settings
 
 # Ensure we're in the right directory and Python can find modules
 export PYTHONPATH=/home/site/wwwroot:$PYTHONPATH
