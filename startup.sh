@@ -1,5 +1,7 @@
 #!/bin/bash
-# Startup script - Activate venv created by Oryx and start Gunicorn
+# Startup script for Azure App Service
+# Django is at root, WSGI is at config.wsgi:application
+
 cd /home/site/wwwroot
 
 # Activate the virtual environment created by Oryx
@@ -11,5 +13,5 @@ fi
 
 export DJANGO_SETTINGS_MODULE=config.simple_settings
 
-# Use python -m gunicorn to ensure we use the venv's Python
-exec python -m gunicorn --bind=0.0.0.0:8000 --timeout 600 config.wsgi:application
+# Start Gunicorn with correct WSGI path (config.wsgi:application)
+exec gunicorn --bind=0.0.0.0:8000 --timeout 600 config.wsgi:application
