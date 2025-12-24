@@ -11,6 +11,7 @@ on:
       - 'requirements.txt'
       - 'runtime.txt'
       - 'setup.py'
+      - '.python_version'
       - 'startup.sh'
       - '.deployment'
       - '.github/workflows/azure-app-service-backend.yml'
