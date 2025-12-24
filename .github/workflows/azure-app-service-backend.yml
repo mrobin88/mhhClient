@@ -10,6 +10,7 @@ on:
       - 'manage.py'
       - 'requirements.txt'
       - 'runtime.txt'
+      - 'startup.sh'
       - '.deployment'
       - '.github/workflows/azure-app-service-backend.yml'
   workflow_dispatch:
