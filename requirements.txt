@@ -20,17 +20,7 @@ django-filter==24.3
 # Environment Variables (latest stable)
 python-dotenv==1.0.1
 
-# Image Processing (latest stable)
-Pillow==11.0.0
-
 # Azure Storage (latest stable)
 django-storages==1.14.2
 azure-storage-blob==12.22.0
-
-# PDF Generation (latest stable)
-weasyprint==62.3
-
-# Monitoring (optional - latest stable)
-opencensus-ext-django==0.8.0
-opencensus-ext-logging==0.1.0
 # Deploy Wed Dec 24 17:43:42 PST 2025

@@ -13,12 +13,8 @@ from django.contrib import messages
 from django.utils import timezone
 from .models import Client, CaseNote, Document, PitStopApplication
 
-# Try to import WeasyPrint for PDF generation
-try:
-    from weasyprint import HTML, CSS
-    WEASYPRINT_AVAILABLE = True
-except (ImportError, OSError):
-    WEASYPRINT_AVAILABLE = False
+# PDF generation removed - WeasyPrint no longer used
+WEASYPRINT_AVAILABLE = False
 
 
 class CaseNoteInline(admin.TabularInline):
@@ -538,45 +534,11 @@ class ClientAdmin(admin.ModelAdmin):
     export_job_placement_report.short_description = "Export job placement report (placed clients only)"
     
     def export_client_profiles_pdf(self, request, queryset):
-        """Export client profiles as PDF documents"""
-        if not WEASYPRINT_AVAILABLE:
-            self.message_user(request, 'PDF generation is not available. WeasyPrint is not installed.', level='error')
-            return
-        
-        if queryset.count() > 10:
-            self.message_user(request, 'Please select 10 or fewer clients for PDF export to avoid timeout.', level='warning')
-            return
-        
-        try:
-            # Create a combined PDF with all selected client profiles
-            combined_html = ""
-            
-            for client in queryset.prefetch_related('casenotes'):
-                case_notes = client.casenotes.all()[:5]  # Latest 5 case notes
-                
-                html_content = render_to_string('admin/clients/client_profile.html', {
-                    'client': client,
-                    'case_notes': case_notes,
-                    'generated_at': datetime.now()
-                })
-                
-                combined_html += html_content + '<div style="page-break-after: always;"></div>'
-            
-            # Generate PDF
-            pdf_buffer = io.BytesIO()
-            HTML(string=combined_html).write_pdf(pdf_buffer)
-            pdf_buffer.seek(0)
-            
-            response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
-            filename = f"client_profiles_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
-            
-            return response
-            
-        except Exception as e:
-            self.message_user(request, f'PDF generation failed: {str(e)}', level='error')
+        """Export client profiles as PDF documents - DISABLED (WeasyPrint removed)"""
+        self.message_user(request, 'PDF generation is not available. WeasyPrint has been removed from the project.', level='error')
+        return
     
-    export_client_profiles_pdf.short_description = "Export client profiles as PDF"
+    export_client_profiles_pdf.short_description = "Export client profiles as PDF (disabled)"
 
     # --- Safe delete handling ---
     def response_delete(self, request, obj_display, obj_id):

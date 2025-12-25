@@ -23,13 +23,9 @@ from .serializers import ClientSerializer, CaseNoteSerializer, PitStopApplicatio
 from .storage import generate_document_sas_url
 import logging
 
-try:
-    from weasyprint import HTML, CSS
-    WEASYPRINT_AVAILABLE = True
-except (ImportError, OSError) as e:
-    # OSError occurs when system dependencies (like gobject-2.0-0) are missing in Azure
-    WEASYPRINT_AVAILABLE = False
-    HTML = None
+# PDF generation removed - WeasyPrint no longer used
+WEASYPRINT_AVAILABLE = False
+HTML = None
     CSS = None
 from django.utils import timezone
 
@@ -101,43 +97,10 @@ class ClientViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def summary_pdf(self, request, pk=None):
-        """Generate PDF summary report for a specific client"""
-        if not WEASYPRINT_AVAILABLE:
-            return JsonResponse({
-                'error': 'PDF generation not available. WeasyPrint is not installed.'
-            }, status=500)
-        
-        client = self.get_object()
-        
-        # Get related data
-        case_notes = client.casenotes.all()[:10]  # Latest 10 case notes
-        documents = client.documents.all()
-        
-        # Render HTML template
-        html_content = render_to_string('clients/client_summary.html', {
-            'client': client,
-            'case_notes': case_notes,
-            'documents': documents,
-            'generated_at': datetime.now(),
-            'generated_by': request.user.get_full_name() or request.user.username
-        })
-        
-        # Generate PDF
-        try:
-            pdf_buffer = io.BytesIO()
-            HTML(string=html_content).write_pdf(pdf_buffer)
-            pdf_buffer.seek(0)
-            
-            response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
-            filename = f"client_summary_{client.first_name}_{client.last_name}_{datetime.now().strftime('%Y%m%d')}.pdf"
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
-            
-            return response
-            
-        except Exception as e:
-            return JsonResponse({
-                'error': f'PDF generation failed: {str(e)}'
-            }, status=500)
+        """Generate PDF summary report for a specific client - DISABLED (WeasyPrint removed)"""
+        return JsonResponse({
+            'error': 'PDF generation is not available. WeasyPrint has been removed from the project.'
+        }, status=503)
 
 
 class CaseNoteViewSet(viewsets.ModelViewSet):

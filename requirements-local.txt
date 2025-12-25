@@ -8,6 +8,5 @@ python-dotenv==0.21.1
 Pillow>=10.0.1
 django-storages==1.14.2
 azure-storage-blob==12.19.0
-weasyprint>=61.0
 opencensus-ext-django==0.8.0
 opencensus-ext-logging==0.1.0
