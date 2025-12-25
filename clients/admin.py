@@ -42,7 +42,7 @@ class CaseNoteInline(admin.TabularInline):
     
     class Media:
         css = {
-            'all': ('admin/css/custom-case-notes.css',)
+            'all': (# 'admin/css/custom-case-notes.css',)
         }
         js = ('admin/js/case-notes-helper.js',)
     
