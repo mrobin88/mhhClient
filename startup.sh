@@ -106,10 +106,9 @@ exec $PYTHON -m gunicorn \
     --bind 0.0.0.0:8000 \
     --workers $WORKERS \
     --worker-class sync \
-    --worker-connections 1000 \
     --timeout 120 \
-    --keepalive 5 \
     --max-requests 1000 \
+    --max-requests-jitter 100 \
     --access-logformat '%({X-Forwarded-For}i)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s' \
     --access-logfile - \
     --error-logfile - \
