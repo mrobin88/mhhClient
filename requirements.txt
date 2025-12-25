@@ -1,26 +1,26 @@
-# Core Django (5.1.15 required for SQL injection security fix)
-Django==5.1.15
-djangorestframework==3.15.2
+    # Core Django (5.1.15 required for SQL injection security fix)
+    Django==5.1.15
+    djangorestframework==3.15.2
 
-# Production Server (latest stable)
-gunicorn==23.0.0
+    # Production Server (latest stable)
+    gunicorn==23.0.0
 
-# Static Files (latest stable)
-whitenoise==6.8.2
+    # Static Files (latest stable)
+    whitenoise==6.8.2
 
-# Database (latest compatible)
-psycopg2-binary==2.9.10
+# Database (use psycopg2 instead of binary for better Azure compatibility)
+psycopg2==2.9.10
 
-# CORS (latest stable)
-django-cors-headers==4.6.0
+    # CORS (latest stable)
+    django-cors-headers==4.6.0
 
-# Filtering (latest stable)
-django-filter==24.3
+    # Filtering (latest stable)
+    django-filter==24.3
 
-# Environment Variables (latest stable)
-python-dotenv==1.0.1
+    # Environment Variables (latest stable)
+    python-dotenv==1.0.1
 
-# Azure Storage (latest stable)
-django-storages==1.14.2
-azure-storage-blob==12.22.0
-# Deploy Wed Dec 24 17:43:42 PST 2025
+    # Azure Storage (latest stable)
+    django-storages==1.14.2
+    azure-storage-blob==12.22.0
+    # Deploy Wed Dec 24 17:43:42 PST 2025
