@@ -1,39 +1,35 @@
-# Core Django
-Django==3.2.25
-djangorestframework==3.15.1
+# Core Django (latest 3.2.x LTS)
+Django==3.2.28
+djangorestframework==3.15.2
 
-# Production Server
-gunicorn==21.2.0
+# Production Server (latest stable)
+gunicorn==23.0.0
 
-# Static Files
-whitenoise==6.6.0
+# Static Files (latest stable)
+whitenoise==6.8.2
 
-# Database
-psycopg2-binary==2.9.9
+# Database (latest compatible)
+psycopg2-binary==2.9.10
 
-# CORS
-django-cors-headers==4.1.0
+# CORS (latest stable)
+django-cors-headers==4.6.0
 
-# Filtering
-django-filter==23.5
+# Filtering (latest stable)
+django-filter==24.3
 
-# Environment Variables
-python-dotenv==0.21.1
+# Environment Variables (latest stable)
+python-dotenv==1.0.1
 
-# Image Processing
-Pillow==10.0.1
+# Image Processing (latest stable)
+Pillow==11.0.0
 
-# Azure Storage
+# Azure Storage (latest stable)
 django-storages==1.14.2
-azure-storage-blob==12.19.0
+azure-storage-blob==12.22.0
 
-# PDF Generation
-weasyprint==61.2
+# PDF Generation (latest stable)
+weasyprint==62.3
 
-# Monitoring (optional)
+# Monitoring (optional - latest stable)
 opencensus-ext-django==0.8.0
 opencensus-ext-logging==0.1.0
-# Force Rebuild Tue Dec 23 16:03:26 PST 2025
-# Deployment trigger - Tue Dec 23 16:19:10 PST 2025
-# Deployment trigger - Tue Dec 23 17:25:17 PST 2025
-# Force Oryx build - Wed Dec 24 09:00:41 PST 2025
