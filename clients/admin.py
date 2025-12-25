@@ -257,8 +257,8 @@ class CaseNoteAdmin(admin.ModelAdmin):
                 pass
             
             if not user_email:
-                from django.conf import settings
-                user_email = getattr(settings, 'CASE_NOTE_ALERT_EMAIL', None)
+                from django.conf import settings as django_settings
+                user_email = getattr(django_settings, 'CASE_NOTE_ALERT_EMAIL', None)
                 if not user_email:
                     admin_user = StaffUser.objects.filter(is_superuser=True).first()
                     if admin_user and admin_user.email:
@@ -594,6 +594,7 @@ class DocumentAdmin(admin.ModelAdmin):
                 messages.warning(request, f"Failed to delete blob for '{doc}': {exc}")
         messages.success(request, f"Deleted {deleted} document(s).")
     safe_delete_selected.short_description = "Safely delete selected documents"
+
 @admin.register(PitStopApplication)
 class PitStopApplicationAdmin(admin.ModelAdmin):
     list_display = ['client', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'available_days_summary', 'created_at']
