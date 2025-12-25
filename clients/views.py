@@ -26,7 +26,7 @@ import logging
 # PDF generation removed - WeasyPrint no longer used
 WEASYPRINT_AVAILABLE = False
 HTML = None
-    CSS = None
+CSS = None
 from django.utils import timezone
 
 class ClientViewSet(viewsets.ModelViewSet):
