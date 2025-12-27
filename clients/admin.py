@@ -298,6 +298,8 @@ class CaseNoteAdmin(admin.ModelAdmin):
         
         return response
 
+get_actions()
+
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'job_placed', 'program_completed_date', 'has_resume', 'case_notes_count', 'created_at']
