@@ -39,122 +39,106 @@
 
         <!-- Form Content -->
         <div class="p-10 space-y-10">
-          <!-- Training Program Interest Section - MOVED TO TOP -->
-          <div class="space-y-6">
+          <!-- Training Program Interest Section - Compact Button Rows -->
+          <div class="space-y-4">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="text-2xl font-semibold text-slate-800">Choose Your Path</h3>
+              <h3 class="text-2xl font-semibold text-slate-800">Training Program Interest <span class="text-mission-600">*</span></h3>
             </div>
             
-            <div class="space-y-4">
-              <div class="text-center mb-6">
-                <p class="text-lg text-slate-700 font-medium">Discover the perfect program to launch your career</p>
-                <p class="text-sm text-slate-500 mt-2">Click on a program below to get started</p>
-              </div>
-
-              <!-- Program Cards Grid -->
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                <!-- CityBuild Academy -->
+            <div class="space-y-3">
+              <!-- Compact Program Buttons - Row 1 -->
+              <div class="flex flex-wrap gap-2">
                 <button
                   type="button"
                   @click="form.training_interest = 'citybuild'"
                   :class="[
-                    'program-card program-card-construction',
-                    form.training_interest === 'citybuild' ? 'program-card-active' : 'program-card-inactive'
+                    'program-btn-compact',
+                    form.training_interest === 'citybuild' ? 'program-btn-active' : 'program-btn-inactive'
                   ]"
                 >
-                  <div class="text-5xl mb-4">🏗️</div>
-                  <h4 class="text-xl font-bold text-slate-900 mb-3">CityBuild Academy</h4>
-                  <p class="text-base text-slate-700 leading-relaxed">Pre-apprenticeship construction training program</p>
+                  <span class="mr-2">🏗️</span>
+                  <span>CityBuild Academy</span>
                 </button>
 
-                <!-- CityBuild Pro -->
                 <button
                   type="button"
                   @click="form.training_interest = 'citybuild_pro'"
                   :class="[
-                    'program-card program-card-pro',
-                    form.training_interest === 'citybuild_pro' ? 'program-card-active' : 'program-card-inactive'
+                    'program-btn-compact',
+                    form.training_interest === 'citybuild_pro' ? 'program-btn-active' : 'program-btn-inactive'
                   ]"
                 >
-                  <div class="text-5xl mb-4">⚡</div>
-                  <h4 class="text-xl font-bold text-slate-900 mb-3">CityBuild Pro | CAPSA</h4>
-                  <p class="text-base text-slate-700 leading-relaxed">Advanced construction skills & certification</p>
+                  <span class="mr-2">⚡</span>
+                  <span>CityBuild Pro | CAPSA</span>
                 </button>
 
-                <!-- Security Guard -->
                 <button
                   type="button"
                   @click="form.training_interest = 'security'"
                   :class="[
-                    'program-card program-card-security',
-                    form.training_interest === 'security' ? 'program-card-active' : 'program-card-inactive'
+                    'program-btn-compact',
+                    form.training_interest === 'security' ? 'program-btn-active' : 'program-btn-inactive'
                   ]"
                 >
-                  <div class="text-5xl mb-4">🛡️</div>
-                  <h4 class="text-xl font-bold text-slate-900 mb-3">Security Guard Card</h4>
-                  <p class="text-base text-slate-700 leading-relaxed">Professional security training & licensing</p>
+                  <span class="mr-2">🛡️</span>
+                  <span>Security Guard Card</span>
                 </button>
+              </div>
 
-                <!-- Construction On Ramp -->
+              <!-- Compact Program Buttons - Row 2 -->
+              <div class="flex flex-wrap gap-2">
                 <button
                   type="button"
                   @click="form.training_interest = 'construction'"
                   :class="[
-                    'program-card program-card-onramp',
-                    form.training_interest === 'construction' ? 'program-card-active' : 'program-card-inactive'
+                    'program-btn-compact',
+                    form.training_interest === 'construction' ? 'program-btn-active' : 'program-btn-inactive'
                   ]"
                 >
-                  <div class="text-5xl mb-4">🔨</div>
-                  <h4 class="text-xl font-bold text-slate-900 mb-3">Construction On Ramp</h4>
-                  <p class="text-base text-slate-700 leading-relaxed">Entry-level construction skills bootcamp</p>
+                  <span class="mr-2">🔨</span>
+                  <span>Construction On Ramp</span>
                 </button>
 
-                <!-- Pit Stop Program -->
                 <button
                   type="button"
                   @click="form.training_interest = 'pit_stop'"
                   :class="[
-                    'program-card program-card-pitstop',
-                    form.training_interest === 'pit_stop' ? 'program-card-active' : 'program-card-inactive'
+                    'program-btn-compact',
+                    form.training_interest === 'pit_stop' ? 'program-btn-active' : 'program-btn-inactive'
                   ]"
                 >
-                  <div class="text-5xl mb-4">🚻</div>
-                  <h4 class="text-xl font-bold text-slate-900 mb-3">Pit Stop Program</h4>
-                  <p class="text-base text-slate-700 leading-relaxed">Community attendant opportunities</p>
+                  <span class="mr-2">🚻</span>
+                  <span>Pit Stop Program</span>
                 </button>
 
-                <!-- General Job Readiness -->
                 <button
                   type="button"
                   @click="form.training_interest = 'general'"
                   :class="[
-                    'program-card program-card-general',
-                    form.training_interest === 'general' ? 'program-card-active' : 'program-card-inactive'
+                    'program-btn-compact',
+                    form.training_interest === 'general' ? 'program-btn-active' : 'program-btn-inactive'
                   ]"
                 >
-                  <div class="text-5xl mb-4">💼</div>
-                  <h4 class="text-xl font-bold text-slate-900 mb-3">General Job Readiness</h4>
-                  <p class="text-base text-slate-700 leading-relaxed">Build skills for any career path</p>
+                  <span class="mr-2">💼</span>
+                  <span>General Job Readiness</span>
                 </button>
 
-                <!-- Other Training -->
                 <button
                   type="button"
                   @click="form.training_interest = 'other'"
                   :class="[
-                    'program-card program-card-other',
-                    form.training_interest === 'other' ? 'program-card-active' : 'program-card-inactive'
+                    'program-btn-compact',
+                    form.training_interest === 'other' ? 'program-btn-active' : 'program-btn-inactive'
                   ]"
                 >
-                  <div class="text-5xl mb-4">✨</div>
-                  <h4 class="text-xl font-bold text-slate-900 mb-3">Other Programs</h4>
-                  <p class="text-base text-slate-700 leading-relaxed">Explore additional training options</p>
+                  <span class="mr-2">✨</span>
+                  <span>Other Programs</span>
                 </button>
               </div>
 
               <!-- Validation message -->
-              <p v-if="!form.training_interest && formAttempted" class="text-red-600 text-sm text-center">
+              <p v-if="!form.training_interest && formAttempted" class="text-red-600 text-sm">
                 Please select a program to continue
               </p>
             </div>
@@ -864,204 +848,49 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-/* Program Card Styles */
-.program-card {
-  padding: 2rem;
-  border-radius: 1.25rem;
-  border: 3px solid transparent;
+/* Compact Program Button Styles */
+.program-btn-compact {
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.5rem;
+  border: 2px solid #e2e8f0;
   background: white;
-  text-align: center;
-  transition: all 0.3s ease;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #475569;
+  transition: all 0.2s ease;
   cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  min-height: 220px;
-}
-
-.program-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 0;
-}
-
-.program-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* Program-specific colors */
-.program-card-construction::before {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.08) 0%, rgba(45, 212, 191, 0.03) 100%);
-}
-.program-card-construction.program-card-inactive {
-  border-color: #99f6e4;
-}
-.program-card-construction.program-card-inactive:hover {
-  border-color: #14b8a6;
-  box-shadow: 0 10px 25px rgba(20, 184, 166, 0.2);
-}
-.program-card-construction.program-card-active {
-  border-color: #14b8a6;
-  background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-  box-shadow: 0 10px 30px rgba(20, 184, 166, 0.3);
-}
-
-.program-card-pro::before {
-  background: linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(15, 118, 110, 0.03) 100%);
-}
-.program-card-pro.program-card-inactive {
-  border-color: #5eead4;
-}
-.program-card-pro.program-card-inactive:hover {
-  border-color: #0d9488;
-  box-shadow: 0 10px 25px rgba(13, 148, 136, 0.2);
-}
-.program-card-pro.program-card-active {
-  border-color: #0d9488;
-  background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-  box-shadow: 0 10px 30px rgba(13, 148, 136, 0.3);
-}
-
-.program-card-security::before {
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.08) 0%, rgba(94, 234, 212, 0.03) 100%);
-}
-.program-card-security.program-card-inactive {
-  border-color: #99f6e4;
-}
-.program-card-security.program-card-inactive:hover {
-  border-color: #2dd4bf;
-  box-shadow: 0 10px 25px rgba(45, 212, 191, 0.2);
-}
-.program-card-security.program-card-active {
-  border-color: #2dd4bf;
-  background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-  box-shadow: 0 10px 30px rgba(45, 212, 191, 0.3);
-}
-
-.program-card-onramp::before {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.08) 0%, rgba(45, 212, 191, 0.03) 100%);
-}
-.program-card-onramp.program-card-inactive {
-  border-color: #99f6e4;
-}
-.program-card-onramp.program-card-inactive:hover {
-  border-color: #14b8a6;
-  box-shadow: 0 10px 25px rgba(20, 184, 166, 0.2);
-}
-.program-card-onramp.program-card-active {
-  border-color: #14b8a6;
-  background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-  box-shadow: 0 10px 30px rgba(20, 184, 166, 0.3);
-}
-
-.program-card-pitstop::before {
-  background: linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(15, 118, 110, 0.03) 100%);
-}
-.program-card-pitstop.program-card-inactive {
-  border-color: #5eead4;
-}
-.program-card-pitstop.program-card-inactive:hover {
-  border-color: #0d9488;
-  box-shadow: 0 10px 25px rgba(13, 148, 136, 0.2);
-}
-.program-card-pitstop.program-card-active {
-  border-color: #0d9488;
-  background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-  box-shadow: 0 10px 30px rgba(13, 148, 136, 0.3);
-}
-
-.program-card-general::before {
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.08) 0%, rgba(94, 234, 212, 0.03) 100%);
-}
-.program-card-general.program-card-inactive {
-  border-color: #99f6e4;
-}
-.program-card-general.program-card-inactive:hover {
-  border-color: #2dd4bf;
-  box-shadow: 0 10px 25px rgba(45, 212, 191, 0.2);
-}
-.program-card-general.program-card-active {
-  border-color: #2dd4bf;
-  background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-  box-shadow: 0 10px 30px rgba(45, 212, 191, 0.3);
-}
-
-.program-card-other::before {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.08) 0%, rgba(45, 212, 191, 0.03) 100%);
-}
-.program-card-other.program-card-inactive {
-  border-color: #99f6e4;
-}
-.program-card-other.program-card-inactive:hover {
-  border-color: #14b8a6;
-  box-shadow: 0 10px 25px rgba(20, 184, 166, 0.2);
-}
-.program-card-other.program-card-active {
-  border-color: #14b8a6;
-  background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-  box-shadow: 0 10px 30px rgba(20, 184, 166, 0.3);
-}
-
-.program-card-inactive {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.program-card-inactive:hover {
-  transform: translateY(-6px);
-}
-
-.program-card-inactive:hover::before {
-  opacity: 1;
-}
-
-.program-card-active {
-  transform: scale(1.03);
-}
-
-.program-card-active::before {
-  opacity: 1;
-}
-
-.program-card-active::after {
-  content: '✓';
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 2.5rem;
-  height: 2.5rem;
-  background: currentColor;
-  color: white;
-  border-radius: 50%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 1.25rem;
-  z-index: 2;
-  animation: checkmark-pop 0.3s ease;
+  white-space: nowrap;
 }
 
-.program-card-construction.program-card-active::after { background: #14b8a6; }
-.program-card-pro.program-card-active::after { background: #0d9488; }
-.program-card-security.program-card-active::after { background: #2dd4bf; }
-.program-card-onramp.program-card-active::after { background: #14b8a6; }
-.program-card-pitstop.program-card-active::after { background: #0d9488; }
-.program-card-general.program-card-active::after { background: #2dd4bf; }
-.program-card-other.program-card-active::after { background: #14b8a6; }
-
-@keyframes checkmark-pop {
-  0% { transform: scale(0) rotate(-45deg); }
-  50% { transform: scale(1.3) rotate(5deg); }
-  100% { transform: scale(1) rotate(0deg); }
+.program-btn-inactive {
+  border-color: #e2e8f0;
+  background: white;
+  color: #475569;
 }
 
-.program-card:active {
+.program-btn-inactive:hover {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+  color: #0d9488;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(20, 184, 166, 0.15);
+}
+
+.program-btn-active {
+  border-color: #14b8a6;
+  background: #14b8a6;
+  color: white;
+  box-shadow: 0 2px 8px rgba(20, 184, 166, 0.25);
+}
+
+.program-btn-active:hover {
+  background: #0d9488;
+  border-color: #0d9488;
+}
+
+.program-btn-compact:active {
   transform: scale(0.98);
 }
 
