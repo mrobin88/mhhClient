@@ -179,8 +179,19 @@
                 </div>
               </div>
               <div>
-                <label class="form-label">Weekly Schedule Availability</label>
-                <p class="text-xs text-slate-600 mb-3">Select all available time slots</p>
+                <div class="flex items-center justify-between mb-3">
+                  <div>
+                    <label class="form-label">Weekly Schedule Availability</label>
+                    <p class="text-xs text-slate-600">Select all available time slots</p>
+                  </div>
+                  <button
+                    type="button"
+                    @click="selectAllTimeSlots"
+                    class="px-4 py-2 text-sm font-medium text-mission-700 bg-mission-50 border border-mission-200 rounded-lg hover:bg-mission-100 hover:border-mission-300 transition-colors"
+                  >
+                    ✓ Open Availability
+                  </button>
+                </div>
                 <div class="overflow-x-auto">
                   <div class="min-w-[640px] space-y-2">
                     <div v-for="day in days" :key="day" class="bg-white p-2.5 rounded-lg border border-slate-200">
@@ -699,6 +710,16 @@ const toggleTimeForDay = (day, value) => {
   } else {
     pitstop.value.weekly_schedule[day] = [...current]
   }
+}
+
+const selectAllTimeSlots = () => {
+  // Get all shift values
+  const allShiftValues = shifts.map(shift => shift.value)
+  
+  // Set all shifts for all days
+  days.forEach(day => {
+    pitstop.value.weekly_schedule[day] = [...allShiftValues]
+  })
 }
 
 const getShiftLabel = (value) => {
