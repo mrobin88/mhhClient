@@ -1,118 +1,150 @@
-# Azure Blob Storage Path Fix
+# Azure Blob Storage Path Fix – Kudu Console Python Troubleshooting
 
 ## Problem
 
-Database contains paths with `client-docs/` prefix (e.g., `client-docs/resumes/file.pdf`), but Azure blob storage has files without that prefix (e.g., `resumes/file.pdf`). This causes "BlobNotFound" errors.
+Some database file paths incorrectly include the `client-docs/` prefix (e.g., `client-docs/resumes/file.pdf`), but Azure Blob Storage files do **not** have this prefix (they are just `resumes/file.pdf`). This causes "BlobNotFound" errors when trying to access files.
 
 ## Root Cause
 
-Migrations `0004` and `0008` incorrectly added `client-docs/` to `upload_to` paths. Django-storages already handles the container name, so this created incorrect database paths.
+Older migrations (`0004` and `0008`) mistakenly included the `client-docs/` container name in `upload_to` paths. However, Django-storages already handles the container, so database paths became incorrect.
 
 ## Solution
 
-Migration `0010_fix_blob_paths.py` removes the `client-docs/` prefix from database paths.
+Migration `0010_fix_blob_paths.py` strips the `client-docs/` prefix from database paths.
 
-## Running the Fix on Azure
+---
 
-### Option 1: Kudu Console (Recommended)
+## Running the Migration (with Python Issues in Kudu/SSH)
 
-1. Go to Azure Portal → Your App Service → Advanced Tools → Go
-2. Click "Debug console" → "CMD" or "PowerShell"
-3. Navigate to your app directory:
-   ```bash
-   cd /home/site/wwwroot
-   ```
+On Azure App Service (Linux), Python may not be accessible as `python`. Here are the steps:
 
-4. Activate virtual environment:
-   ```bash
-   source antenv/bin/activate
-   ```
+1. **Open Kudu Console** (Azure Portal → Your App Service → Advanced Tools → Go).
+2. Click "Debug console" → "CMD" or "PowerShell".
+3. Navigate to your app code:
+    ```bash
+    cd /home/site/wwwroot
+    ```
+4. **Activate the virtual environment** (if not already):
+    ```bash
+    source antenv/bin/activate
+    ```
+5. **Check which Python executable works:**
+    ```bash
+    python --version         # (may not be found)
+    python3 --version        # (should work)
+    ```
+    If `python` fails with "command not found", **use `python3`** for all commands:
 
-5. Run migration:
-   ```bash
-   python manage.py migrate clients 0010
-   ```
+6. **Apply the migration:**
+    ```bash
+    python3 manage.py migrate clients 0010
+    ```
+    If you see `ModuleNotFoundError: No module named 'django'`, make sure your virtual environment is actually activated and contains Django.
 
-6. Verify:
-   ```bash
-   python manage.py showmigrations clients
-   ```
+7. **If still failing, check the following:**
 
-### Option 2: SSH (if enabled)
+    - Virtual environment path might be different: try `source .venv/bin/activate` or `source env/bin/activate` if `antenv` is missing.
+    - Check `requirements.txt` and (re)install dependencies:
+      ```bash
+      pip install -r requirements.txt
+      ```
 
-1. Enable SSH for your App Service
-2. Connect via Azure Portal SSH or `az webapp ssh`
-3. Follow same steps as Kudu console
+8. **Verify:**
+    ```bash
+    python3 manage.py showmigrations clients
+    ```
 
-### Option 3: Auto-deploy
+---
 
-The migration will run automatically on next deployment via `startup.sh`.
+## SSH Troubleshooting Example
 
-## Verification
+If using SSH (via Azure Portal or `az webapp ssh`), follow the same steps as above.
 
-After running the migration:
+- Always use `python3` if `python` is not available.
+- Example session:
+    ```
+    kudu_ssh_user@aa175e27f340:~/site/wwwroot$ source antenv/bin/activate
+    (antenv) kudu_ssh_user@aa175e27f340:~/site/wwwroot$ python manage.py migrate clients 0010
+    -bash: python: command not found
+    (antenv) kudu_ssh_user@aa175e27f340:~/site/wwwroot$ python3 manage.py migrate clients 0010
+    ```
+
+---
+
+## Verification Steps
+
+After the migration runs:
 
 1. Go to Django Admin → Documents
-2. Select any document
+2. Select a document
 3. Use the "🔍 Check Storage Configuration & Environment" action
-4. Verify the document file paths no longer have `client-docs/` prefix
-5. Try downloading a document - it should work now
+4. The file path shown should **not** include `client-docs/`
+5. File downloads should now work
+
+---
 
 ## What the Migration Does
 
-1. **Client resumes**: Removes `client-docs/resumes/` → `resumes/`
-2. **Document files**: Removes `client-docs/` → `` and adds `documents/` if needed
-3. **Prints progress**: Shows which records were fixed
+- **Client resumes:** Changes `client-docs/resumes/` → `resumes/`
+- **Document files:** Removes `client-docs/` and adds `documents/` if needed for document files
+- Prints a progress log showing which records it fixed
+
+---
 
 ## Commands Reference
 
 ```bash
-# Check current migration status
-python manage.py showmigrations clients
+# Show migration status
+python3 manage.py showmigrations clients
 
-# Run the fix migration
-python manage.py migrate clients 0010
+# Run the path fix migration
+python3 manage.py migrate clients 0010
 
-# Check blob storage config (Django shell)
-python manage.py shell
+# Inspect some Azure blobs
+python3 manage.py shell
 >>> from clients.storage import get_azure_container_client
 >>> client = get_azure_container_client()
 >>> blobs = list(client.list_blobs(max_results=10))
 >>> for blob in blobs:
 ...     print(f"{blob.name} ({blob.size} bytes)")
 
-# List actual database paths
+# See actual database paths
 >>> from clients.models import Client, Document
 >>> Client.objects.exclude(resume='').values_list('id', 'resume', named=True)[:5]
 >>> Document.objects.values_list('id', 'file', named=True)[:5]
 ```
 
+---
+
 ## Expected Results
 
-**Before fix:**
+**Before migration:**
 - Database: `client-docs/resumes/file.pdf`
 - Azure: `resumes/file.pdf`
 - Result: BlobNotFound error
 
-**After fix:**
+**After migration:**
 - Database: `resumes/file.pdf`
 - Azure: `resumes/file.pdf`
 - Result: File downloads successfully
 
-## Rollback (if needed)
+---
 
-If something goes wrong:
+## Rollback
+
+If you need to undo this migration:
 
 ```bash
-# Rollback to previous migration
-python manage.py migrate clients 0009
-
-# Or restore from database backup
+python3 manage.py migrate clients 0009
+# Or restore from DB backup if you have one
 ```
+
+---
 
 ## Notes
 
-- This migration is safe to run multiple times (idempotent)
-- It only updates paths that have the `client-docs/` prefix
-- No files are moved in Azure - only database paths are updated
-- The migration will print which records were fixed
+- The migration is safe to run multiple times (idempotent)
+- Only updates paths **with** `client-docs/` prefix
+- Does **not** move or rename blobs in Azure—DB update only!
+- Progress will be printed in the logs/console
+

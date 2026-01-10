@@ -69,25 +69,31 @@ def generate_document_sas_url(blob_name, expiry_minutes=15):
 
     # Try multiple path variations to handle different storage patterns
     # 1. Try exact path as stored
-    # 2. Try with resumes/ prefix (for Client.resume uploads)
-    # 3. Try with documents/ prefix (for Document.file uploads)
-    # 4. Try without any prefix (direct blob name)
+    # 2. Try with client-docs/ prefix (legacy issue where container name was in blob name)
+    # 3. Try with resumes/ prefix (for Client.resume uploads)
+    # 4. Try with documents/ prefix (for Document.file uploads)
+    # 5. Try without any prefix (direct blob name)
     
     paths_to_try = [
         blob_name,  # Original path
+        f'client-docs/{blob_name}',  # Legacy: container name in blob name
     ]
     
     # Add alternative paths based on the original
     if blob_name.startswith('documents/'):
         paths_to_try.append(blob_name.replace('documents/', 'resumes/', 1))
+        paths_to_try.append(f'client-docs/{blob_name.replace("documents/", "resumes/", 1)}')  # Legacy with swap
         paths_to_try.append(blob_name.replace('documents/', '', 1))  # Remove prefix
     elif blob_name.startswith('resumes/'):
         paths_to_try.append(blob_name.replace('resumes/', 'documents/', 1))
+        paths_to_try.append(f'client-docs/{blob_name.replace("resumes/", "documents/", 1)}')  # Legacy with swap
         paths_to_try.append(blob_name.replace('resumes/', '', 1))  # Remove prefix
     else:
         # No prefix - try adding both
         paths_to_try.append(f'resumes/{blob_name}')
+        paths_to_try.append(f'client-docs/resumes/{blob_name}')  # Legacy
         paths_to_try.append(f'documents/{blob_name}')
+        paths_to_try.append(f'client-docs/documents/{blob_name}')  # Legacy
     
     # Remove duplicates while preserving order
     seen = set()
