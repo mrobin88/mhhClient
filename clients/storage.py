@@ -58,25 +58,72 @@ def generate_document_sas_url(blob_name, expiry_minutes=15):
     # Normalize blob name: strip leading slashes and container prefix if present
     if blob_name.startswith('/'):
         blob_name = blob_name.lstrip('/')
+    
+    # Remove container prefix if present
     prefix = f"{container_name}/"
     if blob_name.startswith(prefix):
         blob_name = blob_name[len(prefix):]
-
-    # Generate SAS token
-    sas_token = generate_blob_sas(
-        account_name=account_name,
-        container_name=container_name,
-        blob_name=blob_name,
-        account_key=account_key,
-        permission=BlobSasPermissions(read=True),
-        expiry=datetime.utcnow() + timedelta(minutes=expiry_minutes)
-    )
     
-    # Construct the full URL
-    # URL-encode blob path but keep slashes
-    encoded_blob_path = quote(blob_name, safe='/')
-    blob_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{encoded_blob_path}"
-    return f"{blob_url}?{sas_token}"
+    logger = logging.getLogger('clients')
+    logger.info('Generating SAS URL for blob_name: %s (container: %s)', blob_name, container_name)
+
+    # Try multiple path variations to handle different storage patterns
+    # 1. Try exact path as stored
+    # 2. Try with resumes/ prefix (for Client.resume uploads)
+    # 3. Try with documents/ prefix (for Document.file uploads)
+    # 4. Try without any prefix (direct blob name)
+    
+    paths_to_try = [
+        blob_name,  # Original path
+    ]
+    
+    # Add alternative paths based on the original
+    if blob_name.startswith('documents/'):
+        paths_to_try.append(blob_name.replace('documents/', 'resumes/', 1))
+        paths_to_try.append(blob_name.replace('documents/', '', 1))  # Remove prefix
+    elif blob_name.startswith('resumes/'):
+        paths_to_try.append(blob_name.replace('resumes/', 'documents/', 1))
+        paths_to_try.append(blob_name.replace('resumes/', '', 1))  # Remove prefix
+    else:
+        # No prefix - try adding both
+        paths_to_try.append(f'resumes/{blob_name}')
+        paths_to_try.append(f'documents/{blob_name}')
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_paths = []
+    for path in paths_to_try:
+        if path not in seen:
+            seen.add(path)
+            unique_paths.append(path)
+    
+    # Try each path until one works
+    last_error = None
+    for attempt_path in unique_paths:
+        try:
+            logger.info('Attempting SAS generation for path: %s', attempt_path)
+            sas_token = generate_blob_sas(
+                account_name=account_name,
+                container_name=container_name,
+                blob_name=attempt_path,
+                account_key=account_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.utcnow() + timedelta(minutes=expiry_minutes)
+            )
+            
+            # Construct the full URL
+            encoded_blob_path = quote(attempt_path, safe='/')
+            blob_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{encoded_blob_path}"
+            logger.info('Successfully generated SAS URL for path: %s', attempt_path)
+            return f"{blob_url}?{sas_token}"
+        except Exception as e:
+            last_error = e
+            logger.debug('Path %s failed: %s', attempt_path, e)
+            continue
+    
+    # All paths failed
+    logger.error('All blob path attempts failed for %s. Last error: %s', blob_name, last_error)
+    raise ValueError(f"Could not generate SAS URL for blob. Tried paths: {unique_paths}. Last error: {last_error}")
 
 
 def get_azure_container_client():

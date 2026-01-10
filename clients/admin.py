@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import csv
 import io
 import logging
+import os
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.utils import timezone
@@ -561,13 +562,13 @@ class DocumentAdmin(admin.ModelAdmin):
     list_display = ['client', 'title', 'doc_type', 'file_size_mb', 'uploaded_by', 'created_at', 'download_link']
     list_filter = ['doc_type', 'created_at', 'uploaded_by']
     search_fields = ['client__first_name', 'client__last_name', 'title', 'uploaded_by']
-    readonly_fields = ['created_at', 'updated_at', 'file_size', 'content_type', 'file_download_link']
+    readonly_fields = ['created_at', 'updated_at', 'file_size', 'content_type', 'file_download_link', 'blob_path_info']
     date_hierarchy = 'created_at'
-    actions = ['safe_delete_selected']
+    actions = ['safe_delete_selected', 'verify_blob_exists', 'list_all_blobs', 'check_storage_config']
     
     fieldsets = (
         ('Document Information', {
-            'fields': ('client', 'title', 'doc_type', 'file', 'file_download_link'),
+            'fields': ('client', 'title', 'doc_type', 'file', 'file_download_link', 'blob_path_info'),
             'description': 'Upload a new file or use the download link below to access existing files.'
         }),
         ('Metadata', {
@@ -623,6 +624,21 @@ class DocumentAdmin(admin.ModelAdmin):
             pass
         return format_html('<a href="/api/documents/{}/download/" target="_blank">📥</a>', obj.pk)
     download_link.short_description = 'Download'
+    
+    def blob_path_info(self, obj):
+        """Display blob path information for debugging"""
+        if not obj.file:
+            return format_html('<span style="color: #999;">No file uploaded</span>')
+        
+        blob_name = obj.file.name
+        container = os.getenv('AZURE_CONTAINER', 'client-docs')
+        
+        info = f"<strong>Blob Name:</strong> {blob_name}<br>"
+        info += f"<strong>Container:</strong> {container}<br>"
+        info += f"<strong>Full Path:</strong> {container}/{blob_name}"
+        
+        return format_html(info)
+    blob_path_info.short_description = 'Azure Blob Path'
 
     def safe_delete_selected(self, request, queryset):
         """Bulk delete that swallows storage errors and continues."""
@@ -635,6 +651,157 @@ class DocumentAdmin(admin.ModelAdmin):
                 messages.warning(request, f"Failed to delete blob for '{doc}': {exc}")
         messages.success(request, f"Deleted {deleted} document(s).")
     safe_delete_selected.short_description = "Safely delete selected documents"
+    
+    actions = ['safe_delete_selected', 'verify_blob_exists', 'list_all_blobs', 'check_storage_config']
+    
+    def verify_blob_exists(self, request, queryset):
+        """Verify that selected documents exist in Azure Blob Storage"""
+        from .storage import get_azure_container_client
+        
+        container_client = get_azure_container_client()
+        if not container_client:
+            messages.error(request, "Azure storage not configured")
+            return
+        
+        verified = 0
+        missing = 0
+        errors = []
+        
+        for doc in queryset:
+            if not doc.file:
+                errors.append(f"{doc.title}: No file attached")
+                missing += 1
+                continue
+            
+            blob_name = doc.file.name
+            try:
+                # Check if blob exists
+                blob_client = container_client.get_blob_client(blob_name)
+                exists = blob_client.exists()
+                
+                if exists:
+                    verified += 1
+                    messages.success(request, f"✓ {doc.title}: Blob exists ({blob_name})")
+                else:
+                    missing += 1
+                    # Try alternative path
+                    alt_blob_name = blob_name.replace('documents/', 'resumes/', 1) if 'documents/' in blob_name else None
+                    if alt_blob_name:
+                        alt_blob_client = container_client.get_blob_client(alt_blob_name)
+                        if alt_blob_client.exists():
+                            messages.warning(request, f"⚠ {doc.title}: Found at alternative path ({alt_blob_name})")
+                            verified += 1
+                            missing -= 1
+                        else:
+                            errors.append(f"{doc.title}: Not found at {blob_name} or {alt_blob_name}")
+                    else:
+                        errors.append(f"{doc.title}: Not found at {blob_name}")
+            except Exception as e:
+                errors.append(f"{doc.title}: Error checking - {str(e)}")
+                missing += 1
+        
+        if errors:
+            for error in errors[:10]:  # Show first 10 errors
+                messages.error(request, error)
+            if len(errors) > 10:
+                messages.warning(request, f"... and {len(errors) - 10} more errors")
+        
+        messages.info(request, f"Verified: {verified} found, {missing} missing")
+    verify_blob_exists.short_description = "Verify blobs exist in Azure Storage"
+    
+    def list_all_blobs(self, request, queryset):
+        """List all blobs in Azure container for comparison"""
+        from .storage import get_azure_container_client
+        
+        container_client = get_azure_container_client()
+        if not container_client:
+            messages.error(request, "Azure storage not configured")
+            return
+        
+        try:
+            blobs = list(container_client.list_blobs())
+            blob_names = [blob.name for blob in blobs]
+            
+            # Show in a message (limited to avoid overwhelming)
+            if blob_names:
+                messages.info(request, f"Found {len(blob_names)} blobs in Azure:")
+                for name in blob_names[:20]:  # Show first 20
+                    messages.info(request, f"  - {name}")
+                if len(blob_names) > 20:
+                    messages.info(request, f"  ... and {len(blob_names) - 20} more")
+            else:
+                messages.warning(request, "No blobs found in Azure container")
+        except Exception as e:
+            messages.error(request, f"Error listing blobs: {str(e)}")
+    list_all_blobs.short_description = "List all blobs in Azure Storage"
+    
+    def check_storage_config(self, request, queryset):
+        """Diagnostic: Check Azure storage configuration and environment variables"""
+        from django.conf import settings
+        
+        # Check environment variables
+        account_name = os.getenv('AZURE_ACCOUNT_NAME')
+        account_key = os.getenv('AZURE_ACCOUNT_KEY')
+        container = os.getenv('AZURE_CONTAINER', 'client-docs')
+        
+        # Check Django settings
+        storage_backend = getattr(settings, 'DEFAULT_FILE_STORAGE', 'Not set')
+        settings_module = os.getenv('DJANGO_SETTINGS_MODULE', 'Not set')
+        
+        messages.info(request, "=== Azure Storage Configuration ===")
+        messages.info(request, f"Settings Module: {settings_module}")
+        
+        # Environment variables
+        if account_name:
+            messages.success(request, f"✓ AZURE_ACCOUNT_NAME: {account_name[:10]}... (configured)")
+        else:
+            messages.error(request, "✗ AZURE_ACCOUNT_NAME: NOT SET")
+        
+        if account_key:
+            messages.success(request, f"✓ AZURE_ACCOUNT_KEY: {'*' * 20}... (configured)")
+        else:
+            messages.error(request, "✗ AZURE_ACCOUNT_KEY: NOT SET")
+        
+        messages.info(request, f"Container: {container}")
+        messages.info(request, f"Storage Backend: {storage_backend}")
+        
+        # Test Azure connection
+        if account_name and account_key:
+            from .storage import get_azure_container_client
+            container_client = get_azure_container_client()
+            if container_client:
+                try:
+                    exists = container_client.exists()
+                    if exists:
+                        messages.success(request, f"✓ Azure container '{container}' exists and is accessible")
+                        
+                        # List some blobs
+                        blobs = list(container_client.list_blobs(max_results=10))
+                        messages.info(request, f"Found {len(blobs)} blobs (showing first 10):")
+                        for blob in blobs:
+                            messages.info(request, f"  - {blob.name} ({blob.size} bytes)")
+                    else:
+                        messages.error(request, f"✗ Azure container '{container}' does NOT exist")
+                except Exception as e:
+                    messages.error(request, f"✗ Error connecting to Azure: {str(e)}")
+            else:
+                messages.error(request, "✗ Failed to create Azure container client")
+        else:
+            messages.warning(request, "⚠ Azure credentials not configured - using local storage")
+        
+        # Check actual storage being used
+        if 'AzurePrivateStorage' in str(storage_backend):
+            messages.success(request, "✓ Using Azure Blob Storage")
+        else:
+            messages.warning(request, f"⚠ Using local storage: {storage_backend}")
+        
+        # Check document file paths
+        if queryset.exists():
+            messages.info(request, "\n=== Document File Paths ===")
+            for doc in queryset[:5]:  # Show first 5
+                if doc.file:
+                    messages.info(request, f"  {doc.title}: {doc.file.name}")
+    check_storage_config.short_description = "🔍 Check Storage Configuration & Environment"
 
 @admin.register(PitStopApplication)
 class PitStopApplicationAdmin(admin.ModelAdmin):
