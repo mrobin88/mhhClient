@@ -305,7 +305,7 @@ class ClientAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'job_placed', 'program_completed_date', 'has_resume', 'case_notes_count', 'created_at']
     list_filter = ['status', 'training_interest', 'job_placed', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
     search_fields = ['first_name', 'last_name', 'phone', 'job_title', 'job_company']
-    readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn']
+    readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn', 'resume_preview']
     date_hierarchy = 'created_at'
     inlines = [CaseNoteInline]  # Add case notes as inline list
     
@@ -373,7 +373,8 @@ class ClientAdmin(admin.ModelAdmin):
             'fields': ('referral_source', 'additional_notes')
         }),
         ('Documents', {
-            'fields': ('resume',)
+            'fields': ('resume', 'resume_preview'),
+            'description': 'Upload a resume or view existing resume. Preview and download links are available below.'
         }),
         ('Status & Tracking', {
             'fields': ('status', 'staff_name')
@@ -392,6 +393,60 @@ class ClientAdmin(admin.ModelAdmin):
             return format_html('<span style="color: green;">✓</span>')
         return format_html('<span style="color: red;">✗</span>')
     has_resume.short_description = 'Resume'
+    
+    def resume_preview(self, obj):
+        """Display preview and download link for resume"""
+        if not obj.resume:
+            return format_html('<span style="color: #999;">No resume uploaded</span>')
+        
+        try:
+            download_url = obj.resume_download_url
+            if not download_url:
+                return format_html('<span style="color: #d32f2f;">Error: Could not generate download URL</span>')
+            
+            file_type = obj.get_resume_file_type()
+            filename = obj.resume.name.split('/')[-1]
+            
+            preview_html = '<div style="margin-top: 10px;">'
+            
+            # Preview based on file type
+            if file_type == 'pdf':
+                preview_html += f'''
+                <div style="margin-bottom: 10px;">
+                    <strong>Preview:</strong><br>
+                    <iframe src="{download_url}" width="100%" height="600px" style="border: 1px solid #ddd; border-radius: 4px;"></iframe>
+                </div>
+                '''
+            elif file_type == 'image':
+                preview_html += f'''
+                <div style="margin-bottom: 10px;">
+                    <strong>Preview:</strong><br>
+                    <img src="{download_url}" alt="{filename}" style="max-width: 100%; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; padding: 5px;">
+                </div>
+                '''
+            else:
+                preview_html += f'''
+                <div style="margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
+                    <strong>File:</strong> {filename}<br>
+                    <em>Preview not available for this file type. Please download to view.</em>
+                </div>
+                '''
+            
+            # Download link
+            preview_html += f'''
+            <div>
+                <a href="{download_url}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #1976d2; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">
+                    📥 Download Resume
+                </a>
+            </div>
+            '''
+            
+            preview_html += '</div>'
+            return format_html(preview_html)
+        except Exception as e:
+            logging.getLogger('clients').error('Failed to generate resume preview for Client %s: %s', obj.pk, e)
+            return format_html('<span style="color: #d32f2f;">Error generating preview: {}</span>', str(e))
+    resume_preview.short_description = 'Resume Preview & Download'
     
     def case_notes_count(self, obj):
         count = obj.casenotes.count()
@@ -562,14 +617,14 @@ class DocumentAdmin(admin.ModelAdmin):
     list_display = ['client', 'title', 'doc_type', 'file_size_mb', 'uploaded_by', 'created_at', 'download_link']
     list_filter = ['doc_type', 'created_at', 'uploaded_by']
     search_fields = ['client__first_name', 'client__last_name', 'title', 'uploaded_by']
-    readonly_fields = ['created_at', 'updated_at', 'file_size', 'content_type', 'file_download_link', 'blob_path_info']
+    readonly_fields = ['created_at', 'updated_at', 'file_size', 'content_type', 'file_preview', 'blob_path_info']
     date_hierarchy = 'created_at'
     actions = ['safe_delete_selected', 'verify_blob_exists', 'list_all_blobs', 'check_storage_config']
     
     fieldsets = (
         ('Document Information', {
-            'fields': ('client', 'title', 'doc_type', 'file', 'file_download_link', 'blob_path_info'),
-            'description': 'Upload a new file or use the download link below to access existing files.'
+            'fields': ('client', 'title', 'doc_type', 'file', 'file_preview', 'blob_path_info'),
+            'description': 'Upload a new file or preview/download existing files below.'
         }),
         ('Metadata', {
             'fields': ('file_size', 'content_type', 'uploaded_by', 'notes')
@@ -586,31 +641,59 @@ class DocumentAdmin(admin.ModelAdmin):
         return "Unknown"
     file_size_mb.short_description = 'File Size'
     
-    def file_download_link(self, obj):
-        """Display download link for the document file"""
+    def file_preview(self, obj):
+        """Display preview and download link for document file"""
         if not obj.file:
             return format_html('<span style="color: #999;">No file uploaded</span>')
         
         try:
-            # Use the download_url property which handles SAS URL generation
             download_url = obj.download_url
-            if download_url:
-                return format_html(
-                    '<a href="{}" target="_blank" style="color: #1976d2; text-decoration: underline;">📥 Download File</a>',
-                    download_url
-                )
+            if not download_url:
+                return format_html('<span style="color: #d32f2f;">Error: Could not generate download URL</span>')
+            
+            file_type = obj.get_file_type()
+            filename = obj.file.name.split('/')[-1]
+            
+            preview_html = '<div style="margin-top: 10px;">'
+            
+            # Preview based on file type
+            if file_type == 'pdf':
+                preview_html += f'''
+                <div style="margin-bottom: 10px;">
+                    <strong>Preview:</strong><br>
+                    <iframe src="{download_url}" width="100%" height="600px" style="border: 1px solid #ddd; border-radius: 4px;"></iframe>
+                </div>
+                '''
+            elif file_type == 'image':
+                preview_html += f'''
+                <div style="margin-bottom: 10px;">
+                    <strong>Preview:</strong><br>
+                    <img src="{download_url}" alt="{filename}" style="max-width: 100%; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; padding: 5px;">
+                </div>
+                '''
             else:
-                # Fallback to API endpoint
-                from django.urls import reverse
-                api_url = reverse('document-download', kwargs={'pk': obj.pk})
-                return format_html(
-                    '<a href="{}" target="_blank" style="color: #1976d2; text-decoration: underline;">📥 Download File (via API)</a>',
-                    api_url
-                )
+                preview_html += f'''
+                <div style="margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
+                    <strong>File:</strong> {filename}<br>
+                    <em>Preview not available for this file type. Please download to view.</em>
+                </div>
+                '''
+            
+            # Download link
+            preview_html += f'''
+            <div>
+                <a href="{download_url}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #1976d2; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">
+                    📥 Download Document
+                </a>
+            </div>
+            '''
+            
+            preview_html += '</div>'
+            return format_html(preview_html)
         except Exception as e:
-            logging.getLogger('clients').error('Failed to generate download link for Document %s: %s', obj.pk, e)
-            return format_html('<span style="color: #d32f2f;">Error generating link</span>')
-    file_download_link.short_description = 'Download'
+            logging.getLogger('clients').error('Failed to generate file preview for Document %s: %s', obj.pk, e)
+            return format_html('<span style="color: #d32f2f;">Error generating preview: {}</span>', str(e))
+    file_preview.short_description = 'Preview & Download'
     
     def download_link(self, obj):
         """Quick download link for list view"""

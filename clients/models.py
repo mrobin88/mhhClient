@@ -179,6 +179,49 @@ class Client(models.Model):
     @property
     def documents_count(self):
         return self.documents.count()
+    
+    def generate_resume_sas_url(self, expiry_minutes=15):
+        """Generate a signed Azure SAS URL for resume download."""
+        if not self.resume:
+            return None
+        try:
+            # Try file.url first (may already be a SAS URL)
+            url = self.resume.url
+            if url and 'blob.core.windows.net' in url:
+                return url
+        except Exception as exc:
+            logging.getLogger('clients').warning('Failed to read resume.url for Client %s: %s', self.pk, exc)
+        # Fallback: manually generate SAS URL
+        try:
+            from .storage import generate_document_sas_url
+            blob_name = self.resume.name
+            sas_url = generate_document_sas_url(blob_name, expiry_minutes=expiry_minutes)
+            logging.getLogger('clients').info('Generated SAS URL for Client %s resume blob=%s', self.pk, blob_name)
+            return sas_url
+        except Exception as exc:
+            logging.getLogger('clients').error('SAS generation failed for Client %s resume: %s', self.pk, exc)
+            return None
+    
+    @property
+    def resume_download_url(self):
+        """Generate secure download URL for resume."""
+        if not self.resume:
+            return None
+        return self.generate_resume_sas_url()
+    
+    def get_resume_file_type(self):
+        """Determine file type for preview purposes."""
+        if not self.resume:
+            return None
+        filename = self.resume.name.lower()
+        if filename.endswith('.pdf'):
+            return 'pdf'
+        elif any(filename.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+            return 'image'
+        elif filename.endswith('.doc') or filename.endswith('.docx'):
+            return 'word'
+        else:
+            return 'other'
 
 
 class CaseNote(models.Model):
@@ -321,6 +364,20 @@ class Document(models.Model):
         if sas:
             return sas
         return reverse('document-download', kwargs={'pk': self.pk})
+    
+    def get_file_type(self):
+        """Determine file type for preview purposes."""
+        if not self.file:
+            return None
+        filename = self.file.name.lower()
+        if filename.endswith('.pdf'):
+            return 'pdf'
+        elif any(filename.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+            return 'image'
+        elif filename.endswith('.doc') or filename.endswith('.docx'):
+            return 'word'
+        else:
+            return 'other'
 
 
 class PitStopApplication(models.Model):

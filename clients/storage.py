@@ -8,7 +8,7 @@ from urllib.parse import quote
 from django.conf import settings
 from storages.backends.azure_storage import AzureStorage
 from azure.storage.blob import generate_blob_sas, BlobSasPermissions
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class AzurePrivateStorage(AzureStorage):
@@ -102,13 +102,17 @@ def generate_document_sas_url(blob_name, expiry_minutes=15):
     for attempt_path in unique_paths:
         try:
             logger.info('Attempting SAS generation for path: %s', attempt_path)
+            # Use timezone-aware UTC datetime to avoid clock skew issues
+            now = datetime.now(timezone.utc)
+            expiry_time = now + timedelta(minutes=expiry_minutes)
+            
             sas_token = generate_blob_sas(
                 account_name=account_name,
                 container_name=container_name,
                 blob_name=attempt_path,
                 account_key=account_key,
                 permission=BlobSasPermissions(read=True),
-                expiry=datetime.utcnow() + timedelta(minutes=expiry_minutes)
+                expiry=expiry_time
             )
             
             # Construct the full URL
