@@ -97,37 +97,68 @@ def generate_document_sas_url(blob_name, expiry_minutes=15):
             seen.add(path)
             unique_paths.append(path)
     
-    # Try each path until one works
+    # Get container client to verify blob existence before generating SAS
+    from azure.storage.blob import BlobServiceClient
+    try:
+        blob_service_client = BlobServiceClient(
+            account_url=f"https://{account_name}.blob.core.windows.net",
+            credential=account_key
+        )
+        container_client = blob_service_client.get_container_client(container_name)
+    except Exception as e:
+        logger.error('Failed to create Azure container client: %s', e)
+        raise ValueError(f"Could not connect to Azure Blob Storage: {str(e)}")
+    
+    # Try each path until we find one that exists, then generate SAS
     last_error = None
+    found_path = None
+    
     for attempt_path in unique_paths:
         try:
-            logger.info('Attempting SAS generation for path: %s', attempt_path)
-            # Use timezone-aware UTC datetime to avoid clock skew issues
-            now = datetime.now(timezone.utc)
-            expiry_time = now + timedelta(minutes=expiry_minutes)
+            logger.info('Checking if blob exists: %s', attempt_path)
+            blob_client = container_client.get_blob_client(attempt_path)
             
-            sas_token = generate_blob_sas(
-                account_name=account_name,
-                container_name=container_name,
-                blob_name=attempt_path,
-                account_key=account_key,
-                permission=BlobSasPermissions(read=True),
-                expiry=expiry_time
-            )
-            
-            # Construct the full URL
-            encoded_blob_path = quote(attempt_path, safe='/')
-            blob_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{encoded_blob_path}"
-            logger.info('Successfully generated SAS URL for path: %s', attempt_path)
-            return f"{blob_url}?{sas_token}"
+            # Check if blob exists
+            if blob_client.exists():
+                found_path = attempt_path
+                logger.info('Blob found at path: %s', found_path)
+                break
+            else:
+                logger.debug('Blob does not exist at path: %s', attempt_path)
         except Exception as e:
             last_error = e
-            logger.debug('Path %s failed: %s', attempt_path, e)
+            logger.debug('Error checking blob existence at %s: %s', attempt_path, e)
             continue
     
-    # All paths failed
-    logger.error('All blob path attempts failed for %s. Last error: %s', blob_name, last_error)
-    raise ValueError(f"Could not generate SAS URL for blob. Tried paths: {unique_paths}. Last error: {last_error}")
+    # If no blob found, raise error with all paths tried
+    if not found_path:
+        logger.error('Blob not found at any path. Tried: %s', unique_paths)
+        raise ValueError(f"Blob not found. Tried paths: {unique_paths}. Original blob_name: {blob_name}")
+    
+    # Generate SAS token for the found blob
+    try:
+        logger.info('Generating SAS token for verified blob: %s', found_path)
+        # Use timezone-aware UTC datetime to avoid clock skew issues
+        now = datetime.now(timezone.utc)
+        expiry_time = now + timedelta(minutes=expiry_minutes)
+        
+        sas_token = generate_blob_sas(
+            account_name=account_name,
+            container_name=container_name,
+            blob_name=found_path,
+            account_key=account_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=expiry_time
+        )
+        
+        # Construct the full URL
+        encoded_blob_path = quote(found_path, safe='/')
+        blob_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{encoded_blob_path}"
+        logger.info('Successfully generated SAS URL for blob: %s', found_path)
+        return f"{blob_url}?{sas_token}"
+    except Exception as e:
+        logger.error('Failed to generate SAS token for blob %s: %s', found_path, e)
+        raise ValueError(f"Failed to generate SAS URL for blob {found_path}: {str(e)}")
 
 
 def get_azure_container_client():
