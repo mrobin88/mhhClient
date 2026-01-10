@@ -8,6 +8,7 @@ from django.db.models import Count, Q
 from datetime import datetime, timedelta
 import csv
 import io
+import logging
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.utils import timezone
@@ -557,16 +558,17 @@ class ClientAdmin(admin.ModelAdmin):
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):
-    list_display = ['client', 'title', 'doc_type', 'file_size_mb', 'uploaded_by', 'created_at']
+    list_display = ['client', 'title', 'doc_type', 'file_size_mb', 'uploaded_by', 'created_at', 'download_link']
     list_filter = ['doc_type', 'created_at', 'uploaded_by']
     search_fields = ['client__first_name', 'client__last_name', 'title', 'uploaded_by']
-    readonly_fields = ['created_at', 'updated_at', 'file_size', 'content_type']
+    readonly_fields = ['created_at', 'updated_at', 'file_size', 'content_type', 'file_download_link']
     date_hierarchy = 'created_at'
     actions = ['safe_delete_selected']
     
     fieldsets = (
         ('Document Information', {
-            'fields': ('client', 'title', 'doc_type', 'file')
+            'fields': ('client', 'title', 'doc_type', 'file', 'file_download_link'),
+            'description': 'Upload a new file or use the download link below to access existing files.'
         }),
         ('Metadata', {
             'fields': ('file_size', 'content_type', 'uploaded_by', 'notes')
@@ -582,6 +584,45 @@ class DocumentAdmin(admin.ModelAdmin):
             return f"{obj.file_size_mb} MB"
         return "Unknown"
     file_size_mb.short_description = 'File Size'
+    
+    def file_download_link(self, obj):
+        """Display download link for the document file"""
+        if not obj.file:
+            return format_html('<span style="color: #999;">No file uploaded</span>')
+        
+        try:
+            # Use the download_url property which handles SAS URL generation
+            download_url = obj.download_url
+            if download_url:
+                return format_html(
+                    '<a href="{}" target="_blank" style="color: #1976d2; text-decoration: underline;">📥 Download File</a>',
+                    download_url
+                )
+            else:
+                # Fallback to API endpoint
+                from django.urls import reverse
+                api_url = reverse('document-download', kwargs={'pk': obj.pk})
+                return format_html(
+                    '<a href="{}" target="_blank" style="color: #1976d2; text-decoration: underline;">📥 Download File (via API)</a>',
+                    api_url
+                )
+        except Exception as e:
+            logging.getLogger('clients').error('Failed to generate download link for Document %s: %s', obj.pk, e)
+            return format_html('<span style="color: #d32f2f;">Error generating link</span>')
+    file_download_link.short_description = 'Download'
+    
+    def download_link(self, obj):
+        """Quick download link for list view"""
+        if not obj.file:
+            return '-'
+        try:
+            download_url = obj.download_url
+            if download_url:
+                return format_html('<a href="{}" target="_blank">📥</a>', download_url)
+        except:
+            pass
+        return format_html('<a href="/api/documents/{}/download/" target="_blank">📥</a>', obj.pk)
+    download_link.short_description = 'Download'
 
     def safe_delete_selected(self, request, queryset):
         """Bulk delete that swallows storage errors and continues."""
