@@ -138,9 +138,14 @@ def generate_document_sas_url(blob_name, expiry_minutes=15):
     # Generate SAS token for the found blob
     try:
         logger.info('Generating SAS token for verified blob: %s', found_path)
-        # Use timezone-aware UTC datetime to avoid clock skew issues
+        # Use timezone-aware UTC datetime and explicitly set both start and expiry
+        # to avoid clock skew issues between app server and Azure
         now = datetime.now(timezone.utc)
+        # Set start time 5 minutes in the past to handle clock skew
+        start_time = now - timedelta(minutes=5)
         expiry_time = now + timedelta(minutes=expiry_minutes)
+        
+        logger.info('SAS token times - Start: %s, Expiry: %s', start_time, expiry_time)
         
         sas_token = generate_blob_sas(
             account_name=account_name,
@@ -148,6 +153,7 @@ def generate_document_sas_url(blob_name, expiry_minutes=15):
             blob_name=found_path,
             account_key=account_key,
             permission=BlobSasPermissions(read=True),
+            start=start_time,
             expiry=expiry_time
         )
         
