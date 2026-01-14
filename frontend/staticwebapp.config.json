@@ -1,9 +1,24 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "*.css", "*.js", "*.png", "*.jpg", "*.svg", "*.ico", "*.woff", "*.woff2"]
+    "exclude": ["/worker.html", "/assets/*", "*.css", "*.js", "*.png", "*.jpg", "*.svg", "*.ico", "*.woff", "*.woff2"]
   },
+  "routes": [
+    {
+      "route": "/worker.html",
+      "serve": "/worker.html"
+    },
+    {
+      "route": "/worker",
+      "serve": "/worker.html"
+    }
+  ],
   "globalHeaders": {
     "Cache-Control": "no-cache"
+  },
+  "mimeTypes": {
+    ".html": "text/html",
+    ".css": "text/css",
+    ".js": "application/javascript"
   }
 }
