@@ -33,6 +33,13 @@
     {
       "route": "/worker.html",
       "serve": "/worker.html"
+    },
+    {
+      "route": "/worker",
+      "methods": [
+        "get"
+      ],
+      "rewrite": "/worker/index.html"
     }
   ],
   "globalHeaders": {
