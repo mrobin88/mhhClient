@@ -124,30 +124,32 @@ class CaseNoteViewSet(viewsets.ModelViewSet):
 class DocumentDownloadView(View):
     """
     Secure document download view with SAS URL generation
+    Redirects directly to Azure Blob SAS URL for seamless downloads
     """
     
     def get(self, request, pk):
-        """Generate and return a secure download URL for the document"""
+        """Generate SAS URL and redirect to it for direct download"""
+        from django.shortcuts import redirect
+        
         try:
             document = get_object_or_404(Document, pk=pk)
             
             # Check if user has permission to access this document
-            # You can add more sophisticated permission checking here
             if not request.user.is_authenticated:
                 raise Http404("Document not found")
             
-            # Generate SAS URL for secure download (prefer model helper)
+            # Generate SAS URL for secure download
             if document.file:
                 try:
                     sas_url = document.generate_sas_download_url(expiry_minutes=15)
                     if not sas_url:
                         raise ValueError('SAS URL generation returned empty')
-                    logging.getLogger('clients').info('Download URL generated for Document %s: %s', document.pk, sas_url)
-                    return JsonResponse({
-                        'download_url': sas_url,
-                        'filename': document.title,
-                        'expires_in_minutes': 15
-                    })
+                    
+                    logging.getLogger('clients').info('Download URL generated for Document %s: %s', document.pk, sas_url[:100])
+                    
+                    # Redirect directly to the SAS URL for seamless download
+                    return redirect(sas_url)
+                    
                 except Exception as e:
                     logging.getLogger('clients').error('Download URL generation failed for Document %s: %s', document.pk, e)
                     return JsonResponse({
