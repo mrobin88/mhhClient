@@ -38,7 +38,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        worker: resolve(__dirname, 'worker.html'),
+        worker: resolve(__dirname, 'worker/index.html'),
       },
     },
   },
