@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { copyFileSync } from 'fs'
-import { join } from 'path'
+import { join, resolve } from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -35,5 +35,11 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        worker: resolve(__dirname, 'worker.html'),
+      },
+    },
   },
 })

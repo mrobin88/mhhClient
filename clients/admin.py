@@ -14,6 +14,7 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from django.utils import timezone
 from .models import Client, CaseNote, Document, PitStopApplication
+from .models_extensions import WorkSite, ClientAvailability, WorkAssignment, CallOutLog, WorkerAccount, ServiceRequest
 
 # PDF generation removed - WeasyPrint no longer used
 WEASYPRINT_AVAILABLE = False
@@ -921,3 +922,194 @@ class PitStopApplicationAdmin(admin.ModelAdmin):
         
         return format_html('<br>'.join(summary)) if summary else "No availability set"
     schedule_summary.short_description = 'Weekly Schedule'
+
+
+# ========================================
+# Worker Portal Admin Interfaces
+# ========================================
+
+@admin.register(WorkerAccount)
+class WorkerAccountAdmin(admin.ModelAdmin):
+    """Admin interface for worker portal accounts"""
+    list_display = ['client', 'phone', 'is_active', 'is_approved', 'last_login', 'login_attempts', 'is_locked']
+    list_filter = ['is_active', 'is_approved', 'created_at']
+    search_fields = ['client__first_name', 'client__last_name', 'phone']
+    readonly_fields = ['pin_hash', 'last_login', 'login_attempts', 'locked_until', 'created_at']
+    
+    fieldsets = (
+        ('Worker Information', {
+            'fields': ('client', 'phone')
+        }),
+        ('Account Status', {
+            'fields': ('is_active', 'is_approved', 'last_login', 'login_attempts', 'locked_until')
+        }),
+        ('Account Management', {
+            'fields': ('created_by', 'created_at', 'notes')
+        }),
+        ('Security', {
+            'fields': ('pin_hash',),
+            'classes': ('collapse',),
+            'description': 'PIN is hashed for security. To reset PIN, use the action below.'
+        }),
+    )
+    
+    actions = ['approve_accounts', 'deactivate_accounts', 'reset_pins', 'unlock_accounts']
+    
+    def is_locked(self, obj):
+        """Show if account is currently locked"""
+        if obj.is_locked:
+            return format_html('<span style="color: red;">🔒 Locked</span>')
+        return format_html('<span style="color: green;">✓ Active</span>')
+    is_locked.short_description = 'Lock Status'
+    
+    def approve_accounts(self, request, queryset):
+        """Bulk approve worker accounts"""
+        updated = queryset.update(is_approved=True, is_active=True)
+        self.message_user(request, f'{updated} account(s) approved.')
+    approve_accounts.short_description = 'Approve selected accounts'
+    
+    def deactivate_accounts(self, request, queryset):
+        """Bulk deactivate worker accounts"""
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f'{updated} account(s) deactivated.')
+    deactivate_accounts.short_description = 'Deactivate selected accounts'
+    
+    def reset_pins(self, request, queryset):
+        """Reset PINs to default (phone last 4 digits)"""
+        from django.contrib.auth.hashers import make_password
+        for account in queryset:
+            default_pin = account.phone[-4:] if len(account.phone) >= 4 else '1234'
+            account.pin_hash = make_password(default_pin)
+            account.login_attempts = 0
+            account.locked_until = None
+            account.save()
+        self.message_user(request, f'PINs reset to last 4 digits of phone for {queryset.count()} account(s).')
+    reset_pins.short_description = 'Reset PIN to phone last 4 digits'
+    
+    def unlock_accounts(self, request, queryset):
+        """Unlock locked accounts"""
+        updated = queryset.update(login_attempts=0, locked_until=None)
+        self.message_user(request, f'{updated} account(s) unlocked.')
+    unlock_accounts.short_description = 'Unlock selected accounts'
+
+
+@admin.register(ServiceRequest)
+class ServiceRequestAdmin(admin.ModelAdmin):
+    """Admin interface for worker-submitted service requests"""
+    list_display = ['title', 'work_site', 'submitted_by', 'issue_type', 'priority', 'status', 'created_at', 'is_overdue']
+    list_filter = ['status', 'priority', 'issue_type', 'work_site', 'created_at']
+    search_fields = ['title', 'description', 'submitted_by__first_name', 'submitted_by__last_name']
+    readonly_fields = ['submitted_by', 'created_at', 'updated_at', 'response_time_display', 'resolution_time_display', 'photo_preview']
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('Request Information', {
+            'fields': ('submitted_by', 'work_site', 'issue_type', 'title', 'description', 'location_detail')
+        }),
+        ('Priority & Status', {
+            'fields': ('priority', 'status')
+        }),
+        ('Evidence', {
+            'fields': ('photo', 'photo_preview')
+        }),
+        ('Response & Resolution', {
+            'fields': ('acknowledged_by', 'acknowledged_at', 'assigned_to', 'resolved_at', 'resolution_notes')
+        }),
+        ('Metrics', {
+            'fields': ('response_time_display', 'resolution_time_display'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    actions = ['acknowledge_requests', 'mark_in_progress', 'mark_resolved']
+    
+    def is_overdue(self, obj):
+        """Show overdue status with color"""
+        if obj.is_overdue:
+            return format_html('<span style="color: red; font-weight: bold;">⚠️ OVERDUE</span>')
+        return format_html('<span style="color: green;">✓ On Track</span>')
+    is_overdue.short_description = 'Status'
+    
+    def photo_preview(self, obj):
+        """Show photo preview"""
+        if obj.photo:
+            return format_html('<img src="{}" style="max-width: 300px; max-height: 300px;" />', obj.photo.url)
+        return "No photo"
+    photo_preview.short_description = 'Photo Preview'
+    
+    def response_time_display(self, obj):
+        """Show response time in human-readable format"""
+        rt = obj.response_time
+        if rt:
+            hours = rt.total_seconds() / 3600
+            if hours < 1:
+                return f"{int(rt.total_seconds() / 60)} minutes"
+            return f"{hours:.1f} hours"
+        return "Not acknowledged yet"
+    response_time_display.short_description = 'Response Time'
+    
+    def resolution_time_display(self, obj):
+        """Show resolution time in human-readable format"""
+        rt = obj.resolution_time
+        if rt:
+            hours = rt.total_seconds() / 3600
+            if hours < 24:
+                return f"{hours:.1f} hours"
+            return f"{hours / 24:.1f} days"
+        return "Not resolved yet"
+    resolution_time_display.short_description = 'Resolution Time'
+    
+    def acknowledge_requests(self, request, queryset):
+        """Acknowledge selected requests"""
+        from django.utils import timezone
+        updated = queryset.filter(status='open').update(
+            status='acknowledged',
+            acknowledged_by=request.user.get_full_name() or request.user.username,
+            acknowledged_at=timezone.now()
+        )
+        self.message_user(request, f'{updated} request(s) acknowledged.')
+    acknowledge_requests.short_description = 'Acknowledge selected requests'
+    
+    def mark_in_progress(self, request, queryset):
+        """Mark requests as in progress"""
+        updated = queryset.exclude(status__in=['resolved', 'closed']).update(status='in_progress')
+        self.message_user(request, f'{updated} request(s) marked in progress.')
+    mark_in_progress.short_description = 'Mark as In Progress'
+    
+    def mark_resolved(self, request, queryset):
+        """Mark requests as resolved"""
+        from django.utils import timezone
+        updated = 0
+        for req in queryset.exclude(status__in=['resolved', 'closed']):
+            req.status = 'resolved'
+            req.resolved_at = timezone.now()
+            req.save()
+            updated += 1
+        self.message_user(request, f'{updated} request(s) marked resolved.')
+    mark_resolved.short_description = 'Mark as Resolved'
+
+
+# Register existing worker dispatch models if not already registered
+try:
+    admin.site.register(WorkSite)
+except admin.sites.AlreadyRegistered:
+    pass
+
+try:
+    admin.site.register(ClientAvailability)
+except admin.sites.AlreadyRegistered:
+    pass
+
+try:
+    admin.site.register(WorkAssignment)
+except admin.sites.AlreadyRegistered:
+    pass
+
+try:
+    admin.site.register(CallOutLog)
+except admin.sites.AlreadyRegistered:
+    pass

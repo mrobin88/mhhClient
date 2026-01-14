@@ -234,3 +234,213 @@ class CallOutLog(models.Model):
         """Check if call-out was less than 4 hours notice"""
         return self.advance_notice_hours < 4
 
+
+class WorkerAccount(models.Model):
+    """Authentication account for PitStop workers to access worker portal"""
+    
+    client = models.OneToOneField(
+        Client, 
+        on_delete=models.CASCADE, 
+        related_name='worker_account',
+        help_text='Link to client record'
+    )
+    phone = models.CharField(
+        max_length=20, 
+        unique=True,
+        help_text='Phone number for login (must match client phone)'
+    )
+    pin_hash = models.CharField(
+        max_length=128,
+        help_text='Hashed 4-6 digit PIN for authentication'
+    )
+    
+    # Account status
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Whether this worker can access the portal'
+    )
+    is_approved = models.BooleanField(
+        default=False,
+        help_text='Whether account is approved by staff'
+    )
+    
+    # Login tracking
+    last_login = models.DateTimeField(null=True, blank=True)
+    login_attempts = models.IntegerField(default=0)
+    locked_until = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text='Account locked until this time after too many failed attempts'
+    )
+    
+    # Account management
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=100, blank=True, help_text='Staff member who created account')
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Worker Account'
+        verbose_name_plural = 'Worker Accounts'
+    
+    def __str__(self):
+        return f"{self.client.full_name} - {self.phone}"
+    
+    def check_pin(self, raw_pin):
+        """Check if provided PIN matches stored hash"""
+        from django.contrib.auth.hashers import check_password
+        return check_password(raw_pin, self.pin_hash)
+    
+    def set_pin(self, raw_pin):
+        """Set PIN with hashing"""
+        from django.contrib.auth.hashers import make_password
+        self.pin_hash = make_password(raw_pin)
+    
+    @property
+    def is_locked(self):
+        """Check if account is currently locked"""
+        if not self.locked_until:
+            return False
+        from django.utils import timezone
+        return timezone.now() < self.locked_until
+    
+    def increment_login_attempts(self):
+        """Increment failed login attempts and lock if necessary"""
+        self.login_attempts += 1
+        if self.login_attempts >= 5:
+            from django.utils import timezone
+            from datetime import timedelta
+            self.locked_until = timezone.now() + timedelta(minutes=30)
+        self.save()
+    
+    def reset_login_attempts(self):
+        """Reset login attempts on successful login"""
+        self.login_attempts = 0
+        self.locked_until = None
+        from django.utils import timezone
+        self.last_login = timezone.now()
+        self.save()
+
+
+class ServiceRequest(models.Model):
+    """Worker-submitted issues and service requests at work sites"""
+    
+    ISSUE_TYPE_CHOICES = [
+        ('bathroom', 'Bathroom Issue'),
+        ('supplies', 'Supplies Needed'),
+        ('safety', 'Safety Concern'),
+        ('equipment', 'Equipment Problem'),
+        ('cleaning', 'Cleaning Issue'),
+        ('other', 'Other')
+    ]
+    
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('acknowledged', 'Acknowledged'),
+        ('in_progress', 'In Progress'),
+        ('resolved', 'Resolved'),
+        ('closed', 'Closed')
+    ]
+    
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent')
+    ]
+    
+    # Who and where
+    submitted_by = models.ForeignKey(
+        Client, 
+        on_delete=models.CASCADE,
+        related_name='service_requests',
+        help_text='Worker who submitted this request'
+    )
+    work_site = models.ForeignKey(
+        WorkSite,
+        on_delete=models.CASCADE,
+        related_name='service_requests',
+        help_text='Site where issue is located'
+    )
+    
+    # Issue details
+    issue_type = models.CharField(max_length=20, choices=ISSUE_TYPE_CHOICES)
+    title = models.CharField(max_length=200, help_text='Brief description of issue')
+    description = models.TextField(help_text='Detailed description of the problem')
+    location_detail = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text='Specific location at site (e.g., "North bathroom", "Storage closet")'
+    )
+    
+    # Prioritization and status
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    
+    # Evidence
+    photo = models.ImageField(
+        upload_to='service_requests/',
+        blank=True,
+        null=True,
+        help_text='Photo of the issue'
+    )
+    
+    # Response tracking
+    acknowledged_by = models.CharField(max_length=100, blank=True, help_text='Staff member who acknowledged')
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    assigned_to = models.CharField(max_length=100, blank=True, help_text='Person assigned to fix')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Service Request'
+        verbose_name_plural = 'Service Requests'
+        indexes = [
+            models.Index(fields=['status', 'priority']),
+            models.Index(fields=['work_site', 'status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_issue_type_display()} at {self.work_site.name} - {self.title}"
+    
+    @property
+    def is_overdue(self):
+        """Check if request is overdue based on priority"""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        if self.status in ['resolved', 'closed']:
+            return False
+        
+        age = timezone.now() - self.created_at
+        
+        if self.priority == 'urgent' and age > timedelta(hours=2):
+            return True
+        elif self.priority == 'high' and age > timedelta(hours=24):
+            return True
+        elif self.priority == 'medium' and age > timedelta(days=3):
+            return True
+        elif self.priority == 'low' and age > timedelta(days=7):
+            return True
+        
+        return False
+    
+    @property
+    def response_time(self):
+        """Calculate time to acknowledgement"""
+        if self.acknowledged_at:
+            return self.acknowledged_at - self.created_at
+        return None
+    
+    @property
+    def resolution_time(self):
+        """Calculate time to resolution"""
+        if self.resolved_at:
+            return self.resolved_at - self.created_at
+        return None
+

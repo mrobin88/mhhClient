@@ -1,0 +1,163 @@
+<template>
+  <div class="min-h-screen bg-gray-100">
+    <!-- Navigation Bar -->
+    <nav v-if="isAuthenticated" class="bg-blue-600 text-white shadow-lg">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+          <div class="flex items-center">
+            <h1 class="text-xl font-bold">🏢 Worker Portal</h1>
+          </div>
+          <div class="flex items-center space-x-4">
+            <span class="text-sm">{{ workerName }}</span>
+            <button 
+              @click="logout"
+              class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded text-sm font-medium"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Bottom Navigation (Mobile) -->
+    <div v-if="isAuthenticated" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-50">
+      <div class="flex justify-around">
+        <button
+          v-for="item in navItems"
+          :key="item.id"
+          @click="currentView = item.id"
+          :class="[
+            'flex-1 py-3 text-center',
+            currentView === item.id ? 'text-blue-600 bg-blue-50' : 'text-gray-600'
+          ]"
+        >
+          <div class="text-2xl">{{ item.icon }}</div>
+          <div class="text-xs mt-1">{{ item.label }}</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Side Navigation (Desktop) -->
+    <div v-if="isAuthenticated" class="hidden md:flex">
+      <div class="w-64 bg-white shadow-lg h-screen fixed">
+        <nav class="mt-8">
+          <button
+            v-for="item in navItems"
+            :key="item.id"
+            @click="currentView = item.id"
+            :class="[
+              'w-full flex items-center px-6 py-3 text-left',
+              currentView === item.id 
+                ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
+                : 'text-gray-700 hover:bg-gray-50'
+            ]"
+          >
+            <span class="text-2xl mr-3">{{ item.icon }}</span>
+            <span class="font-medium">{{ item.label }}</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div :class="[
+      'pb-20 md:pb-0',
+      isAuthenticated ? 'md:ml-64' : ''
+    ]">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Login View -->
+        <WorkerLogin 
+          v-if="!isAuthenticated" 
+          @login-success="handleLoginSuccess"
+        />
+
+        <!-- Dashboard -->
+        <WorkerDashboard 
+          v-else-if="currentView === 'dashboard'"
+          :worker-account="workerAccount"
+        />
+
+        <!-- My Assignments -->
+        <WorkerAssignments 
+          v-else-if="currentView === 'assignments'"
+        />
+
+        <!-- Availability -->
+        <WorkerAvailability 
+          v-else-if="currentView === 'availability'"
+        />
+
+        <!-- Service Requests -->
+        <WorkerServiceRequests 
+          v-else-if="currentView === 'requests'"
+        />
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import WorkerLogin from './components/WorkerLogin.vue'
+import WorkerDashboard from './components/WorkerDashboard.vue'
+import WorkerAssignments from './components/WorkerAssignments.vue'
+import WorkerAvailability from './components/WorkerAvailability.vue'
+import WorkerServiceRequests from './components/WorkerServiceRequests.vue'
+
+const isAuthenticated = ref(false)
+const workerAccount = ref<any>(null)
+const currentView = ref('dashboard')
+
+const navItems = [
+  { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+  { id: 'assignments', label: 'Assignments', icon: '📋' },
+  { id: 'availability', label: 'Availability', icon: '📅' },
+  { id: 'requests', label: 'Service Requests', icon: '🔧' }
+]
+
+const workerName = computed(() => {
+  return workerAccount.value?.client_name || 'Worker'
+})
+
+function handleLoginSuccess(data: any) {
+  isAuthenticated.value = true
+  workerAccount.value = data.worker_account
+  localStorage.setItem('worker_token', data.token)
+  localStorage.setItem('worker_account', JSON.stringify(data.worker_account))
+}
+
+function logout() {
+  // Call logout API
+  const token = localStorage.getItem('worker_token')
+  if (token) {
+    fetch('/api/worker/logout/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${token}`
+      }
+    })
+  }
+  
+  // Clear local storage
+  localStorage.removeItem('worker_token')
+  localStorage.removeItem('worker_account')
+  
+  // Reset state
+  isAuthenticated.value = false
+  workerAccount.value = null
+  currentView.value = 'dashboard'
+}
+
+// Check for existing session on mount
+const token = localStorage.getItem('worker_token')
+const savedAccount = localStorage.getItem('worker_account')
+if (token && savedAccount) {
+  isAuthenticated.value = true
+  workerAccount.value = JSON.parse(savedAccount)
+}
+</script>
+
+<style scoped>
+/* Mobile-first responsive styles */
+</style>
