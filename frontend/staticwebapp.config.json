@@ -1,15 +1,37 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/worker.html", "/assets/*", "*.css", "*.js", "*.png", "*.jpg", "*.svg", "*.ico", "*.woff", "*.woff2"]
+    "exclude": [
+      "/worker",
+      "/worker/",
+      "/worker/*",
+      "/worker.html",
+      "/assets/*",
+      "*.css",
+      "*.js",
+      "*.png",
+      "*.jpg",
+      "*.svg",
+      "*.ico",
+      "*.woff",
+      "*.woff2"
+    ]
   },
   "routes": [
     {
-      "route": "/worker.html",
+      "route": "/worker",
       "serve": "/worker.html"
     },
     {
-      "route": "/worker",
+      "route": "/worker/",
+      "serve": "/worker.html"
+    },
+    {
+      "route": "/worker/*",
+      "serve": "/worker.html"
+    },
+    {
+      "route": "/worker.html",
       "serve": "/worker.html"
     }
   ],
