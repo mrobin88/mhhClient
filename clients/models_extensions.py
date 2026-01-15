@@ -322,6 +322,34 @@ class WorkerAccount(models.Model):
         self.save()
 
 
+class WorkerSessionToken(models.Model):
+    """
+    Persistent worker portal session token.
+
+    IMPORTANT: Previously sessions were stored in memory (per-process). On Azure/Gunicorn,
+    this causes "login loops" because the next request may hit a different worker process
+    that doesn't have the in-memory session. Storing tokens in the DB makes sessions stable.
+    """
+    token = models.CharField(max_length=64, unique=True)
+    worker_account = models.ForeignKey(
+        WorkerAccount,
+        on_delete=models.CASCADE,
+        related_name='sessions',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['token']),
+            models.Index(fields=['expires_at']),
+        ]
+
+    def __str__(self):
+        return f"WorkerSessionToken({self.worker_account.phone})"
+
+
 class ServiceRequest(models.Model):
     """Worker-submitted issues and service requests at work sites"""
     

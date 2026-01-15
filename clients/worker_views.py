@@ -14,7 +14,7 @@ import logging
 from .models import Client
 from .models_extensions import (
     WorkerAccount, WorkAssignment, ClientAvailability, 
-    ServiceRequest, WorkSite, CallOutLog
+    ServiceRequest, WorkSite, CallOutLog, WorkerSessionToken
 )
 from .serializers import (
     WorkerLoginSerializer, WorkerAccountSerializer,
@@ -29,31 +29,46 @@ logger = logging.getLogger(__name__)
 
 # Simple session-based authentication token
 class WorkerSession:
-    """Simple session storage for worker authentication"""
-    _sessions = {}  # In production, use Redis or database
+    """Persistent session storage for worker authentication (DB-backed)"""
     
     @classmethod
     def create_session(cls, worker_account):
         """Create a new session for a worker"""
         import uuid
         token = str(uuid.uuid4())
-        cls._sessions[token] = {
-            'worker_account_id': worker_account.id,
-            'client_id': worker_account.client.id,
-            'created_at': timezone.now()
-        }
+        # 7-day expiry (can be adjusted). Shorter is safer; longer is more convenient.
+        expires_at = timezone.now() + timedelta(days=7)
+        WorkerSessionToken.objects.create(
+            token=token,
+            worker_account=worker_account,
+            expires_at=expires_at,
+        )
         return token
     
     @classmethod
     def get_session(cls, token):
         """Get session data by token"""
-        return cls._sessions.get(token)
+        if not token:
+            return None
+        try:
+            session = WorkerSessionToken.objects.select_related('worker_account', 'worker_account__client').get(
+                token=token,
+                expires_at__gt=timezone.now(),
+            )
+            return {
+                'worker_account_id': session.worker_account_id,
+                'client_id': session.worker_account.client_id,
+                'created_at': session.created_at,
+            }
+        except WorkerSessionToken.DoesNotExist:
+            return None
     
     @classmethod
     def delete_session(cls, token):
         """Delete a session"""
-        if token in cls._sessions:
-            del cls._sessions[token]
+        if not token:
+            return
+        WorkerSessionToken.objects.filter(token=token).delete()
 
 
 @api_view(['POST'])
