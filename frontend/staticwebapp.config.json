@@ -20,26 +20,19 @@
   "routes": [
     {
       "route": "/worker",
-      "serve": "/worker.html"
+      "serve": "/worker/index.html"
     },
     {
       "route": "/worker/",
-      "serve": "/worker.html"
+      "serve": "/worker/index.html"
     },
     {
       "route": "/worker/*",
-      "serve": "/worker.html"
+      "serve": "/worker/index.html"
     },
     {
       "route": "/worker.html",
-      "serve": "/worker.html"
-    },
-    {
-      "route": "/worker",
-      "methods": [
-        "get"
-      ],
-      "rewrite": "/worker/index.html"
+      "serve": "/worker/index.html"
     }
   ],
   "globalHeaders": {
