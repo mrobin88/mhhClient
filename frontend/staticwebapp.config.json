@@ -19,18 +19,6 @@
   },
   "routes": [
     {
-      "route": "/worker",
-      "serve": "/worker/index.html"
-    },
-    {
-      "route": "/worker/",
-      "serve": "/worker/index.html"
-    },
-    {
-      "route": "/worker/*",
-      "serve": "/worker/index.html"
-    },
-    {
       "route": "/worker.html",
       "serve": "/worker/index.html"
     }
