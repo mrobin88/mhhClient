@@ -28,6 +28,10 @@ export async function workerFetch(
 
   if (response.status === 401) {
     clearWorkerSession()
+    // Let the app know the token is no longer valid (e.g., backend restarted)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('worker-session-expired'))
+    }
   }
 
   return response

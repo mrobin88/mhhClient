@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { workerFetch } from './api'
 import WorkerLogin from './components/WorkerLogin.vue'
 import WorkerDashboard from './components/WorkerDashboard.vue'
@@ -128,6 +128,14 @@ function handleLoginSuccess(data: any) {
   localStorage.setItem('worker_account', JSON.stringify(data.worker_account))
 }
 
+function resetToLogin() {
+  localStorage.removeItem('worker_token')
+  localStorage.removeItem('worker_account')
+  isAuthenticated.value = false
+  workerAccount.value = null
+  currentView.value = 'dashboard'
+}
+
 function logout() {
   // Call logout API
   const token = localStorage.getItem('worker_token')
@@ -137,23 +145,44 @@ function logout() {
     })
   }
   
-  // Clear local storage
-  localStorage.removeItem('worker_token')
-  localStorage.removeItem('worker_account')
-  
-  // Reset state
-  isAuthenticated.value = false
-  workerAccount.value = null
-  currentView.value = 'dashboard'
+  resetToLogin()
 }
 
-// Check for existing session on mount
-const token = localStorage.getItem('worker_token')
-const savedAccount = localStorage.getItem('worker_account')
-if (token && savedAccount) {
+async function validateExistingSession() {
+  const token = localStorage.getItem('worker_token')
+  const savedAccount = localStorage.getItem('worker_account')
+  if (!token || !savedAccount) return
+
+  // Optimistically show the logged-in UI, but verify with backend.
   isAuthenticated.value = true
   workerAccount.value = JSON.parse(savedAccount)
+
+  try {
+    const resp = await workerFetch('/api/worker/profile/')
+    if (!resp.ok) {
+      resetToLogin()
+      return
+    }
+    const profile = await resp.json()
+    workerAccount.value = profile
+    localStorage.setItem('worker_account', JSON.stringify(profile))
+  } catch {
+    // If network is down, leave UI as-is; user can refresh
+  }
 }
+
+function onSessionExpired() {
+  resetToLogin()
+}
+
+onMounted(() => {
+  window.addEventListener('worker-session-expired', onSessionExpired)
+  validateExistingSession()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('worker-session-expired', onSessionExpired)
+})
 </script>
 
 <style scoped>
