@@ -11,26 +11,28 @@
         <!-- Phone Number -->
         <div>
           <label for="phone" class="block text-lg font-semibold text-gray-800 mb-3">
-            📱 Your Phone Number
+            📱 Phone (numbers only)
           </label>
           <input
             id="phone"
             v-model="phone"
             type="tel"
-            placeholder="415-555-1234"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            placeholder="Example: 4155551234"
             required
             autocomplete="tel"
             class="w-full px-5 py-4 text-lg border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
           />
           <p class="text-sm text-gray-500 mt-2">
-            The same phone number you gave to your supervisor
+            Type the same phone number you gave your supervisor
           </p>
         </div>
 
         <!-- PIN -->
         <div>
           <label for="pin" class="block text-lg font-semibold text-gray-800 mb-3">
-            🔒 Your PIN
+            🔒 PIN (4 digits)
           </label>
           <input
             id="pin"
@@ -38,15 +40,24 @@
             type="password"
             inputmode="numeric"
             pattern="[0-9]*"
-            maxlength="6"
+            maxlength="4"
             placeholder="••••"
             required
             autocomplete="off"
             class="w-full px-5 py-4 text-2xl tracking-widest text-center border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
           />
-          <p class="text-sm text-gray-500 mt-2">
-            Usually the last 4 digits of your phone number
-          </p>
+          <div class="mt-3">
+            <button
+              type="button"
+              @click="useLast4()"
+              class="w-full bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-3 px-4 rounded-xl border border-gray-200"
+            >
+              Use last 4 digits of my phone
+            </button>
+            <p class="text-sm text-gray-500 mt-2">
+              If you don’t know your PIN, ask your supervisor.
+            </p>
+          </div>
         </div>
 
         <!-- Error Message -->
@@ -98,23 +109,46 @@ const pin = ref('')
 const loading = ref(false)
 const error = ref('')
 
+function digitsOnly(value: string) {
+  return (value || '').replace(/\D/g, '')
+}
+
+function useLast4() {
+  const d = digitsOnly(phone.value)
+  if (d.length >= 4) pin.value = d.slice(-4)
+}
+
 async function handleLogin() {
   loading.value = true
   error.value = ''
 
   try {
+    // Normalize inputs so staff can paste formatted phone numbers
+    const normalizedPhone = digitsOnly(phone.value)
+    const normalizedPin = digitsOnly(pin.value).slice(0, 4)
+
     const response = await fetch(getApiUrl('/api/worker/login/'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        phone: phone.value,
-        pin: pin.value
+        phone: normalizedPhone,
+        pin: normalizedPin
       })
     })
 
-    const data = await response.json()
+    const contentType = response.headers.get('content-type') || ''
+    let data: any = null
+    if (contentType.includes('application/json')) {
+      data = await response.json()
+    } else {
+      // Backend returned HTML (usually a 500 or maintenance). Keep message simple.
+      const text = await response.text()
+      console.error('Login error (non-JSON response):', response.status, text.slice(0, 200))
+      error.value = 'System is updating. Please try again in 1 minute.'
+      return
+    }
 
     if (response.ok) {
       emit('login-success', data)
@@ -132,7 +166,7 @@ async function handleLogin() {
     }
   } catch (err) {
     console.error('Login error:', err)
-    error.value = 'Network error. Please check your connection and try again.'
+    error.value = 'Could not connect. Try again.'
   } finally {
     loading.value = false
   }

@@ -66,6 +66,42 @@
       isAuthenticated ? 'md:ml-64' : ''
     ]">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Big quick actions (easier than small nav) -->
+        <div v-if="isAuthenticated" class="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button
+            @click="currentView = 'assignments'"
+            class="w-full text-left bg-white border-2 border-gray-200 hover:border-blue-400 rounded-2xl p-6 shadow-sm"
+          >
+            <div class="text-4xl mb-2">📋</div>
+            <div class="text-2xl font-bold">My Work</div>
+            <div class="text-gray-600">See today’s schedule</div>
+          </button>
+          <button
+            @click="currentView = 'availability'"
+            class="w-full text-left bg-white border-2 border-gray-200 hover:border-blue-400 rounded-2xl p-6 shadow-sm"
+          >
+            <div class="text-4xl mb-2">📅</div>
+            <div class="text-2xl font-bold">I’m Available</div>
+            <div class="text-gray-600">Set when you can work</div>
+          </button>
+          <button
+            @click="currentView = 'requests'"
+            class="w-full text-left bg-white border-2 border-gray-200 hover:border-blue-400 rounded-2xl p-6 shadow-sm"
+          >
+            <div class="text-4xl mb-2">🔧</div>
+            <div class="text-2xl font-bold">Need Help</div>
+            <div class="text-gray-600">Report a problem at the site</div>
+          </button>
+          <button
+            @click="logout()"
+            class="w-full text-left bg-white border-2 border-red-200 hover:border-red-400 rounded-2xl p-6 shadow-sm"
+          >
+            <div class="text-4xl mb-2">🚪</div>
+            <div class="text-2xl font-bold text-red-700">Log Out</div>
+            <div class="text-gray-600">End session</div>
+          </button>
+        </div>
+
         <!-- Login View -->
         <WorkerLogin 
           v-if="!isAuthenticated" 
