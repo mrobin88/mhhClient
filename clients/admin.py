@@ -508,7 +508,53 @@ class ClientAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related('casenotes')
     
-    actions = ['mark_active', 'mark_completed', 'mark_job_placed', 'export_to_csv', 'export_program_report', 'export_job_placement_report', 'export_client_profiles_pdf']
+    actions = ['mark_active', 'mark_completed', 'mark_job_placed', 'create_worker_accounts', 'export_to_csv', 'export_program_report', 'export_job_placement_report', 'export_client_profiles_pdf']
+    
+    def create_worker_accounts(self, request, queryset):
+        """Create worker portal accounts for selected PitStop clients"""
+        from django.contrib.auth.hashers import make_password
+        
+        created = 0
+        skipped = 0
+        errors = []
+        
+        for client in queryset:
+            # Check if already has account
+            if hasattr(client, 'worker_account'):
+                skipped += 1
+                continue
+            
+            # Check if phone exists
+            if not client.phone:
+                errors.append(f'{client.full_name}: No phone number')
+                continue
+            
+            try:
+                # Generate PIN from last 4 digits of phone
+                pin = client.phone[-4:] if len(client.phone) >= 4 else '1234'
+                
+                # Create worker account
+                WorkerAccount.objects.create(
+                    client=client,
+                    phone=client.phone,
+                    pin_hash=make_password(pin),
+                    is_active=True,
+                    is_approved=True,
+                    created_by=request.user.username
+                )
+                created += 1
+            except Exception as e:
+                errors.append(f'{client.full_name}: {str(e)}')
+        
+        # Show results
+        if created:
+            self.message_user(request, f'✓ Created {created} worker account(s). PIN = last 4 digits of phone.', messages.SUCCESS)
+        if skipped:
+            self.message_user(request, f'⚠ Skipped {skipped} client(s) - already have accounts.', messages.WARNING)
+        if errors:
+            self.message_user(request, f'✗ Errors: {", ".join(errors)}', messages.ERROR)
+    
+    create_worker_accounts.short_description = "🏢 Create worker portal accounts (PIN = last 4 of phone)"
     
     def mark_active(self, request, queryset):
         updated = queryset.update(status='active')
