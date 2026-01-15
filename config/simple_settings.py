@@ -54,9 +54,10 @@ else:
     cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
     CORS_ALLOWED_ORIGINS = cors_origins.split(',') if cors_origins else []
     # Accept all Azure Static Web Apps subdomains (e.g., with/without shard like .1.)
+    # NOTE: Use single escaping in raw strings. `\\.` would match a literal backslash.
     CORS_ALLOWED_ORIGIN_REGEXES = [
-        r"^https://.*\\.azurestaticapps\\.net$",
-        r"^https://.*\\.azurewebsites\\.net$",
+        r"^https://.*\.azurestaticapps\.net$",
+        r"^https://.*\.azurewebsites\.net$",
     ]
     CORS_ALLOW_CREDENTIALS = True
     CORS_ALLOW_HEADERS = list(set([
