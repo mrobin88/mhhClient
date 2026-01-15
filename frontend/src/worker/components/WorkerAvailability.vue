@@ -113,7 +113,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
-import { getApiUrl } from '../../config/api'
+import { workerFetch } from '../api'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -149,13 +149,13 @@ const availability = reactive<any>({
 async function loadAvailability() {
   loading.value = true
   const token = localStorage.getItem('worker_token')
+  if (!token) {
+    loading.value = false
+    return
+  }
 
   try {
-    const response = await fetch(getApiUrl('/api/worker/availability/'), {
-      headers: {
-        'Authorization': `Token ${token}`
-      }
-    })
+    const response = await workerFetch('/api/worker/availability/')
 
     if (response.ok) {
       const data = await response.json()
@@ -183,6 +183,11 @@ async function saveAvailability() {
   successMessage.value = ''
   errorMessage.value = ''
   const token = localStorage.getItem('worker_token')
+  if (!token) {
+    saving.value = false
+    errorMessage.value = 'Please log in again.'
+    return
+  }
 
   // Convert availability object to array
   const availabilityArray = Object.keys(availability).map(day => ({
@@ -193,10 +198,9 @@ async function saveAvailability() {
   }))
 
   try {
-    const response = await fetch(getApiUrl('/api/worker/availability/'), {
+    const response = await workerFetch('/api/worker/availability/', {
       method: 'PUT',
       headers: {
-        'Authorization': `Token ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(availabilityArray)

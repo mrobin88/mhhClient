@@ -210,7 +210,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getApiUrl } from '../../config/api'
+import { workerFetch } from '../api'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -233,13 +233,13 @@ const newRequest = ref({
 async function loadServiceRequests() {
   loading.value = true
   const token = localStorage.getItem('worker_token')
+  if (!token) {
+    loading.value = false
+    return
+  }
 
   try {
-    const response = await fetch(getApiUrl('/api/worker/service-requests/'), {
-      headers: {
-        'Authorization': `Token ${token}`
-      }
-    })
+    const response = await workerFetch('/api/worker/service-requests/')
 
     if (response.ok) {
       serviceRequests.value = await response.json()
@@ -253,13 +253,10 @@ async function loadServiceRequests() {
 
 async function loadWorkSites() {
   const token = localStorage.getItem('worker_token')
+  if (!token) return
 
   try {
-    const response = await fetch(getApiUrl('/api/worker/work-sites/'), {
-      headers: {
-        'Authorization': `Token ${token}`
-      }
-    })
+    const response = await workerFetch('/api/worker/work-sites/')
 
     if (response.ok) {
       workSites.value = await response.json()
@@ -280,6 +277,11 @@ async function submitRequest() {
   submitting.value = true
   submitError.value = ''
   const token = localStorage.getItem('worker_token')
+  if (!token) {
+    submitError.value = 'Please log in again.'
+    submitting.value = false
+    return
+  }
 
   try {
     // Create FormData for file upload
@@ -295,11 +297,8 @@ async function submitRequest() {
       formData.append('photo', newRequest.value.photo)
     }
 
-    const response = await fetch(getApiUrl('/api/worker/service-requests/'), {
+    const response = await workerFetch('/api/worker/service-requests/', {
       method: 'POST',
-      headers: {
-        'Authorization': `Token ${token}`
-      },
       body: formData
     })
 

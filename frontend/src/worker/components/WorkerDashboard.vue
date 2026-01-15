@@ -170,7 +170,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getApiUrl } from '../../config/api'
+import { workerFetch } from '../api'
 
 const loading = ref(false)
 const todayAssignments = ref<any[]>([])
@@ -185,13 +185,13 @@ const stats = ref({
 async function loadDashboard() {
   loading.value = true
   const token = localStorage.getItem('worker_token')
+  if (!token) {
+    loading.value = false
+    return
+  }
 
   try {
-    const response = await fetch(getApiUrl('/api/worker/dashboard/'), {
-      headers: {
-        'Authorization': `Token ${token}`
-      }
-    })
+    const response = await workerFetch('/api/worker/dashboard/')
 
     if (response.ok) {
       const data = await response.json()

@@ -99,6 +99,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { workerFetch } from './api'
 import WorkerLogin from './components/WorkerLogin.vue'
 import WorkerDashboard from './components/WorkerDashboard.vue'
 import WorkerAssignments from './components/WorkerAssignments.vue'
@@ -131,11 +132,8 @@ function logout() {
   // Call logout API
   const token = localStorage.getItem('worker_token')
   if (token) {
-    fetch('/api/worker/logout/', {
+    workerFetch('/api/worker/logout/', {
       method: 'POST',
-      headers: {
-        'Authorization': `Token ${token}`
-      }
     })
   }
   

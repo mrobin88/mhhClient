@@ -163,7 +163,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getApiUrl } from '../../config/api'
+import { workerFetch } from '../api'
 
 const loading = ref(false)
 const assignments = ref<any[]>([])
@@ -188,13 +188,14 @@ const callOutError = ref('')
 async function loadAssignments() {
   loading.value = true
   const token = localStorage.getItem('worker_token')
+  if (!token) {
+    assignments.value = []
+    loading.value = false
+    return
+  }
 
   try {
-    const response = await fetch(getApiUrl(`/api/worker/assignments/?filter=${activeFilter.value}`), {
-      headers: {
-        'Authorization': `Token ${token}`
-      }
-    })
+    const response = await workerFetch(`/api/worker/assignments/?filter=${activeFilter.value}`)
 
     if (response.ok) {
       assignments.value = await response.json()
@@ -208,14 +209,10 @@ async function loadAssignments() {
 
 async function confirmAssignment(assignmentId: number) {
   const token = localStorage.getItem('worker_token')
+  if (!token) return
 
   try {
-    const response = await fetch(getApiUrl(`/api/worker/assignments/${assignmentId}/confirm/`), {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${token}`
-      }
-    })
+    const response = await workerFetch(`/api/worker/assignments/${assignmentId}/confirm/`, { method: 'POST' })
 
     if (response.ok) {
       await loadAssignments()
@@ -254,12 +251,16 @@ async function submitCallOut() {
   submittingCallOut.value = true
   callOutError.value = ''
   const token = localStorage.getItem('worker_token')
+  if (!token) {
+    callOutError.value = 'Please log in again.'
+    submittingCallOut.value = false
+    return
+  }
 
   try {
-    const response = await fetch(getApiUrl('/api/worker/call-out/'), {
+    const response = await workerFetch('/api/worker/call-out/', {
       method: 'POST',
       headers: {
-        'Authorization': `Token ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
