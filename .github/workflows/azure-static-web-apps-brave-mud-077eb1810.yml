@@ -69,8 +69,12 @@ jobs:
             echo "❌ ERROR: Development index.html found in dist!"
             exit 1
           fi
-          if ! grep -q "/assets/index-" frontend/dist/index.html; then
+          if ! grep -q "/assets/" frontend/dist/index.html; then
             echo "❌ ERROR: Built assets not found in index.html!"
+            exit 1
+          fi
+          if [ ! -d "frontend/dist/worker" ]; then
+            echo "❌ ERROR: worker/ folder not found in dist!"
             exit 1
           fi
           echo "✅ Build output looks correct"
