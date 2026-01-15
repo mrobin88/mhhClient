@@ -3,7 +3,7 @@ Views for Worker Portal API
 Provides endpoints for workers to access their assignments, submit call-outs, and manage service requests
 """
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, action
+from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.utils import timezone
@@ -57,6 +57,7 @@ class WorkerSession:
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def worker_login(request):
     """
     Worker login endpoint - authenticate with phone + PIN
@@ -90,6 +91,7 @@ def worker_login(request):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def worker_logout(request):
     """
     Worker logout endpoint
@@ -104,6 +106,7 @@ def worker_logout(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def worker_profile(request):
     """
     Get worker profile information
@@ -125,6 +128,7 @@ def worker_profile(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def worker_assignments(request):
     """
     Get worker's assignments
@@ -161,6 +165,7 @@ def worker_assignments(request):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def worker_confirm_assignment(request, assignment_id):
     """
     Confirm an assignment
@@ -195,6 +200,7 @@ def worker_confirm_assignment(request, assignment_id):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def worker_call_out(request):
     """
     Submit a call-out for an assignment
@@ -251,6 +257,7 @@ def worker_call_out(request):
 
 
 @api_view(['GET', 'PUT'])
+@permission_classes([AllowAny])
 def worker_availability(request):
     """
     Get or update worker's availability
@@ -303,6 +310,7 @@ def worker_availability(request):
 
 
 @api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
 def worker_service_requests(request):
     """
     Get worker's service requests or submit a new one
@@ -342,6 +350,7 @@ def worker_service_requests(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def worker_work_sites(request):
     """
     Get list of active work sites
@@ -361,6 +370,7 @@ def worker_work_sites(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def worker_dashboard(request):
     """
     Get dashboard summary for worker
