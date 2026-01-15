@@ -27,7 +27,7 @@ class WorkSite(models.Model):
     
     # Shift information
     typical_start_time = models.TimeField(help_text='Typical shift start time')
-    typical_end_time = models.TimeField(help_text='Typical shift end time')
+    typical_end_time = models.TimeField(blank=True, null=True, help_text='Typical shift end time (optional)')
     available_time_slots = models.JSONField(
         default=list,
         help_text='Available time slots: ["6-12", "13-21", "22-5"]'
