@@ -22,6 +22,8 @@ class AzurePrivateStorage(AzureStorage):
     expiration_secs = 15 * 60  # 15 minutes
     # Do not overwrite existing files
     overwrite_files = False
+    # CRITICAL: Set location to empty string to prevent container name being added to blob path
+    location = ''
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
