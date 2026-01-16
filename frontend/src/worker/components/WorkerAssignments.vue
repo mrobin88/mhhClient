@@ -1,19 +1,19 @@
 <template>
   <div class="space-y-6">
-    <h1 class="text-3xl font-bold text-gray-900">My Assignments</h1>
+    <h1 class="text-3xl font-bold text-slate-900">My Work Schedule</h1>
 
     <!-- Filter Tabs -->
-    <div class="bg-white rounded-lg shadow p-2">
+    <div class="bg-white rounded-xl shadow-lg p-2 border-2 border-slate-200">
       <div class="flex space-x-2">
         <button
           v-for="filter in filters"
           :key="filter.value"
           @click="activeFilter = filter.value; loadAssignments()"
           :class="[
-            'flex-1 px-4 py-2 rounded-lg font-medium transition',
+            'flex-1 px-4 py-3 rounded-xl font-bold transition-all text-base',
             activeFilter === filter.value
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-700 hover:bg-gray-100'
+              ? 'bg-blue-600 text-white shadow-lg'
+              : 'text-slate-700 hover:bg-slate-100'
           ]"
         >
           {{ filter.label }}
@@ -22,25 +22,25 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading" class="text-center py-12">
-      <div class="text-gray-500">Loading assignments...</div>
+    <div v-if="loading" class="text-center py-16">
+      <div class="text-2xl text-slate-400 animate-pulse">Loading...</div>
     </div>
 
     <!-- Assignments List -->
     <div v-else class="space-y-4">
-      <div v-if="assignments.length === 0" class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-        No {{ activeFilter }} assignments found
+      <div v-if="assignments.length === 0" class="bg-white rounded-xl shadow-lg p-12 text-center text-slate-500 text-lg border-2 border-slate-200">
+        No {{ activeFilter }} work found
       </div>
 
       <div
         v-for="assignment in assignments"
         :key="assignment.id"
-        class="bg-white rounded-lg shadow p-6"
+        class="bg-white rounded-xl shadow-lg p-6 border-2 border-slate-200 hover:border-blue-400 hover:shadow-xl transition-all"
       >
         <div class="flex justify-between items-start mb-4">
           <div class="flex-1">
-            <h3 class="font-bold text-xl text-gray-900">{{ assignment.work_site_name }}</h3>
-            <p class="text-gray-600 mt-1">{{ assignment.work_site_address }}</p>
+            <h3 class="font-bold text-2xl text-slate-900">{{ assignment.work_site_name }}</h3>
+            <p class="text-slate-700 mt-1 text-base">{{ assignment.work_site_address }}</p>
           </div>
           <span :class="getStatusClass(assignment.status)">
             {{ assignment.status_display }}
@@ -48,69 +48,69 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <p class="text-sm text-gray-600">📅 Date</p>
-            <p class="font-semibold">{{ formatDate(assignment.assignment_date) }}</p>
+          <div class="bg-slate-50 rounded-lg p-3">
+            <p class="text-sm text-slate-600 font-semibold">📅 Date</p>
+            <p class="font-bold text-lg text-slate-900">{{ formatDate(assignment.assignment_date) }}</p>
           </div>
-          <div>
-            <p class="text-sm text-gray-600">🕐 Time</p>
-            <p class="font-semibold">{{ formatTime(assignment.start_time) }} - {{ formatTime(assignment.end_time) }}</p>
+          <div class="bg-slate-50 rounded-lg p-3">
+            <p class="text-sm text-slate-600 font-semibold">🕐 Time</p>
+            <p class="font-bold text-lg text-slate-900">{{ formatTime(assignment.start_time) }} - {{ formatTime(assignment.end_time) }}</p>
           </div>
-          <div v-if="assignment.work_site_supervisor">
-            <p class="text-sm text-gray-600">👤 Supervisor</p>
-            <p class="font-semibold">{{ assignment.work_site_supervisor }}</p>
+          <div v-if="assignment.work_site_supervisor" class="bg-slate-50 rounded-lg p-3">
+            <p class="text-sm text-slate-600 font-semibold">👤 Supervisor</p>
+            <p class="font-bold text-lg text-slate-900">{{ assignment.work_site_supervisor }}</p>
           </div>
-          <div v-if="assignment.work_site_supervisor_phone">
-            <p class="text-sm text-gray-600">📞 Contact</p>
-            <p class="font-semibold">
-              <a :href="`tel:${assignment.work_site_supervisor_phone}`" class="text-blue-600">
+          <div v-if="assignment.work_site_supervisor_phone" class="bg-blue-50 rounded-lg p-3">
+            <p class="text-sm text-slate-600 font-semibold">📞 Call</p>
+            <p class="font-bold text-lg">
+              <a :href="`tel:${assignment.work_site_supervisor_phone}`" class="text-blue-600 underline">
                 {{ assignment.work_site_supervisor_phone }}
               </a>
             </p>
           </div>
         </div>
 
-        <div v-if="assignment.assignment_notes" class="mb-4 p-3 bg-gray-50 rounded-lg">
-          <p class="text-sm text-gray-600 font-medium">📝 Notes:</p>
-          <p class="text-sm text-gray-700 mt-1">{{ assignment.assignment_notes }}</p>
+        <div v-if="assignment.assignment_notes" class="mb-4 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300">
+          <p class="text-sm text-slate-700 font-bold">📝 Important:</p>
+          <p class="text-base text-slate-800 mt-1 font-medium">{{ assignment.assignment_notes }}</p>
         </div>
 
         <!-- Action Buttons -->
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-3">
           <button
             v-if="assignment.status === 'pending' && !assignment.confirmed_by_client"
             @click="confirmAssignment(assignment.id)"
-            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+            class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl text-base font-bold shadow-lg transition-all"
           >
-            ✅ Confirm Assignment
+            ✅ I'll Be There
           </button>
 
           <button
             v-if="canCallOut(assignment)"
             @click="showCallOutModal(assignment)"
-            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+            class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl text-base font-bold shadow-lg transition-all"
           >
-            ⚠️ Call Out
+            ⚠️ Can't Make It
           </button>
         </div>
       </div>
     </div>
 
     <!-- Call Out Modal -->
-    <div v-if="callOutModalOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-lg max-w-md w-full p-6">
-        <h2 class="text-2xl font-bold mb-4">Submit Call-Out</h2>
+    <div v-if="callOutModalOpen" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border-2 border-slate-200">
+        <h2 class="text-3xl font-bold mb-6 text-slate-900">⚠️ Can't Make It?</h2>
         
-        <div class="mb-4">
-          <p class="text-sm text-gray-600">Assignment:</p>
-          <p class="font-semibold">{{ selectedAssignment?.work_site_name }}</p>
-          <p class="text-sm text-gray-600">{{ formatDate(selectedAssignment?.assignment_date) }}</p>
+        <div class="mb-6 p-4 bg-slate-50 rounded-xl border-2 border-slate-200">
+          <p class="text-sm text-slate-600 font-semibold">Work Assignment:</p>
+          <p class="font-bold text-xl text-slate-900 mt-1">{{ selectedAssignment?.work_site_name }}</p>
+          <p class="text-base text-slate-700 mt-1">{{ formatDate(selectedAssignment?.assignment_date) }}</p>
         </div>
 
-        <form @submit.prevent="submitCallOut" class="space-y-4">
+        <form @submit.prevent="submitCallOut" class="space-y-5">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Advance Notice (hours)
+            <label class="block text-base font-bold text-slate-800 mb-2">
+              How much notice can you give? (hours)
             </label>
             <input
               v-model.number="callOutForm.advance_notice_hours"
@@ -118,39 +118,39 @@
               min="0"
               max="72"
               required
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Reason for Call-Out
+            <label class="block text-base font-bold text-slate-800 mb-2">
+              Why can't you make it?
             </label>
             <textarea
               v-model="callOutForm.reason"
               rows="4"
               required
-              placeholder="Please explain why you need to call out..."
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Tell us what happened..."
+              class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             ></textarea>
           </div>
 
-          <div v-if="callOutError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div v-if="callOutError" class="bg-red-50 border-2 border-red-300 text-red-800 px-5 py-4 rounded-xl font-medium">
             {{ callOutError }}
           </div>
 
-          <div class="flex gap-2">
+          <div class="flex gap-3 pt-2">
             <button
               type="submit"
               :disabled="submittingCallOut"
-              class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50"
+              class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 text-lg rounded-xl shadow-lg disabled:opacity-50 transition-all"
             >
-              {{ submittingCallOut ? 'Submitting...' : 'Submit Call-Out' }}
+              {{ submittingCallOut ? 'Sending...' : 'Send Notice' }}
             </button>
             <button
               type="button"
               @click="closeCallOutModal"
-              class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 font-bold py-2 px-4 rounded-lg"
+              class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-4 px-6 text-lg rounded-xl transition-all"
             >
               Cancel
             </button>

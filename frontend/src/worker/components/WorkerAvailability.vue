@@ -1,112 +1,134 @@
 <template>
   <div class="space-y-6">
-    <div class="flex justify-between items-center">
-      <h1 class="text-3xl font-bold text-gray-900">My Availability</h1>
+    <div class="flex justify-between items-center mb-6">
+      <div class="flex items-center gap-3">
+        <h1 class="text-3xl font-bold text-slate-900">My Schedule</h1>
+        <Tooltip text="Pick the days you can work. Your supervisor uses this to schedule you.">
+          <span class="text-slate-700 text-sm font-medium">Set Availability</span>
+        </Tooltip>
+      </div>
       <button
         @click="saveAvailability"
         :disabled="saving"
-        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium disabled:opacity-50"
+        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {{ saving ? 'Saving...' : '💾 Save Changes' }}
+        {{ saving ? 'Saving...' : '💾 Save' }}
       </button>
     </div>
 
-    <div v-if="successMessage" class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-      {{ successMessage }}
+    <div v-if="successMessage" class="bg-green-50 border-2 border-green-300 text-green-800 px-5 py-4 rounded-xl font-medium shadow-sm">
+      ✅ {{ successMessage }}
     </div>
 
-    <div v-if="errorMessage" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-      {{ errorMessage }}
+    <div v-if="errorMessage" class="bg-red-50 border-2 border-red-300 text-red-800 px-5 py-4 rounded-xl font-medium shadow-sm">
+      ❌ {{ errorMessage }}
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading" class="text-center py-12">
-      <div class="text-gray-500">Loading availability...</div>
+    <div v-if="loading" class="text-center py-16">
+      <div class="text-2xl text-slate-400 animate-pulse">Loading...</div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div v-else class="flex gap-3 mb-6">
+      <button
+        @click="selectAllDays"
+        class="flex-1 bg-green-50 hover:bg-green-100 border-2 border-green-300 text-green-800 px-4 py-3 rounded-xl font-bold transition-all"
+      >
+        ✅ All Days
+      </button>
+      <button
+        @click="selectWeekdays"
+        class="flex-1 bg-blue-50 hover:bg-blue-100 border-2 border-blue-300 text-blue-800 px-4 py-3 rounded-xl font-bold transition-all"
+      >
+        📅 Weekdays
+      </button>
+      <button
+        @click="clearAll"
+        class="flex-1 bg-slate-50 hover:bg-slate-100 border-2 border-slate-300 text-slate-700 px-4 py-3 rounded-xl font-bold transition-all"
+      >
+        ⬜ Clear All
+      </button>
     </div>
 
     <!-- Availability Grid -->
-    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
-      <div class="p-6">
-        <p class="text-gray-600 mb-6">
-          Set your weekly availability. Select the days you're available and your preferred time slots.
-        </p>
-
-        <div class="space-y-4">
-          <div
-            v-for="day in daysOfWeek"
-            :key="day.value"
-            class="border border-gray-200 rounded-lg p-4"
-          >
-            <div class="flex items-start gap-4">
-              <!-- Available Toggle -->
-              <div class="flex items-center h-10">
-                <input
-                  :id="`available-${day.value}`"
-                  v-model="availability[day.value].available"
-                  type="checkbox"
-                  class="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <!-- Day Info -->
-              <div class="flex-1">
-                <label :for="`available-${day.value}`" class="block font-semibold text-lg text-gray-900 cursor-pointer">
-                  {{ day.label }}
-                </label>
-
-                <!-- Time Slots (shown only if available) -->
-                <div v-if="availability[day.value].available" class="mt-3 space-y-2">
-                  <p class="text-sm text-gray-600 font-medium">Preferred Time Slots:</p>
-                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <label
-                      v-for="slot in timeSlots"
-                      :key="slot.value"
-                      class="flex items-center gap-2 cursor-pointer"
-                    >
-                      <input
-                        v-model="availability[day.value].preferred_time_slots"
-                        :value="slot.value"
-                        type="checkbox"
-                        class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span class="text-sm text-gray-700">{{ slot.label }}</span>
-                    </label>
-                  </div>
-
-                  <!-- Notes -->
-                  <div class="mt-3">
-                    <label class="block text-sm text-gray-600 font-medium mb-1">
-                      Notes (optional):
-                    </label>
-                    <input
-                      v-model="availability[day.value].notes"
-                      type="text"
-                      placeholder="e.g., 'Available after 2pm'"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div v-else class="mt-2 text-sm text-gray-500 italic">
-                  Not available on {{ day.label }}
-                </div>
+    <div v-else class="space-y-3">
+      <div
+        v-for="day in daysOfWeek"
+        :key="day.value"
+        :class="[
+          'bg-white rounded-xl border-2 transition-all overflow-hidden',
+          availability[day.value].available 
+            ? 'border-blue-400 shadow-md' 
+            : 'border-slate-200'
+        ]"
+      >
+        <!-- Day Header -->
+        <div class="p-5">
+          <label :for="`available-${day.value}`" class="flex items-center gap-4 cursor-pointer">
+            <input
+              :id="`available-${day.value}`"
+              v-model="availability[day.value].available"
+              type="checkbox"
+              class="w-7 h-7 text-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            />
+            <div class="flex-1">
+              <div class="text-2xl font-bold text-slate-900">{{ day.label }}</div>
+              <div v-if="!availability[day.value].available" class="text-sm text-slate-500">
+                Not available
               </div>
             </div>
+            <div v-if="availability[day.value].available" class="text-3xl">✅</div>
+          </label>
+
+          <!-- Time Slots (shown only if available) -->
+          <div v-if="availability[day.value].available" class="mt-5 pl-11 space-y-4">
+            <div>
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-sm font-bold text-slate-700">Pick Time Slots:</span>
+                <Tooltip text="Select when you prefer to work this day. You can pick multiple.">
+                  <span></span>
+                </Tooltip>
+              </div>
+              <div class="grid grid-cols-1 gap-2">
+                <label
+                  v-for="slot in timeSlots"
+                  :key="slot.value"
+                  :class="[
+                    'flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all',
+                    availability[day.value].preferred_time_slots.includes(slot.value)
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  ]"
+                >
+                  <input
+                    v-model="availability[day.value].preferred_time_slots"
+                    :value="slot.value"
+                    type="checkbox"
+                    class="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span class="text-lg font-semibold text-slate-800">{{ slot.label }}</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <details class="group">
+              <summary class="text-sm font-bold text-slate-700 cursor-pointer hover:text-blue-600 transition">
+                + Add Note (optional)
+              </summary>
+              <div class="mt-2">
+                <input
+                  v-model="availability[day.value].notes"
+                  type="text"
+                  placeholder="e.g., 'Can start at 2pm'"
+                  class="w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </details>
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Help Text -->
-    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-      <h3 class="font-semibold text-blue-900 mb-2">💡 Tips:</h3>
-      <ul class="text-sm text-blue-800 space-y-1">
-        <li>• Check the days you're available to work</li>
-        <li>• Select your preferred time slots for each day</li>
-        <li>• Add notes if you have specific time restrictions</li>
-        <li>• Click "Save Changes" when you're done</li>
-        <li>• Your supervisor will use this to schedule assignments</li>
-      </ul>
     </div>
   </div>
 </template>
@@ -114,6 +136,7 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
 import { workerFetch } from '../api'
+import Tooltip from './Tooltip.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -131,9 +154,9 @@ const daysOfWeek = [
 ]
 
 const timeSlots = [
-  { value: '6-12', label: '6am-12pm' },
-  { value: '13-21', label: '1pm-9pm' },
-  { value: '22-5', label: '10pm-5am' }
+  { value: '6-12', label: 'Morning (6am-12pm)' },
+  { value: '13-21', label: 'Afternoon (1pm-9pm)' },
+  { value: '22-5', label: 'Night (10pm-5am)' }
 ]
 
 const availability = reactive<any>({
@@ -145,6 +168,27 @@ const availability = reactive<any>({
   saturday: { available: false, preferred_time_slots: [], notes: '' },
   sunday: { available: false, preferred_time_slots: [], notes: '' }
 })
+
+function selectAllDays() {
+  daysOfWeek.forEach(day => {
+    availability[day.value].available = true
+  })
+}
+
+function selectWeekdays() {
+  const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+  daysOfWeek.forEach(day => {
+    availability[day.value].available = weekdays.includes(day.value)
+  })
+}
+
+function clearAll() {
+  daysOfWeek.forEach(day => {
+    availability[day.value].available = false
+    availability[day.value].preferred_time_slots = []
+    availability[day.value].notes = ''
+  })
+}
 
 async function loadAvailability() {
   loading.value = true

@@ -1,30 +1,35 @@
 <template>
   <div class="space-y-6">
     <div class="flex justify-between items-center">
-      <h1 class="text-3xl font-bold text-gray-900">Service Requests</h1>
+      <h1 class="text-3xl font-bold text-slate-900">🔧 Report a Problem</h1>
       <button
         @click="showNewRequestForm = !showNewRequestForm"
-        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium"
+        :class="[
+          'px-6 py-3 rounded-xl font-bold text-lg shadow-lg transition-all',
+          showNewRequestForm 
+            ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' 
+            : 'bg-blue-600 hover:bg-blue-700 text-white'
+        ]"
       >
-        {{ showNewRequestForm ? '✕ Cancel' : '+ New Request' }}
+        {{ showNewRequestForm ? '✕ Cancel' : '+ Report Issue' }}
       </button>
     </div>
 
     <!-- New Request Form -->
-    <div v-if="showNewRequestForm" class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-xl font-bold mb-4">Submit New Service Request</h2>
+    <div v-if="showNewRequestForm" class="bg-white rounded-xl shadow-xl p-8 border-2 border-slate-200">
+      <h2 class="text-2xl font-bold mb-6 text-slate-900">What's the problem?</h2>
       
-      <form @submit.prevent="submitRequest" class="space-y-4">
+      <form @submit.prevent="submitRequest" class="space-y-5">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Work Site *
+          <label class="block text-base font-bold text-slate-800 mb-2">
+            Where is the problem?
           </label>
           <select
             v-model="newRequest.work_site"
             required
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="">Select a work site...</option>
+            <option value="">Pick a location...</option>
             <option v-for="site in workSites" :key="site.id" :value="site.id">
               {{ site.name }}
             </option>
@@ -32,139 +37,130 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Issue Type *
+          <label class="block text-base font-bold text-slate-800 mb-2">
+            What type of problem?
           </label>
           <select
             v-model="newRequest.issue_type"
             required
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="">Select issue type...</option>
-            <option value="bathroom">Bathroom Issue</option>
-            <option value="supplies">Supplies Needed</option>
-            <option value="safety">Safety Concern</option>
-            <option value="equipment">Equipment Problem</option>
-            <option value="cleaning">Cleaning Issue</option>
-            <option value="other">Other</option>
+            <option value="">Pick one...</option>
+            <option value="bathroom">🚽 Bathroom</option>
+            <option value="supplies">📦 Need Supplies</option>
+            <option value="safety">⚠️ Safety Issue</option>
+            <option value="equipment">🔧 Broken Equipment</option>
+            <option value="cleaning">🧹 Cleaning Needed</option>
+            <option value="other">❓ Other</option>
           </select>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Title *
+          <label class="block text-base font-bold text-slate-800 mb-2">
+            Short description
           </label>
           <input
             v-model="newRequest.title"
             type="text"
             required
-            placeholder="Brief description of the issue"
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="Example: Toilet is broken"
+            class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Description *
+          <label class="block text-base font-bold text-slate-800 mb-2">
+            Tell us more
           </label>
           <textarea
             v-model="newRequest.description"
             rows="4"
             required
-            placeholder="Detailed description of the problem..."
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="What exactly is wrong?"
+            class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           ></textarea>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Specific Location
+          <label class="block text-base font-bold text-slate-800 mb-2">
+            Where exactly? (optional)
           </label>
           <input
             v-model="newRequest.location_detail"
             type="text"
-            placeholder="e.g., 'North bathroom', 'Storage closet'"
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="Example: North side bathroom"
+            class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Priority *
+          <label class="block text-base font-bold text-slate-800 mb-2">
+            How urgent?
           </label>
           <select
             v-model="newRequest.priority"
             required
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="low">Low - Can wait a week</option>
-            <option value="medium">Medium - Within a few days</option>
-            <option value="high">High - Within 24 hours</option>
-            <option value="urgent">Urgent - Needs immediate attention</option>
+            <option value="low">⏸️ Can wait a week</option>
+            <option value="medium">📅 Within a few days</option>
+            <option value="high">🔴 Within 24 hours</option>
+            <option value="urgent">🚨 Right now!</option>
           </select>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Photo (Optional)
+          <label class="block text-base font-bold text-slate-800 mb-2">
+            Take a photo (optional)
           </label>
           <input
             @change="handlePhotoUpload"
             type="file"
             accept="image/*"
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            class="w-full px-4 py-3 text-base border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-100 file:text-blue-700 file:font-bold hover:file:bg-blue-200"
           />
         </div>
 
-        <div v-if="submitError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+        <div v-if="submitError" class="bg-red-50 border-2 border-red-300 text-red-800 px-5 py-4 rounded-xl font-medium">
           {{ submitError }}
         </div>
 
-        <div class="flex gap-2">
-          <button
-            type="submit"
-            :disabled="submitting"
-            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg disabled:opacity-50"
-          >
-            {{ submitting ? 'Submitting...' : 'Submit Request' }}
-          </button>
-          <button
-            type="button"
-            @click="showNewRequestForm = false"
-            class="bg-gray-300 hover:bg-gray-400 text-gray-700 font-bold py-3 px-4 rounded-lg"
-          >
-            Cancel
-          </button>
-        </div>
+        <button
+          type="submit"
+          :disabled="submitting"
+          class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-5 px-6 text-xl rounded-xl shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          {{ submitting ? 'Sending...' : '📤 Send Report' }}
+        </button>
       </form>
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading" class="text-center py-12">
-      <div class="text-gray-500">Loading requests...</div>
+    <div v-if="loading" class="text-center py-16">
+      <div class="text-2xl text-slate-400 animate-pulse">Loading...</div>
     </div>
 
     <!-- Service Requests List -->
     <div v-else class="space-y-4">
-      <div v-if="serviceRequests.length === 0" class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-        No service requests yet. Click "New Request" to submit one.
+      <div v-if="serviceRequests.length === 0" class="bg-white rounded-xl shadow-lg p-12 text-center text-slate-500 text-lg border-2 border-slate-200">
+        No reports yet — you're good to go!
       </div>
 
       <div
         v-for="request in serviceRequests"
         :key="request.id"
-        class="bg-white rounded-lg shadow p-6"
+        class="bg-white rounded-xl shadow-lg p-6 border-2 transition-all"
         :class="{
-          'border-l-4 border-red-500': request.priority === 'urgent',
-          'border-l-4 border-orange-500': request.priority === 'high',
-          'border-l-4 border-yellow-500': request.priority === 'medium',
-          'border-l-4 border-gray-300': request.priority === 'low'
+          'border-red-500 bg-red-50': request.priority === 'urgent',
+          'border-orange-500 bg-orange-50': request.priority === 'high',
+          'border-yellow-500 bg-yellow-50': request.priority === 'medium',
+          'border-slate-200': request.priority === 'low'
         }"
       >
         <div class="flex justify-between items-start mb-4">
           <div class="flex-1">
-            <h3 class="font-bold text-xl text-gray-900">{{ request.title }}</h3>
-            <p class="text-gray-600 mt-1">{{ request.work_site_name }}</p>
+            <h3 class="font-bold text-2xl text-slate-900">{{ request.title }}</h3>
+            <p class="text-slate-700 mt-1 text-base font-medium">{{ request.work_site_name }}</p>
           </div>
           <div class="flex flex-col items-end gap-2">
             <span :class="getStatusClass(request.status)">
@@ -176,17 +172,17 @@
           </div>
         </div>
 
-        <div class="space-y-2 mb-4">
+        <div class="space-y-2 mb-4 text-base">
           <div>
-            <span class="text-sm font-medium text-gray-600">Issue Type:</span>
-            <span class="text-sm text-gray-900 ml-2">{{ request.issue_type_display }}</span>
+            <span class="font-bold text-slate-700">Type:</span>
+            <span class="text-slate-900 ml-2">{{ request.issue_type_display }}</span>
           </div>
           <div v-if="request.location_detail">
-            <span class="text-sm font-medium text-gray-600">Location:</span>
-            <span class="text-sm text-gray-900 ml-2">{{ request.location_detail }}</span>
+            <span class="font-bold text-slate-700">Where:</span>
+            <span class="text-slate-900 ml-2">{{ request.location_detail }}</span>
           </div>
           <div>
-            <span class="text-sm font-medium text-gray-600">Submitted:</span>
+            <span class="font-bold text-slate-700">Sent:</span>
             <span class="text-sm text-gray-900 ml-2">{{ formatDate(request.created_at) }}</span>
           </div>
         </div>

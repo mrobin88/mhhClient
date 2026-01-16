@@ -1,17 +1,19 @@
 <template>
-  <div class="min-h-screen bg-gray-100">
+  <div class="min-h-screen bg-slate-50">
     <!-- Navigation Bar -->
     <nav v-if="isAuthenticated" class="bg-blue-600 text-white shadow-lg">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
           <div class="flex items-center">
-            <h1 class="text-xl font-bold">🏢 Worker Portal</h1>
+            <button @click="currentView = 'dashboard'" class="text-xl font-bold hover:text-blue-100 transition">
+              🏢 Worker Portal
+            </button>
           </div>
           <div class="flex items-center space-x-4">
-            <span class="text-sm">{{ workerName }}</span>
+            <span class="text-sm font-medium">{{ workerName }}</span>
             <button 
               @click="logout"
-              class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded text-sm font-medium"
+              class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded-lg text-sm font-medium transition"
             >
               Logout
             </button>
@@ -20,85 +22,62 @@
       </div>
     </nav>
 
-    <!-- Bottom Navigation (Mobile) -->
-    <div v-if="isAuthenticated" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-50">
-      <div class="flex justify-around">
+    <!-- Bottom Navigation (All screens) -->
+    <div v-if="isAuthenticated" class="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 z-50 shadow-xl">
+      <div class="flex justify-around max-w-2xl mx-auto">
         <button
           v-for="item in navItems"
           :key="item.id"
           @click="currentView = item.id"
           :class="[
-            'flex-1 py-3 text-center',
-            currentView === item.id ? 'text-blue-600 bg-blue-50' : 'text-gray-600'
+            'flex-1 py-4 text-center transition-all',
+            currentView === item.id 
+              ? 'text-blue-600 bg-blue-50 border-t-4 border-blue-600' 
+              : 'text-slate-700 hover:bg-slate-50'
           ]"
         >
-          <div class="text-2xl">{{ item.icon }}</div>
-          <div class="text-xs mt-1">{{ item.label }}</div>
+          <div class="text-3xl mb-1">{{ item.icon }}</div>
+          <div class="text-xs font-semibold">{{ item.label }}</div>
         </button>
       </div>
     </div>
 
-    <!-- Side Navigation (Desktop) -->
-    <div v-if="isAuthenticated" class="hidden md:flex">
-      <div class="w-64 bg-white shadow-lg h-screen fixed">
-        <nav class="mt-8">
-          <button
-            v-for="item in navItems"
-            :key="item.id"
-            @click="currentView = item.id"
-            :class="[
-              'w-full flex items-center px-6 py-3 text-left',
-              currentView === item.id 
-                ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
-                : 'text-gray-700 hover:bg-gray-50'
-            ]"
-          >
-            <span class="text-2xl mr-3">{{ item.icon }}</span>
-            <span class="font-medium">{{ item.label }}</span>
-          </button>
-        </nav>
-      </div>
-    </div>
-
     <!-- Main Content Area -->
-    <div :class="[
-      'pb-20 md:pb-0',
-      isAuthenticated ? 'md:ml-64' : ''
-    ]">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Big quick actions (easier than small nav) -->
-        <div v-if="isAuthenticated" class="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div class="pb-24">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <!-- Big quick actions (ONLY on dashboard) -->
+        <div v-if="isAuthenticated && currentView === 'dashboard'" class="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
             @click="currentView = 'assignments'"
-            class="w-full text-left bg-white border-2 border-gray-200 hover:border-blue-400 rounded-2xl p-6 shadow-sm"
+            class="w-full text-left bg-white border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg rounded-2xl p-6 transition-all"
           >
             <div class="text-4xl mb-2">📋</div>
-            <div class="text-2xl font-bold">My Work</div>
-            <div class="text-gray-600">See today’s schedule</div>
+            <div class="text-2xl font-bold text-slate-900">My Work</div>
+            <div class="text-slate-600">See today's schedule</div>
           </button>
           <button
             @click="currentView = 'availability'"
-            class="w-full text-left bg-white border-2 border-gray-200 hover:border-blue-400 rounded-2xl p-6 shadow-sm"
+            class="w-full text-left bg-white border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg rounded-2xl p-6 transition-all"
           >
             <div class="text-4xl mb-2">📅</div>
-            <div class="text-2xl font-bold">I’m Available</div>
-            <div class="text-gray-600">Set when you can work</div>
+            <div class="text-2xl font-bold text-slate-900">I'm Available</div>
+            <div class="text-slate-600">Set when you can work</div>
           </button>
           <button
             @click="currentView = 'requests'"
-            class="w-full text-left bg-white border-2 border-gray-200 hover:border-blue-400 rounded-2xl p-6 shadow-sm"
+            class="w-full text-left bg-white border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg rounded-2xl p-6 transition-all"
           >
             <div class="text-4xl mb-2">🔧</div>
-            <div class="text-2xl font-bold">Need Help</div>
-            <div class="text-gray-600">Report a problem at the site</div>
+            <div class="text-2xl font-bold text-slate-900">Need Help</div>
+            <div class="text-slate-600">Report a problem at the site</div>
           </button>
           <button
             @click="logout()"
-            class="w-full text-left bg-white border-2 border-red-200 hover:border-red-400 rounded-2xl p-6 shadow-sm"
+            class="w-full text-left bg-white border-2 border-red-200 hover:border-red-400 hover:shadow-lg rounded-2xl p-6 transition-all"
           >
             <div class="text-4xl mb-2">🚪</div>
             <div class="text-2xl font-bold text-red-700">Log Out</div>
-            <div class="text-gray-600">End session</div>
+            <div class="text-slate-600">End session</div>
           </button>
         </div>
 
@@ -112,6 +91,8 @@
         <WorkerDashboard 
           v-else-if="currentView === 'dashboard'"
           :worker-account="workerAccount"
+          :cached-data="cachedDashboard"
+          @update-cache="updateDashboardCache"
         />
 
         <!-- My Assignments -->
@@ -145,12 +126,13 @@ import WorkerServiceRequests from './components/WorkerServiceRequests.vue'
 const isAuthenticated = ref(false)
 const workerAccount = ref<any>(null)
 const currentView = ref('dashboard')
+const cachedDashboard = ref<any>(null)
 
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-  { id: 'assignments', label: 'Assignments', icon: '📋' },
-  { id: 'availability', label: 'Availability', icon: '📅' },
-  { id: 'requests', label: 'Service Requests', icon: '🔧' }
+  { id: 'dashboard', label: 'Home', icon: '🏠' },
+  { id: 'assignments', label: 'Work', icon: '📋' },
+  { id: 'availability', label: 'Schedule', icon: '📅' },
+  { id: 'requests', label: 'Help', icon: '🔧' }
 ]
 
 const workerName = computed(() => {
@@ -162,13 +144,36 @@ function handleLoginSuccess(data: any) {
   workerAccount.value = data.worker_account
   localStorage.setItem('worker_token', data.token)
   localStorage.setItem('worker_account', JSON.stringify(data.worker_account))
+  
+  // Pre-fetch dashboard data after login
+  fetchDashboardData()
+}
+
+async function fetchDashboardData() {
+  try {
+    const resp = await workerFetch('/api/worker/dashboard/')
+    if (resp.ok) {
+      const data = await resp.json()
+      cachedDashboard.value = data
+      localStorage.setItem('worker_dashboard', JSON.stringify(data))
+    }
+  } catch (err) {
+    console.error('Failed to fetch dashboard:', err)
+  }
+}
+
+function updateDashboardCache(data: any) {
+  cachedDashboard.value = data
+  localStorage.setItem('worker_dashboard', JSON.stringify(data))
 }
 
 function resetToLogin() {
   localStorage.removeItem('worker_token')
   localStorage.removeItem('worker_account')
+  localStorage.removeItem('worker_dashboard')
   isAuthenticated.value = false
   workerAccount.value = null
+  cachedDashboard.value = null
   currentView.value = 'dashboard'
 }
 
@@ -189,6 +194,16 @@ async function validateExistingSession() {
   const savedAccount = localStorage.getItem('worker_account')
   if (!token || !savedAccount) return
 
+  // Load cached data immediately
+  const cachedDash = localStorage.getItem('worker_dashboard')
+  if (cachedDash) {
+    try {
+      cachedDashboard.value = JSON.parse(cachedDash)
+    } catch {
+      // Invalid cache, ignore
+    }
+  }
+
   // Optimistically show the logged-in UI, but verify with backend.
   isAuthenticated.value = true
   workerAccount.value = JSON.parse(savedAccount)
@@ -202,6 +217,9 @@ async function validateExistingSession() {
     const profile = await resp.json()
     workerAccount.value = profile
     localStorage.setItem('worker_account', JSON.stringify(profile))
+    
+    // Refresh dashboard in background
+    fetchDashboardData()
   } catch {
     // If network is down, leave UI as-is; user can refresh
   }

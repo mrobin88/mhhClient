@@ -1,89 +1,89 @@
 <template>
   <div class="space-y-6">
     <div class="flex justify-between items-center">
-      <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+      <h1 class="text-3xl font-bold text-slate-900">Dashboard</h1>
       <button 
         @click="loadDashboard"
-        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
+        class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl text-sm font-bold shadow-lg transition-all"
       >
         🔄 Refresh
       </button>
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading" class="text-center py-12">
-      <div class="text-gray-500">Loading your dashboard...</div>
+    <div v-if="loading" class="text-center py-16">
+      <div class="text-2xl text-slate-400 animate-pulse">Loading...</div>
     </div>
 
     <!-- Dashboard Content -->
     <div v-else class="space-y-6">
       <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-white rounded-lg shadow p-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl shadow-md p-6 border-2 border-slate-200">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm text-gray-600">This Month</p>
-              <p class="text-3xl font-bold text-gray-900">{{ stats.total_assignments_this_month }}</p>
-              <p class="text-xs text-gray-500 mt-1">Total Assignments</p>
+              <p class="text-sm text-slate-600 font-semibold">This Month</p>
+              <p class="text-4xl font-bold text-slate-900">{{ stats.total_assignments_this_month }}</p>
+              <p class="text-xs text-slate-500 mt-1 font-medium">Total Assignments</p>
             </div>
-            <div class="text-4xl">📋</div>
+            <div class="text-5xl">📋</div>
           </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow p-6">
+        <div class="bg-white rounded-xl shadow-md p-6 border-2 border-slate-200">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm text-gray-600">Completed</p>
-              <p class="text-3xl font-bold text-green-600">{{ stats.completed_assignments }}</p>
-              <p class="text-xs text-gray-500 mt-1">This Month</p>
+              <p class="text-sm text-slate-600 font-semibold">Completed</p>
+              <p class="text-4xl font-bold text-green-600">{{ stats.completed_assignments }}</p>
+              <p class="text-xs text-slate-500 mt-1 font-medium">This Month</p>
             </div>
-            <div class="text-4xl">✅</div>
+            <div class="text-5xl">✅</div>
           </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow p-6">
+        <div class="bg-white rounded-xl shadow-md p-6 border-2 border-slate-200">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm text-gray-600">Pending Requests</p>
-              <p class="text-3xl font-bold text-orange-600">{{ stats.pending_service_requests }}</p>
-              <p class="text-xs text-gray-500 mt-1">Service Requests</p>
+              <p class="text-sm text-slate-600 font-semibold">Pending</p>
+              <p class="text-4xl font-bold text-orange-600">{{ stats.pending_service_requests }}</p>
+              <p class="text-xs text-slate-500 mt-1 font-medium">Service Requests</p>
             </div>
-            <div class="text-4xl">🔧</div>
+            <div class="text-5xl">🔧</div>
           </div>
         </div>
       </div>
 
       <!-- Today's Assignments -->
-      <div class="bg-white rounded-lg shadow">
-        <div class="px-6 py-4 border-b border-gray-200">
-          <h2 class="text-xl font-bold text-gray-900">Today's Assignments</h2>
+      <div class="bg-white rounded-xl shadow-lg border-2 border-slate-200">
+        <div class="px-6 py-4 border-b-2 border-slate-200 bg-slate-50">
+          <h2 class="text-2xl font-bold text-slate-900">📋 Today's Work</h2>
         </div>
         <div class="p-6">
-          <div v-if="todayAssignments.length === 0" class="text-center py-8 text-gray-500">
-            No assignments scheduled for today
+          <div v-if="todayAssignments.length === 0" class="text-center py-12 text-slate-500 text-lg">
+            No work scheduled for today — enjoy your day off!
           </div>
           <div v-else class="space-y-4">
             <div
               v-for="assignment in todayAssignments"
               :key="assignment.id"
-              class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition"
+              class="border-2 border-slate-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-md transition-all"
             >
               <div class="flex justify-between items-start">
                 <div class="flex-1">
-                  <h3 class="font-bold text-lg text-gray-900">{{ assignment.work_site_name }}</h3>
-                  <p class="text-sm text-gray-600 mt-1">{{ assignment.work_site_address }}</p>
-                  <div class="mt-2 flex flex-wrap gap-2">
-                    <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                  <h3 class="font-bold text-xl text-slate-900">{{ assignment.work_site_name }}</h3>
+                  <p class="text-base text-slate-700 mt-1">{{ assignment.work_site_address }}</p>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <span class="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 text-sm font-bold rounded-lg">
                       🕐 {{ formatTime(assignment.start_time) }} - {{ formatTime(assignment.end_time) }}
                     </span>
                     <span :class="getStatusClass(assignment.status)">
                       {{ assignment.status_display }}
                     </span>
                   </div>
-                  <div v-if="assignment.work_site_supervisor" class="mt-2 text-sm text-gray-600">
+                  <div v-if="assignment.work_site_supervisor" class="mt-3 text-base text-slate-700">
                     <strong>Supervisor:</strong> {{ assignment.work_site_supervisor }}
                     <span v-if="assignment.work_site_supervisor_phone">
-                      - <a :href="`tel:${assignment.work_site_supervisor_phone}`" class="text-blue-600">{{ assignment.work_site_supervisor_phone }}</a>
+                      - <a :href="`tel:${assignment.work_site_supervisor_phone}`" class="text-blue-600 font-bold underline">{{ assignment.work_site_supervisor_phone }}</a>
                     </span>
                   </div>
                 </div>
@@ -94,29 +94,29 @@
       </div>
 
       <!-- Upcoming Assignments -->
-      <div class="bg-white rounded-lg shadow">
-        <div class="px-6 py-4 border-b border-gray-200">
-          <h2 class="text-xl font-bold text-gray-900">Upcoming Assignments (Next 7 Days)</h2>
+      <div class="bg-white rounded-xl shadow-lg border-2 border-slate-200">
+        <div class="px-6 py-4 border-b-2 border-slate-200 bg-slate-50">
+          <h2 class="text-2xl font-bold text-slate-900">📅 Next Week</h2>
         </div>
         <div class="p-6">
-          <div v-if="upcomingAssignments.length === 0" class="text-center py-8 text-gray-500">
-            No upcoming assignments
+          <div v-if="upcomingAssignments.length === 0" class="text-center py-12 text-slate-500 text-lg">
+            No upcoming work scheduled
           </div>
-          <div v-else class="space-y-4">
+          <div v-else class="space-y-3">
             <div
               v-for="assignment in upcomingAssignments"
               :key="assignment.id"
-              class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition"
+              class="border-2 border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-md transition-all"
             >
               <div class="flex justify-between items-start">
                 <div class="flex-1">
-                  <div class="flex items-center gap-2">
-                    <h3 class="font-bold text-lg text-gray-900">{{ assignment.work_site_name }}</h3>
-                    <span class="text-sm text-gray-600">{{ formatDate(assignment.assignment_date) }}</span>
+                  <div class="flex items-center gap-3">
+                    <h3 class="font-bold text-lg text-slate-900">{{ assignment.work_site_name }}</h3>
+                    <span class="text-sm text-slate-700 font-semibold bg-slate-100 px-2 py-1 rounded-lg">{{ formatDate(assignment.assignment_date) }}</span>
                   </div>
-                  <p class="text-sm text-gray-600 mt-1">{{ assignment.work_site_address }}</p>
+                  <p class="text-sm text-slate-700 mt-1">{{ assignment.work_site_address }}</p>
                   <div class="mt-2 flex flex-wrap gap-2">
-                    <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                    <span class="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 text-sm font-bold rounded-lg">
                       🕐 {{ formatTime(assignment.start_time) }} - {{ formatTime(assignment.end_time) }}
                     </span>
                     <span :class="getStatusClass(assignment.status)">
@@ -131,30 +131,30 @@
       </div>
 
       <!-- Recent Service Requests -->
-      <div class="bg-white rounded-lg shadow">
-        <div class="px-6 py-4 border-b border-gray-200">
-          <h2 class="text-xl font-bold text-gray-900">Recent Service Requests</h2>
+      <div class="bg-white rounded-xl shadow-lg border-2 border-slate-200">
+        <div class="px-6 py-4 border-b-2 border-slate-200 bg-slate-50">
+          <h2 class="text-2xl font-bold text-slate-900">🔧 My Requests</h2>
         </div>
         <div class="p-6">
-          <div v-if="recentServiceRequests.length === 0" class="text-center py-8 text-gray-500">
-            No service requests yet
+          <div v-if="recentServiceRequests.length === 0" class="text-center py-12 text-slate-500 text-lg">
+            No service requests
           </div>
           <div v-else class="space-y-3">
             <div
               v-for="request in recentServiceRequests"
               :key="request.id"
-              class="border-l-4 border-gray-300 pl-4 py-2"
+              class="border-l-4 pl-4 py-3 rounded-lg bg-slate-50"
               :class="{
                 'border-red-500': request.priority === 'urgent',
                 'border-orange-500': request.priority === 'high',
                 'border-yellow-500': request.priority === 'medium',
-                'border-gray-300': request.priority === 'low'
+                'border-slate-300': request.priority === 'low'
               }"
             >
               <div class="flex justify-between items-start">
                 <div>
-                  <h4 class="font-semibold text-gray-900">{{ request.title }}</h4>
-                  <p class="text-sm text-gray-600">{{ request.work_site_name }}</p>
+                  <h4 class="font-bold text-lg text-slate-900">{{ request.title }}</h4>
+                  <p class="text-base text-slate-700 mt-1">{{ request.work_site_name }}</p>
                 </div>
                 <span :class="getRequestStatusClass(request.status)">
                   {{ request.status_display }}
@@ -169,8 +169,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { workerFetch } from '../api'
+
+const props = defineProps<{
+  workerAccount: any
+  cachedData?: any
+}>()
+
+const emit = defineEmits(['update-cache'])
 
 const loading = ref(false)
 const todayAssignments = ref<any[]>([])
@@ -181,6 +188,14 @@ const stats = ref({
   completed_assignments: 0,
   pending_service_requests: 0
 })
+
+// Load cached data immediately if available
+if (props.cachedData) {
+  todayAssignments.value = props.cachedData.today_assignments || []
+  upcomingAssignments.value = props.cachedData.upcoming_assignments || []
+  recentServiceRequests.value = props.cachedData.recent_service_requests || []
+  stats.value = props.cachedData.stats || stats.value
+}
 
 async function loadDashboard() {
   loading.value = true
@@ -199,6 +214,9 @@ async function loadDashboard() {
       upcomingAssignments.value = data.upcoming_assignments || []
       recentServiceRequests.value = data.recent_service_requests || []
       stats.value = data.stats || stats.value
+      
+      // Update cache in parent
+      emit('update-cache', data)
     }
   } catch (err) {
     console.error('Failed to load dashboard:', err)
@@ -206,6 +224,16 @@ async function loadDashboard() {
     loading.value = false
   }
 }
+
+// Watch for cached data changes
+watch(() => props.cachedData, (newData) => {
+  if (newData) {
+    todayAssignments.value = newData.today_assignments || []
+    upcomingAssignments.value = newData.upcoming_assignments || []
+    recentServiceRequests.value = newData.recent_service_requests || []
+    stats.value = newData.stats || stats.value
+  }
+})
 
 function formatTime(time: string) {
   if (!time) return ''
