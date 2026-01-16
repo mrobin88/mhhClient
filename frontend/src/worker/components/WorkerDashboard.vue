@@ -1,12 +1,12 @@
 <template>
-  <div class="space-y-6">
-    <div class="flex justify-between items-center">
-      <h1 class="text-3xl font-bold text-slate-900">Dashboard</h1>
+  <div class="space-y-4">
+    <div class="flex justify-between items-center mb-2">
+      <h1 class="text-2xl font-bold text-slate-900">Dashboard</h1>
       <button 
         @click="loadDashboard"
-        class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl text-sm font-bold shadow-lg transition-all"
+        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
       >
-        🔄 Refresh
+        🔄
       </button>
     </div>
 

@@ -1,6 +1,6 @@
 <template>
-  <div class="space-y-6">
-    <h1 class="text-3xl font-bold text-slate-900">My Work Schedule</h1>
+  <div class="space-y-4">
+    <h1 class="text-2xl font-bold text-slate-900 mb-2">My Work</h1>
 
     <!-- Filter Tabs -->
     <div class="bg-white rounded-xl shadow-lg p-2 border-2 border-slate-200">

@@ -1,17 +1,17 @@
 <template>
-  <div class="space-y-6">
-    <div class="flex justify-between items-center">
-      <h1 class="text-3xl font-bold text-slate-900">🔧 Report a Problem</h1>
+  <div class="space-y-4">
+    <div class="flex justify-between items-center mb-2">
+      <h1 class="text-2xl font-bold text-slate-900">Report Issue</h1>
       <button
         @click="showNewRequestForm = !showNewRequestForm"
         :class="[
-          'px-6 py-3 rounded-xl font-bold text-lg shadow-lg transition-all',
+          'px-4 py-2 rounded-lg font-bold transition-all',
           showNewRequestForm 
             ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' 
             : 'bg-blue-600 hover:bg-blue-700 text-white'
         ]"
       >
-        {{ showNewRequestForm ? '✕ Cancel' : '+ Report Issue' }}
+        {{ showNewRequestForm ? '✕' : '+' }}
       </button>
     </div>
 

@@ -24,13 +24,13 @@
 
     <!-- Bottom Navigation (All screens) -->
     <div v-if="isAuthenticated" class="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 z-50 shadow-xl">
-      <div class="flex justify-around max-w-2xl mx-auto">
+      <div class="flex justify-around">
         <button
           v-for="item in navItems"
           :key="item.id"
           @click="currentView = item.id"
           :class="[
-            'flex-1 py-4 text-center transition-all',
+            'flex-1 py-4 text-center transition-all max-w-[200px]',
             currentView === item.id 
               ? 'text-blue-600 bg-blue-50 border-t-4 border-blue-600' 
               : 'text-slate-700 hover:bg-slate-50'
@@ -43,41 +43,30 @@
     </div>
 
     <!-- Main Content Area -->
-    <div class="pb-24">
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <!-- Big quick actions (ONLY on dashboard) -->
-        <div v-if="isAuthenticated && currentView === 'dashboard'" class="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div class="pb-20">
+      <div class="max-w-3xl mx-auto px-4 py-4">
+        <!-- Quick actions (ONLY on dashboard) -->
+        <div v-if="isAuthenticated && currentView === 'dashboard'" class="mb-6 grid grid-cols-3 gap-3">
           <button
             @click="currentView = 'assignments'"
-            class="w-full text-left bg-white border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg rounded-2xl p-6 transition-all"
+            class="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-xl p-4 transition-all text-center"
           >
-            <div class="text-4xl mb-2">📋</div>
-            <div class="text-2xl font-bold text-slate-900">My Work</div>
-            <div class="text-slate-600">See today's schedule</div>
+            <div class="text-3xl mb-1">📋</div>
+            <div class="text-sm font-bold text-slate-900">My Work</div>
           </button>
           <button
             @click="currentView = 'availability'"
-            class="w-full text-left bg-white border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg rounded-2xl p-6 transition-all"
+            class="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-xl p-4 transition-all text-center"
           >
-            <div class="text-4xl mb-2">📅</div>
-            <div class="text-2xl font-bold text-slate-900">I'm Available</div>
-            <div class="text-slate-600">Set when you can work</div>
+            <div class="text-3xl mb-1">📅</div>
+            <div class="text-sm font-bold text-slate-900">Schedule</div>
           </button>
           <button
             @click="currentView = 'requests'"
-            class="w-full text-left bg-white border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg rounded-2xl p-6 transition-all"
+            class="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-xl p-4 transition-all text-center"
           >
-            <div class="text-4xl mb-2">🔧</div>
-            <div class="text-2xl font-bold text-slate-900">Need Help</div>
-            <div class="text-slate-600">Report a problem at the site</div>
-          </button>
-          <button
-            @click="logout()"
-            class="w-full text-left bg-white border-2 border-red-200 hover:border-red-400 hover:shadow-lg rounded-2xl p-6 transition-all"
-          >
-            <div class="text-4xl mb-2">🚪</div>
-            <div class="text-2xl font-bold text-red-700">Log Out</div>
-            <div class="text-slate-600">End session</div>
+            <div class="text-3xl mb-1">🔧</div>
+            <div class="text-sm font-bold text-slate-900">Help</div>
           </button>
         </div>
 
