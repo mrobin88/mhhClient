@@ -5,13 +5,13 @@
       <button
         @click="showNewRequestForm = !showNewRequestForm"
         :class="[
-          'px-4 py-2 rounded-lg font-bold transition-all',
+          'px-5 py-3 rounded-xl font-bold transition-all text-base shadow-lg',
           showNewRequestForm 
             ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' 
             : 'bg-blue-600 hover:bg-blue-700 text-white'
         ]"
       >
-        {{ showNewRequestForm ? '✕' : '+' }}
+        {{ showNewRequestForm ? '✕ Cancel' : '+ Report Problem' }}
       </button>
     </div>
 
