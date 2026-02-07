@@ -8,10 +8,37 @@ class ClientSerializer(serializers.ModelSerializer):
     is_sf_resident = serializers.ReadOnlyField()
     has_resume = serializers.ReadOnlyField()
     case_notes_count = serializers.ReadOnlyField()
+    resume_download_url = serializers.SerializerMethodField()
+    resume_file_type = serializers.SerializerMethodField()
+    days_in_program = serializers.ReadOnlyField()
+    months_in_program = serializers.ReadOnlyField()
+    program_duration_display = serializers.ReadOnlyField()
+    is_in_program_one_year = serializers.ReadOnlyField()
     
     class Meta:
         model = Client
         fields = '__all__'
+    
+    def get_resume_download_url(self, obj):
+        """Generate secure SAS URL for resume download"""
+        if not obj.resume:
+            return None
+        try:
+            return obj.resume_download_url
+        except Exception as e:
+            # Log error but don't fail serialization
+            import logging
+            logging.getLogger('clients').error(
+                'Failed to generate resume download URL for Client %s: %s', 
+                obj.pk, e
+            )
+            return None
+    
+    def get_resume_file_type(self, obj):
+        """Get file type for preview purposes"""
+        if not obj.resume:
+            return None
+        return obj.get_resume_file_type()
 
 class CaseNoteSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.full_name', read_only=True)

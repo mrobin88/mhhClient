@@ -164,6 +164,50 @@ class DocumentDownloadView(View):
             raise Http404("Document not found")
 
 
+@method_decorator(login_required, name='dispatch')
+class ResumeDownloadView(View):
+    """
+    Secure resume download view with SAS URL generation
+    Redirects directly to Azure Blob SAS URL for seamless downloads
+    """
+    
+    def get(self, request, pk):
+        """Generate SAS URL and redirect to it for direct download"""
+        from django.shortcuts import redirect
+        
+        try:
+            client = get_object_or_404(Client, pk=pk)
+            
+            # Check if user has permission to access this client's resume
+            if not request.user.is_authenticated:
+                raise Http404("Resume not found")
+            
+            # Generate SAS URL for secure download
+            if client.resume:
+                try:
+                    sas_url = client.resume_download_url
+                    if not sas_url:
+                        raise ValueError('SAS URL generation returned empty')
+                    
+                    logging.getLogger('clients').info('Resume download URL generated for Client %s: %s', client.pk, sas_url[:100])
+                    
+                    # Redirect directly to the SAS URL for seamless download
+                    return redirect(sas_url)
+                    
+                except Exception as e:
+                    logging.getLogger('clients').error('Resume download URL generation failed for Client %s: %s', client.pk, e)
+                    return JsonResponse({
+                        'error': f'Failed to generate download URL: {str(e)}'
+                    }, status=500)
+            else:
+                return JsonResponse({
+                    'error': 'Resume file not found'
+                }, status=404)
+                
+        except Client.DoesNotExist:
+            raise Http404("Client not found")
+
+
 @require_http_methods(["GET"])
 @login_required
 def client_dashboard_stats(request):

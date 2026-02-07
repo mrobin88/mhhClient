@@ -127,6 +127,7 @@ class Client(models.Model):
     staff_name = models.CharField(max_length=100, blank=True, null=True)
     
     # Program Completion & Job Placement Tracking
+    program_start_date = models.DateField(blank=True, null=True, help_text="Date when client started their program")
     program_completed_date = models.DateField(blank=True, null=True, help_text="Date when client completed their program")
     job_placed = models.BooleanField(default=False, help_text="Was client placed in a job after program completion?")
     job_placement_date = models.DateField(blank=True, null=True, help_text="Date when client was placed in job")
@@ -179,6 +180,54 @@ class Client(models.Model):
     @property
     def documents_count(self):
         return self.documents.count()
+    
+    @property
+    def days_in_program(self):
+        """Calculate number of days client has been in program"""
+        if not self.program_start_date:
+            return None
+        from datetime import date
+        end_date = self.program_completed_date or date.today()
+        return (end_date - self.program_start_date).days
+    
+    @property
+    def months_in_program(self):
+        """Calculate approximate number of months client has been in program"""
+        days = self.days_in_program
+        if days is None:
+            return None
+        return round(days / 30.44, 1)  # Average days per month
+    
+    @property
+    def program_duration_display(self):
+        """Human-readable program duration"""
+        if not self.program_start_date:
+            return "Not started"
+        
+        days = self.days_in_program
+        if days is None:
+            return "Not started"
+        
+        if days < 30:
+            return f"{days} day{'s' if days != 1 else ''}"
+        elif days < 365:
+            months = round(days / 30.44)
+            return f"{months} month{'s' if months != 1 else ''}"
+        else:
+            years = days / 365.25
+            months = round((years % 1) * 12)
+            years_int = int(years)
+            if months > 0:
+                return f"{years_int} year{'s' if years_int != 1 else ''}, {months} month{'s' if months != 1 else ''}"
+            return f"{years_int} year{'s' if years_int != 1 else ''}"
+    
+    @property
+    def is_in_program_one_year(self):
+        """Check if client has been in program for one year or more"""
+        days = self.days_in_program
+        if days is None:
+            return False
+        return days >= 365
     
     def generate_resume_sas_url(self, expiry_minutes=15):
         """Generate a signed Azure SAS URL for resume download."""

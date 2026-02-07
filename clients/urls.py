@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ClientViewSet, CaseNoteViewSet, DocumentDownloadView, client_dashboard_stats, PitStopApplicationViewSet
+from .views import ClientViewSet, CaseNoteViewSet, DocumentDownloadView, ResumeDownloadView, client_dashboard_stats, PitStopApplicationViewSet
 from .reports import (
     AvailableWorkersCSVView,
     WorkAssignmentsReportCSVView,
@@ -22,6 +22,7 @@ router.register(r'pitstop-applications', PitStopApplicationViewSet, basename='pi
 urlpatterns = [
     path('', include(router.urls)),
     path('documents/<int:pk>/download/', DocumentDownloadView.as_view(), name='document-download'),
+    path('clients/<int:pk>/resume/', ResumeDownloadView.as_view(), name='client-resume-download'),
     path('dashboard/stats/', client_dashboard_stats, name='client-dashboard-stats'),
     
     # CSV Export Reports
