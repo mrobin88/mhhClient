@@ -303,10 +303,10 @@ class CaseNoteAdmin(admin.ModelAdmin):
 
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'program_start_date', 'program_duration', 'program_completed_date', 'job_placed', 'has_resume', 'case_notes_count', 'created_at']
-    list_filter = ['status', 'training_interest', 'job_placed', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_start_date', 'program_completed_date']
+    list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'program_completed_date', 'job_placed', 'has_resume', 'case_notes_count', 'created_at']
+    list_filter = ['status', 'training_interest', 'job_placed', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
     search_fields = ['first_name', 'last_name', 'phone', 'job_title', 'job_company']
-    readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn', 'resume_preview', 'program_duration_info']
+    readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn', 'resume_preview']
     date_hierarchy = 'created_at'
     inlines = [CaseNoteInline]  # Add case notes as inline list
     
@@ -381,7 +381,7 @@ class ClientAdmin(admin.ModelAdmin):
             'fields': ('status', 'staff_name')
         }),
         ('Program Completion & Job Placement', {
-            'fields': ('program_start_date', 'program_duration_info', 'program_completed_date', 'job_placed', 'job_placement_date', 'job_title', 'job_company', 'job_hourly_wage')
+            'fields': ('program_completed_date', 'job_placed', 'job_placement_date', 'job_title', 'job_company', 'job_hourly_wage')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

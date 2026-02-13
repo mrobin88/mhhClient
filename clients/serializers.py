@@ -10,10 +10,6 @@ class ClientSerializer(serializers.ModelSerializer):
     case_notes_count = serializers.ReadOnlyField()
     resume_download_url = serializers.SerializerMethodField()
     resume_file_type = serializers.SerializerMethodField()
-    days_in_program = serializers.ReadOnlyField()
-    months_in_program = serializers.ReadOnlyField()
-    program_duration_display = serializers.ReadOnlyField()
-    is_in_program_one_year = serializers.ReadOnlyField()
     
     class Meta:
         model = Client
