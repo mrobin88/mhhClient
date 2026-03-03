@@ -96,9 +96,13 @@ from clients.storage import get_azure_container_client
 
 container_client = get_azure_container_client()
 if container_client:
-    # List all blobs
+    # List all blobs (without limit)
     blobs = list(container_client.list_blobs())
     print(f"Total blobs: {len(blobs)}")
+    
+    # Or list with limit
+    blobs = list(container_client.list_blobs(results_per_page=10))
+    print(f"First 10 blobs:")
     
     # Show first 10
     for blob in blobs[:10]:

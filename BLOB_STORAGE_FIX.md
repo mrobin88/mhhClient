@@ -104,7 +104,7 @@ python3 manage.py migrate clients 0010
 python3 manage.py shell
 >>> from clients.storage import get_azure_container_client
 >>> client = get_azure_container_client()
->>> blobs = list(client.list_blobs(max_results=10))
+>>> blobs = list(client.list_blobs(results_per_page=10))
 >>> for blob in blobs:
 ...     print(f"{blob.name} ({blob.size} bytes)")
 
