@@ -395,47 +395,6 @@ class ClientAdmin(admin.ModelAdmin):
         return format_html('<span style="color: red;">✗</span>')
     has_resume.short_description = 'Resume'
     
-    def program_duration(self, obj):
-        """Display program duration in list view"""
-        if not obj.program_start_date:
-            return format_html('<span style="color: #999;">-</span>')
-        
-        duration = obj.program_duration_display
-        # Highlight if 1+ year in program
-        if obj.is_in_program_one_year:
-            return format_html(
-                '<span style="background: #fff3cd; padding: 4px 8px; border-radius: 4px; font-weight: bold;">🎉 {}</span>',
-                duration
-            )
-        return format_html('<span style="color: #2e7d32;">{}</span>', duration)
-    program_duration.short_description = 'Program Duration'
-    program_duration.admin_order_field = 'program_start_date'
-    
-    def program_duration_info(self, obj):
-        """Display detailed program duration info in edit view"""
-        if not obj.program_start_date:
-            return format_html('<span style="color: #999;">No program start date set</span>')
-        
-        from datetime import date
-        info_html = f'<div style="padding: 10px; background: #f5f5f5; border-radius: 4px;">'
-        info_html += f'<strong>Started:</strong> {obj.program_start_date.strftime("%B %d, %Y")}<br>'
-        info_html += f'<strong>Duration:</strong> {obj.program_duration_display}'
-        
-        if obj.days_in_program:
-            info_html += f' ({obj.days_in_program} days)'
-        
-        if obj.is_in_program_one_year:
-            info_html += '<br><span style="color: #2e7d32; font-weight: bold;">✓ In program for 1+ year</span>'
-        
-        if obj.program_completed_date:
-            info_html += f'<br><strong>Completed:</strong> {obj.program_completed_date.strftime("%B %d, %Y")}'
-        else:
-            info_html += '<br><em>Currently active in program</em>'
-        
-        info_html += '</div>'
-        return format_html(info_html)
-    program_duration_info.short_description = 'Program Duration'
-    
     def resume_preview(self, obj):
         """Display preview and download link for resume"""
         if not obj.resume:
