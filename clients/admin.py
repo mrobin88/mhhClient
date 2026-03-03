@@ -947,7 +947,7 @@ class DocumentAdmin(admin.ModelAdmin):
                         messages.success(request, f"✓ Azure container '{container}' exists and is accessible")
                         
                         # List some blobs
-                        blobs = list(container_client.list_blobs(max_results=10))
+                        blobs = list(container_client.list_blobs(results_per_page=10))
                         messages.info(request, f"Found {len(blobs)} blobs (showing first 10):")
                         for blob in blobs:
                             messages.info(request, f"  - {blob.name} ({blob.size} bytes)")
