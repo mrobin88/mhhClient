@@ -4,6 +4,9 @@ Simple Django settings without django-environ dependency
 
 import os
 from pathlib import Path
+from django.core.files.storage import default_storage
+
+print("USING STORAGE:", default_storage)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
