@@ -232,33 +232,26 @@ class Client(models.Model):
     #     return days >= 365
     
     def generate_resume_sas_url(self, expiry_minutes=15):
-        """Generate a signed Azure SAS URL for resume download."""
+        """Generate a signed Azure SAS URL for resume download.
+        Raises FileNotFoundError if blob is missing from Azure.
+        """
         if not self.resume:
             return None
-        try:
-            # Try file.url first (may already be a SAS URL)
-            url = self.resume.url
-            if url and 'blob.core.windows.net' in url:
-                return url
-        except Exception as exc:
-            logging.getLogger('clients').warning('Failed to read resume.url for Client %s: %s', self.pk, exc)
-        # Fallback: manually generate SAS URL
-        try:
-            from .storage import generate_document_sas_url
-            blob_name = self.resume.name
-            sas_url = generate_document_sas_url(blob_name, expiry_minutes=expiry_minutes)
-            logging.getLogger('clients').info('Generated SAS URL for Client %s resume blob=%s', self.pk, blob_name)
-            return sas_url
-        except Exception as exc:
-            logging.getLogger('clients').error('SAS generation failed for Client %s resume: %s', self.pk, exc)
-            return None
+        from .storage import generate_document_sas_url
+        return generate_document_sas_url(self.resume.name, expiry_minutes=expiry_minutes)
     
     @property
     def resume_download_url(self):
-        """Generate secure download URL for resume."""
+        """Generate secure download URL for resume. Returns None if file missing."""
         if not self.resume:
             return None
-        return self.generate_resume_sas_url()
+        try:
+            return self.generate_resume_sas_url()
+        except FileNotFoundError:
+            return None
+        except Exception as exc:
+            logging.getLogger('clients').error('SAS failed for Client %s resume: %s', self.pk, exc)
+            return None
     
     def get_resume_file_type(self):
         """Determine file type for preview purposes."""
@@ -353,51 +346,50 @@ class Document(models.Model):
         return f"{self.client.full_name} - {self.title}"
 
     def save(self, *args, **kwargs):
-        """Auto-populate file metadata on save; fail-soft if storage backend errors."""
+        """Auto-populate file metadata on save and verify upload."""
+        is_new_file = False
         try:
             if self.file:
                 self.file_size = self.file.size
                 self.content_type = getattr(self.file.file, 'content_type', None)
-                try:
-                    # Log storage path and computed URL for troubleshooting
-                    logging.getLogger('clients').info(
-                        'Saving Document %s: blob_name=%s url=%s',
-                        self.pk or 'new',
-                        getattr(self.file, 'name', ''),
-                        getattr(self.file, 'url', ''),
-                    )
-                except Exception:
-                    # Accessing url may fail if storage not available yet
-                    pass
+                is_new_file = True
         except Exception:
-            # If storage backend is unreachable, skip metadata but still save DB row
             pass
         super().save(*args, **kwargs)
 
+        if is_new_file and self.file:
+            try:
+                from .storage import verify_upload
+                if verify_upload(self.file.name):
+                    logging.getLogger('clients').info(
+                        'Document %s uploaded and verified in Azure: %s', self.pk, self.file.name
+                    )
+                else:
+                    logging.getLogger('clients').warning(
+                        'Document %s saved but blob NOT found in Azure: %s', self.pk, self.file.name
+                    )
+            except Exception as exc:
+                logging.getLogger('clients').warning(
+                    'Document %s upload verification skipped: %s', self.pk, exc
+                )
+
     def generate_sas_download_url(self, expiry_minutes=15):
-        """Generate a signed Azure SAS URL for direct download.
-        If storage is configured to generate signed URLs automatically, use file.url.
-        Otherwise, fall back to explicit SAS generation utility.
-        """
+        """Generate a signed Azure SAS URL for direct download."""
         if not self.file:
             return None
+        from .storage import generate_document_sas_url
+        return generate_document_sas_url(self.file.name, expiry_minutes=expiry_minutes)
+
+    @property
+    def blob_missing(self):
+        """Check if the file is missing from Azure Storage."""
+        if not self.file:
+            return True
         try:
-            # If backend is Azure with expiration set, this will already be a SAS URL
-            url = self.file.url
-            if url and 'blob.core.windows.net' in url:
-                return url
-        except Exception as exc:
-            logging.getLogger('clients').warning('Failed to read file.url for Document %s: %s', self.pk, exc)
-        # Fallback: manually generate SAS URL using stored blob name
-        try:
-            from .storage import generate_document_sas_url
-            blob_name = self.file.name
-            sas_url = generate_document_sas_url(blob_name, expiry_minutes=expiry_minutes)
-            logging.getLogger('clients').info('Generated SAS URL for Document %s blob=%s', self.pk, blob_name)
-            return sas_url
-        except Exception as exc:
-            logging.getLogger('clients').error('SAS generation failed for Document %s: %s', self.pk, exc)
-            return None
+            from .storage import blob_exists
+            return blob_exists(self.file.name) is None
+        except Exception:
+            return True
 
     @property
     def file_size_mb(self):
@@ -408,13 +400,15 @@ class Document(models.Model):
 
     @property
     def download_url(self):
-        """Generate secure download URL (preferred SAS, fallback to API route)."""
+        """Generate secure download URL. Returns API fallback route if SAS fails."""
         if not self.file:
             return None
-        sas = self.generate_sas_download_url()
-        if sas:
-            return sas
-        return reverse('document-download', kwargs={'pk': self.pk})
+        try:
+            return self.generate_sas_download_url()
+        except FileNotFoundError:
+            return None
+        except Exception:
+            return reverse('document-download', kwargs={'pk': self.pk})
     
     def get_file_type(self):
         """Determine file type for preview purposes."""

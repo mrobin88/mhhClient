@@ -396,57 +396,43 @@ class ClientAdmin(admin.ModelAdmin):
     has_resume.short_description = 'Resume'
     
     def resume_preview(self, obj):
-        """Display preview and download link for resume"""
+        """Display preview/download link for resume, or re-upload prompt if missing."""
         if not obj.resume:
             return format_html('<span style="color: #999;">No resume uploaded</span>')
         
+        filename = obj.resume.name.split('/')[-1]
+        
         try:
             download_url = obj.resume_download_url
-            if not download_url:
-                return format_html('<span style="color: #d32f2f;">Error: Could not generate download URL</span>')
-            
-            file_type = obj.get_resume_file_type()
-            filename = obj.resume.name.split('/')[-1]
-            
-            preview_html = '<div style="margin-top: 10px;">'
-            
-            # Preview based on file type
-            if file_type == 'pdf':
-                preview_html += f'''
-                <div style="margin-bottom: 10px;">
-                    <strong>Preview:</strong><br>
-                    <iframe src="{download_url}" width="100%" height="600px" style="border: 1px solid #ddd; border-radius: 4px;"></iframe>
-                </div>
-                '''
-            elif file_type == 'image':
-                preview_html += f'''
-                <div style="margin-bottom: 10px;">
-                    <strong>Preview:</strong><br>
-                    <img src="{download_url}" alt="{filename}" style="max-width: 100%; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; padding: 5px;">
-                </div>
-                '''
-            else:
-                preview_html += f'''
-                <div style="margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
-                    <strong>File:</strong> {filename}<br>
-                    <em>Preview not available for this file type. Please download to view.</em>
-                </div>
-                '''
-            
-            # Download link
-            preview_html += f'''
-            <div>
-                <a href="{download_url}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #1976d2; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">
-                    📥 Download Resume
-                </a>
-            </div>
-            '''
-            
-            preview_html += '</div>'
-            return format_html(preview_html)
+        except FileNotFoundError:
+            download_url = None
         except Exception as e:
-            logging.getLogger('clients').error('Failed to generate resume preview for Client %s: %s', obj.pk, e)
-            return format_html('<span style="color: #d32f2f;">Error generating preview: {}</span>', str(e))
+            logging.getLogger('clients').error('Resume preview error for Client %s: %s', obj.pk, e)
+            download_url = None
+        
+        if not download_url:
+            return format_html(
+                '<div style="padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px;">'
+                '<strong style="color: #856404;">⚠️ File Missing from Azure Storage</strong><br>'
+                '<span style="color: #856404;">File <code>{}</code> is not in Azure.</span><br>'
+                '<span style="color: #856404;">Use the "Choose File" button above to re-upload it, then click Save.</span>'
+                '</div>',
+                filename
+            )
+        
+        file_type = obj.get_resume_file_type()
+        preview_html = '<div style="margin-top: 10px;">'
+        
+        if file_type == 'pdf':
+            preview_html += f'<div style="margin-bottom: 10px;"><strong>Preview:</strong><br><iframe src="{download_url}" width="100%" height="600px" style="border: 1px solid #ddd; border-radius: 4px;"></iframe></div>'
+        elif file_type == 'image':
+            preview_html += f'<div style="margin-bottom: 10px;"><strong>Preview:</strong><br><img src="{download_url}" alt="{filename}" style="max-width: 100%; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; padding: 5px;"></div>'
+        else:
+            preview_html += f'<div style="margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;"><strong>File:</strong> {filename}<br><em>Preview not available for this file type. Please download to view.</em></div>'
+        
+        preview_html += f'<div><a href="{download_url}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #1976d2; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">📥 Download Resume</a></div>'
+        preview_html += '</div>'
+        return format_html(preview_html)
     resume_preview.short_description = 'Resume Preview & Download'
     
     def case_notes_count(self, obj):
@@ -689,70 +675,46 @@ class DocumentAdmin(admin.ModelAdmin):
     file_size_mb.short_description = 'File Size'
     
     def file_preview(self, obj):
-        """Display preview and download link for document file"""
+        """Display preview/download link, or re-upload prompt if missing."""
         if not obj.file:
             return format_html('<span style="color: #999;">No file uploaded</span>')
         
-        try:
-            download_url = obj.download_url
-            if not download_url:
-                return format_html('<span style="color: #d32f2f;">Error: Could not generate download URL</span>')
-            
-            file_type = obj.get_file_type()
-            filename = obj.file.name.split('/')[-1]
-            
-            preview_html = '<div style="margin-top: 10px;">'
-            
-            # Preview based on file type
-            if file_type == 'pdf':
-                preview_html += f'''
-                <div style="margin-bottom: 10px;">
-                    <strong>Preview:</strong><br>
-                    <iframe src="{download_url}" width="100%" height="600px" style="border: 1px solid #ddd; border-radius: 4px;"></iframe>
-                </div>
-                '''
-            elif file_type == 'image':
-                preview_html += f'''
-                <div style="margin-bottom: 10px;">
-                    <strong>Preview:</strong><br>
-                    <img src="{download_url}" alt="{filename}" style="max-width: 100%; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; padding: 5px;">
-                </div>
-                '''
-            else:
-                preview_html += f'''
-                <div style="margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
-                    <strong>File:</strong> {filename}<br>
-                    <em>Preview not available for this file type. Please download to view.</em>
-                </div>
-                '''
-            
-            # Download link
-            preview_html += f'''
-            <div>
-                <a href="{download_url}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #1976d2; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">
-                    📥 Download Document
-                </a>
-            </div>
-            '''
-            
-            preview_html += '</div>'
-            return format_html(preview_html)
-        except Exception as e:
-            logging.getLogger('clients').error('Failed to generate file preview for Document %s: %s', obj.pk, e)
-            return format_html('<span style="color: #d32f2f;">Error generating preview: {}</span>', str(e))
+        filename = obj.file.name.split('/')[-1]
+        download_url = obj.download_url
+        
+        if not download_url:
+            return format_html(
+                '<div style="padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px;">'
+                '<strong style="color: #856404;">⚠️ File Missing from Azure Storage</strong><br>'
+                '<span style="color: #856404;">File <code>{}</code> is not in Azure.</span><br>'
+                '<span style="color: #856404;">Use the "Choose File" button above to re-upload it, then click Save.</span>'
+                '</div>',
+                filename
+            )
+        
+        file_type = obj.get_file_type()
+        preview_html = '<div style="margin-top: 10px;">'
+        
+        if file_type == 'pdf':
+            preview_html += f'<div style="margin-bottom: 10px;"><strong>Preview:</strong><br><iframe src="{download_url}" width="100%" height="600px" style="border: 1px solid #ddd; border-radius: 4px;"></iframe></div>'
+        elif file_type == 'image':
+            preview_html += f'<div style="margin-bottom: 10px;"><strong>Preview:</strong><br><img src="{download_url}" alt="{filename}" style="max-width: 100%; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; padding: 5px;"></div>'
+        else:
+            preview_html += f'<div style="margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;"><strong>File:</strong> {filename}<br><em>Preview not available for this file type. Please download to view.</em></div>'
+        
+        preview_html += f'<div><a href="{download_url}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #1976d2; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">📥 Download Document</a></div>'
+        preview_html += '</div>'
+        return format_html(preview_html)
     file_preview.short_description = 'Preview & Download'
     
     def download_link(self, obj):
         """Quick download link for list view"""
         if not obj.file:
             return '-'
-        try:
-            download_url = obj.download_url
-            if download_url:
-                return format_html('<a href="{}" target="_blank">📥</a>', download_url)
-        except:
-            pass
-        return format_html('<a href="/api/documents/{}/download/" target="_blank">📥</a>', obj.pk)
+        download_url = obj.download_url
+        if download_url:
+            return format_html('<a href="{}" target="_blank">📥</a>', download_url)
+        return format_html('<span style="color: #f44336;" title="File missing from Azure">⚠️</span>')
     download_link.short_description = 'Download'
     
     def blob_path_info(self, obj):

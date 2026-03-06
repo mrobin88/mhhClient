@@ -122,90 +122,97 @@ class CaseNoteViewSet(viewsets.ModelViewSet):
 
 @method_decorator(login_required, name='dispatch')
 class DocumentDownloadView(View):
-    """
-    Secure document download view with SAS URL generation
-    Redirects directly to Azure Blob SAS URL for seamless downloads
-    """
+    """Secure document download - redirects to Azure SAS URL."""
     
     def get(self, request, pk):
-        """Generate SAS URL and redirect to it for direct download"""
         from django.shortcuts import redirect
         
+        document = get_object_or_404(Document, pk=pk)
+        
+        if not document.file:
+            return HttpResponse(
+                '<h2>No file attached</h2>'
+                '<p>This document record exists but has no file attached.</p>'
+                '<p><a href="javascript:history.back()">Go back</a></p>',
+                status=404, content_type='text/html'
+            )
+        
         try:
-            document = get_object_or_404(Document, pk=pk)
-            
-            # Check if user has permission to access this document
-            if not request.user.is_authenticated:
-                raise Http404("Document not found")
-            
-            # Generate SAS URL for secure download
-            if document.file:
-                try:
-                    sas_url = document.generate_sas_download_url(expiry_minutes=15)
-                    if not sas_url:
-                        raise ValueError('SAS URL generation returned empty')
-                    
-                    logging.getLogger('clients').info('Download URL generated for Document %s: %s', document.pk, sas_url[:100])
-                    
-                    # Redirect directly to the SAS URL for seamless download
-                    return redirect(sas_url)
-                    
-                except Exception as e:
-                    logging.getLogger('clients').error('Download URL generation failed for Document %s: %s', document.pk, e)
-                    return JsonResponse({
-                        'error': f'Failed to generate download URL: {str(e)}'
-                    }, status=500)
-            else:
-                return JsonResponse({
-                    'error': 'Document file not found'
-                }, status=404)
-                
-        except Document.DoesNotExist:
-            raise Http404("Document not found")
+            sas_url = document.generate_sas_download_url(expiry_minutes=15)
+            return redirect(sas_url)
+        except FileNotFoundError:
+            filename = document.file.name.split('/')[-1]
+            edit_url = f'/admin/clients/document/{document.pk}/change/'
+            return HttpResponse(
+                f'<h2>File Missing from Storage</h2>'
+                f'<p>The file <strong>{filename}</strong> is not in Azure Storage.</p>'
+                f'<p>It may have been uploaded locally and never synced, or was deleted.</p>'
+                f'<h3>To fix:</h3>'
+                f'<ol>'
+                f'<li><a href="{edit_url}">Edit this document</a></li>'
+                f'<li>Click "Choose File" to re-upload</li>'
+                f'<li>Click Save</li>'
+                f'</ol>'
+                f'<p><a href="javascript:history.back()">Go back</a></p>',
+                status=404, content_type='text/html'
+            )
+        except Exception as e:
+            logging.getLogger('clients').error('Download failed for Document %s: %s', document.pk, e)
+            return HttpResponse(
+                f'<h2>Download Error</h2>'
+                f'<p>Could not generate download link: {str(e)}</p>'
+                f'<p><a href="javascript:history.back()">Go back</a></p>',
+                status=500, content_type='text/html'
+            )
 
 
 @method_decorator(login_required, name='dispatch')
 class ResumeDownloadView(View):
-    """
-    Secure resume download view with SAS URL generation
-    Redirects directly to Azure Blob SAS URL for seamless downloads
-    """
+    """Secure resume download - redirects to Azure SAS URL."""
     
     def get(self, request, pk):
-        """Generate SAS URL and redirect to it for direct download"""
         from django.shortcuts import redirect
         
+        client = get_object_or_404(Client, pk=pk)
+        
+        if not client.resume:
+            return HttpResponse(
+                '<h2>No Resume</h2>'
+                '<p>This client does not have a resume uploaded.</p>'
+                '<p><a href="javascript:history.back()">Go back</a></p>',
+                status=404, content_type='text/html'
+            )
+        
         try:
-            client = get_object_or_404(Client, pk=pk)
-            
-            # Check if user has permission to access this client's resume
-            if not request.user.is_authenticated:
-                raise Http404("Resume not found")
-            
-            # Generate SAS URL for secure download
-            if client.resume:
-                try:
-                    sas_url = client.resume_download_url
-                    if not sas_url:
-                        raise ValueError('SAS URL generation returned empty')
-                    
-                    logging.getLogger('clients').info('Resume download URL generated for Client %s: %s', client.pk, sas_url[:100])
-                    
-                    # Redirect directly to the SAS URL for seamless download
-                    return redirect(sas_url)
-                    
-                except Exception as e:
-                    logging.getLogger('clients').error('Resume download URL generation failed for Client %s: %s', client.pk, e)
-                    return JsonResponse({
-                        'error': f'Failed to generate download URL: {str(e)}'
-                    }, status=500)
-            else:
-                return JsonResponse({
-                    'error': 'Resume file not found'
-                }, status=404)
-                
-        except Client.DoesNotExist:
-            raise Http404("Client not found")
+            sas_url = client.resume_download_url
+            if not sas_url:
+                raise FileNotFoundError("Resume file not found in storage")
+            return redirect(sas_url)
+        except FileNotFoundError:
+            filename = client.resume.name.split('/')[-1]
+            edit_url = f'/admin/clients/client/{client.pk}/change/'
+            return HttpResponse(
+                f'<h2>Resume Missing from Storage</h2>'
+                f'<p>The file <strong>{filename}</strong> is not in Azure Storage.</p>'
+                f'<p>It may have been uploaded locally and never synced, or was deleted.</p>'
+                f'<h3>To fix:</h3>'
+                f'<ol>'
+                f'<li><a href="{edit_url}">Edit this client</a></li>'
+                f'<li>Scroll to Documents section</li>'
+                f'<li>Click "Choose File" to re-upload the resume</li>'
+                f'<li>Click Save</li>'
+                f'</ol>'
+                f'<p><a href="javascript:history.back()">Go back</a></p>',
+                status=404, content_type='text/html'
+            )
+        except Exception as e:
+            logging.getLogger('clients').error('Resume download failed for Client %s: %s', client.pk, e)
+            return HttpResponse(
+                f'<h2>Download Error</h2>'
+                f'<p>Could not generate download link: {str(e)}</p>'
+                f'<p><a href="javascript:history.back()">Go back</a></p>',
+                status=500, content_type='text/html'
+            )
 
 
 @require_http_methods(["GET"])
