@@ -4,9 +4,6 @@ Simple Django settings without django-environ dependency
 
 import os
 from pathlib import Path
-from django.core.files.storage import default_storage
-
-print("USING STORAGE:", default_storage)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -187,16 +184,24 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Azure Blob Storage configuration for file uploads
 if os.getenv('AZURE_ACCOUNT_NAME') and os.getenv('AZURE_ACCOUNT_KEY'):
-    # Use Azure Blob Storage for file uploads in production
-    DEFAULT_FILE_STORAGE = 'clients.storage.AzurePrivateStorage'
-    
-    # Azure Storage settings
     AZURE_ACCOUNT_NAME = os.getenv('AZURE_ACCOUNT_NAME')
     AZURE_ACCOUNT_KEY = os.getenv('AZURE_ACCOUNT_KEY')
     AZURE_CONTAINER = os.getenv('AZURE_CONTAINER', 'client-docs')
     AZURE_CUSTOM_DOMAIN = f'{AZURE_ACCOUNT_NAME}.blob.core.windows.net'
+
+    # Django 5.x uses STORAGES; also set legacy DEFAULT_FILE_STORAGE for compatibility
+    DEFAULT_FILE_STORAGE = 'clients.storage.AzurePrivateStorage'
+    STORAGES = {
+        "default": {
+            "BACKEND": "clients.storage.AzurePrivateStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+            if os.getenv('DEBUG', 'False').lower() != 'true'
+            else "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
 else:
-    # Fallback to local file storage for development
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 
 # Default primary key field type
