@@ -41,9 +41,9 @@ class CaseNoteInline(admin.TabularInline):
     
     class Media:
         css = {
-            'all': ()  # 'admin/css/custom-case-notes.css' commented out
+            'all': ()
         }
-        js = ('admin/js/case-notes-helper.js',)
+        js = ()
     
     def overdue_indicator(self, obj):
         """Show overdue follow-up indicator"""
