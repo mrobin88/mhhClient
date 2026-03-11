@@ -284,8 +284,8 @@ npm run build
 **Production:**
 - Backend Admin: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/admin/
 - Backend API: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/
-- Client Portal: https://brave-mud-077eb1810.1.azurestaticapps.net/
-- Worker Portal: https://brave-mud-077eb1810.1.azurestaticapps.net/worker.html
+- Client Portal: https://blue-glacier-0c5f06410.3.azurestaticapps.net/
+- Worker Portal: https://blue-glacier-0c5f06410.3.azurestaticapps.net/worker.html
 
 ---
 
