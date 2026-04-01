@@ -1,0 +1,17 @@
+Hi {{ worker_name }},
+
+You have a shift update:
+
+SHIFT DETAILS
+Site: {{ site_name }}
+Address: {{ site_address }}
+Date: {{ assignment_date|date:"l, F d, Y" }}
+Time: {{ start_time|time:"g:i A" }} - {{ end_time|time:"g:i A" }}
+Status: {{ status }}
+{% if supervisor_name %}Supervisor: {{ supervisor_name }}{% if supervisor_phone %} - {{ supervisor_phone }}{% endif %}{% endif %}
+{% if notes %}Notes: {{ notes }}{% endif %}
+
+Confirm your shift: {{ portal_url }}
+
+--
+Mission Hiring Hall - Worker Portal

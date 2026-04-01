@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0; }
+        .content { background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0; }
+        .shift-box { background: white; border: 2px solid #3b82f6; border-radius: 8px; padding: 20px; margin: 16px 0; }
+        .detail { margin: 8px 0; }
+        .label { font-weight: bold; color: #475569; }
+        .button { display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 16px 0; font-weight: bold; font-size: 16px; }
+        .footer { background: #f1f5f9; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-radius: 0 0 8px 8px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 style="margin: 0;">Shift Update</h1>
+    </div>
+
+    <div class="content">
+        <p style="font-size: 18px;">Hi {{ worker_name }},</p>
+        <p>You have a shift update. Here are the details:</p>
+
+        <div class="shift-box">
+            <div class="detail"><span class="label">Site:</span> {{ site_name }}</div>
+            <div class="detail"><span class="label">Address:</span> {{ site_address }}</div>
+            <div class="detail"><span class="label">Date:</span> {{ assignment_date|date:"l, F d, Y" }}</div>
+            <div class="detail"><span class="label">Time:</span> {{ start_time|time:"g:i A" }} - {{ end_time|time:"g:i A" }}</div>
+            <div class="detail"><span class="label">Status:</span> {{ status }}</div>
+            {% if supervisor_name %}
+            <div class="detail"><span class="label">Supervisor:</span> {{ supervisor_name }}{% if supervisor_phone %} - {{ supervisor_phone }}{% endif %}</div>
+            {% endif %}
+            {% if notes %}
+            <div class="detail"><span class="label">Notes:</span> {{ notes }}</div>
+            {% endif %}
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{{ portal_url }}" class="button">Confirm in Worker Portal</a>
+        </div>
+
+        <p style="color: #64748b; font-size: 14px;">Please confirm your shift in the portal so your supervisor knows you'll be there.</p>
+    </div>
+
+    <div class="footer">
+        <p>Mission Hiring Hall - Worker Portal</p>
+    </div>
+</body>
+</html>

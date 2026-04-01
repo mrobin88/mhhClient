@@ -1,0 +1,20 @@
+Hi {{ worker_name }},
+
+Your worker portal account has been approved!
+
+HOW TO LOG IN
+1. Open: {{ portal_url }}
+2. Phone: {{ phone }}
+3. PIN: Last 4 digits of your phone number
+
+WHAT YOU CAN DO
+- See your upcoming shifts
+- Confirm your assignments
+- Call out if you can't make it
+- Set which days you're available
+- Report a problem at your site
+
+Questions? Talk to your supervisor.
+
+--
+Mission Hiring Hall - Worker Portal

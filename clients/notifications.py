@@ -1,5 +1,5 @@
 """
-Email notification system for case note follow-ups
+Email notification system for case notes, worker onboarding, and schedule updates
 """
 from django.core.mail import send_mail
 from django.conf import settings
@@ -10,34 +10,39 @@ import logging
 
 logger = logging.getLogger('clients')
 
+WORKER_PORTAL_URL = 'https://blue-glacier-0c5f06410.3.azurestaticapps.net/worker.html'
+
+def _get_admin_base_url():
+    return getattr(settings, 'ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net')
+
+def _get_from_email():
+    return getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@missionhiringhall.org')
+
+def _send(subject, plain, html, recipient):
+    """Send an email, return True on success."""
+    try:
+        send_mail(
+            subject=subject,
+            message=plain,
+            from_email=_get_from_email(),
+            recipient_list=[recipient],
+            html_message=html,
+            fail_silently=False,
+        )
+        logger.info('Email sent to %s: %s', recipient, subject)
+        return True
+    except Exception as e:
+        logger.error('Email failed to %s: %s', recipient, e, exc_info=True)
+        return False
+
 
 def send_followup_alert(case_note, user_email):
-    """
-    Send email alert for a case note follow-up
-    
-    Args:
-        case_note: CaseNote instance
-        user_email: Email address of the user to notify
-    """
+    """Send email alert for a case note follow-up."""
     try:
-        from django.urls import reverse
-        
-        # Calculate days until/overdue
         days_diff = (case_note.follow_up_date - date.today()).days
         status = "OVERDUE" if days_diff < 0 else f"Due in {days_diff} day{'s' if days_diff != 1 else ''}"
-        
-        # Build admin URL for the case note
-        admin_url = None
-        try:
-            base_url = getattr(settings, 'ADMIN_BASE_URL', None)
-            if not base_url:
-                base_url = 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net'
-            admin_url = f"{base_url}/admin/clients/casenote/{case_note.pk}/change/"
-        except Exception as e:
-            logger.warning(f"Could not build admin URL: {e}")
-            pass
-        
-        # Prepare email context
+        admin_url = f"{_get_admin_base_url()}/admin/clients/casenote/{case_note.pk}/change/"
+
         context = {
             'case_note': case_note,
             'client': case_note.client,
@@ -47,53 +52,172 @@ def send_followup_alert(case_note, user_email):
             'admin_url': admin_url,
             'follow_up_date': case_note.follow_up_date,
         }
-        
-        # Render email templates
-        subject = f"⚠️ Follow-up Alert: {case_note.client.full_name} - {status}"
-        
-        # Try to render HTML email, fallback to plain text
+
+        subject = f"Follow-up Alert: {case_note.client.full_name} - {status}"
         try:
-            html_message = render_to_string('clients/emails/followup_alert.html', context)
-            plain_message = render_to_string('clients/emails/followup_alert.txt', context)
-        except Exception as e:
-            logger.warning(f"Could not render email templates: {e}")
-            # Fallback to simple text email
-            plain_message = f"""
-Case Note Follow-up Alert
+            html = render_to_string('clients/emails/followup_alert.html', context)
+            plain = render_to_string('clients/emails/followup_alert.txt', context)
+        except Exception:
+            html = None
+            plain = (
+                f"Case Note Follow-up Alert\n\n"
+                f"Client: {case_note.client.full_name}\n"
+                f"Follow-up Date: {case_note.follow_up_date}\n"
+                f"Status: {status}\n\n"
+                f"View in Admin: {admin_url}\n"
+            )
 
-Client: {case_note.client.full_name}
-Note Type: {case_note.get_note_type_display()}
-Follow-up Date: {case_note.follow_up_date}
-Status: {status}
-
-Note Content:
-{case_note.content[:200]}...
-
-Next Steps:
-{case_note.next_steps or 'None specified'}
-
-View in Admin: {admin_url or 'N/A'}
-"""
-            html_message = None
-        
-        # Send email
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@missionhiringhall.org')
-        
-        send_mail(
-            subject=subject,
-            message=plain_message,
-            from_email=from_email,
-            recipient_list=[user_email],
-            html_message=html_message,
-            fail_silently=False,
-        )
-        
-        logger.info(f"Follow-up alert email sent to {user_email} for case note {case_note.pk}")
-        return True
-        
+        return _send(subject, plain, html, user_email)
     except Exception as e:
-        logger.error(f"Failed to send follow-up alert email: {e}", exc_info=True)
+        logger.error('Failed to send follow-up alert: %s', e, exc_info=True)
         return False
+
+
+def send_worker_welcome_email(worker_account):
+    """
+    Send welcome email when a worker account is approved.
+    Returns True if sent, False if skipped or failed.
+    """
+    client = worker_account.client
+    email = client.email
+    if not email:
+        logger.warning(
+            'No email for worker %s (client %s) - skipping welcome email',
+            worker_account.phone, client.full_name
+        )
+        return False
+
+    context = {
+        'worker_name': client.first_name or client.full_name,
+        'full_name': client.full_name,
+        'phone': worker_account.phone,
+        'portal_url': WORKER_PORTAL_URL,
+    }
+
+    subject = f"Welcome to the Worker Portal - {client.first_name}"
+    try:
+        html = render_to_string('clients/emails/worker_welcome.html', context)
+        plain = render_to_string('clients/emails/worker_welcome.txt', context)
+    except Exception:
+        html = None
+        plain = (
+            f"Hi {context['worker_name']},\n\n"
+            f"Your worker portal account has been approved.\n\n"
+            f"Log in here: {WORKER_PORTAL_URL}\n"
+            f"Phone: {context['phone']}\n"
+            f"PIN: Last 4 digits of your phone number\n\n"
+            f"From there you can see your schedule, confirm shifts, "
+            f"and report any issues at your site.\n\n"
+            f"Questions? Talk to your supervisor.\n"
+        )
+
+    return _send(subject, plain, html, email)
+
+
+def send_assignment_notification(assignment):
+    """
+    Send email when a worker gets a new or updated assignment.
+    Returns True if sent, False if skipped or failed.
+    """
+    client = assignment.client
+    email = client.email
+    if not email:
+        logger.warning(
+            'No email for client %s - skipping assignment notification',
+            client.full_name
+        )
+        return False
+
+    context = {
+        'worker_name': client.first_name or client.full_name,
+        'site_name': assignment.work_site.name,
+        'site_address': assignment.work_site.address,
+        'assignment_date': assignment.assignment_date,
+        'start_time': assignment.start_time,
+        'end_time': assignment.end_time,
+        'supervisor_name': assignment.work_site.supervisor_name,
+        'supervisor_phone': assignment.work_site.supervisor_phone,
+        'status': assignment.get_status_display(),
+        'notes': assignment.assignment_notes,
+        'portal_url': WORKER_PORTAL_URL,
+    }
+
+    subject = f"Shift Update: {assignment.work_site.name} on {assignment.assignment_date.strftime('%b %d')}"
+    try:
+        html = render_to_string('clients/emails/assignment_notification.html', context)
+        plain = render_to_string('clients/emails/assignment_notification.txt', context)
+    except Exception:
+        html = None
+        plain = (
+            f"Hi {context['worker_name']},\n\n"
+            f"You have a shift update:\n\n"
+            f"Site: {context['site_name']}\n"
+            f"Address: {context['site_address']}\n"
+            f"Date: {context['assignment_date']}\n"
+            f"Time: {context['start_time'].strftime('%I:%M %p')} - {context['end_time'].strftime('%I:%M %p')}\n"
+            f"Supervisor: {context['supervisor_name']} {context['supervisor_phone']}\n\n"
+            f"Confirm your shift: {WORKER_PORTAL_URL}\n"
+        )
+
+    return _send(subject, plain, html, email)
+
+
+def send_schedule_reminders():
+    """
+    Send reminder emails to workers with assignments tomorrow.
+    Returns dict with counts.
+    """
+    from .models_extensions import WorkAssignment
+
+    tomorrow = date.today() + timedelta(days=1)
+    assignments = WorkAssignment.objects.filter(
+        assignment_date=tomorrow,
+        status__in=['pending', 'confirmed'],
+    ).select_related('client', 'work_site')
+
+    sent = 0
+    skipped = 0
+
+    for assignment in assignments:
+        email = assignment.client.email
+        if not email:
+            skipped += 1
+            continue
+
+        context = {
+            'worker_name': assignment.client.first_name or assignment.client.full_name,
+            'site_name': assignment.work_site.name,
+            'site_address': assignment.work_site.address,
+            'assignment_date': assignment.assignment_date,
+            'start_time': assignment.start_time,
+            'end_time': assignment.end_time,
+            'supervisor_name': assignment.work_site.supervisor_name,
+            'supervisor_phone': assignment.work_site.supervisor_phone,
+            'portal_url': WORKER_PORTAL_URL,
+        }
+
+        subject = f"Reminder: You work at {assignment.work_site.name} tomorrow"
+        try:
+            html = render_to_string('clients/emails/schedule_reminder.html', context)
+            plain = render_to_string('clients/emails/schedule_reminder.txt', context)
+        except Exception:
+            html = None
+            plain = (
+                f"Hi {context['worker_name']},\n\n"
+                f"Reminder: You have a shift tomorrow.\n\n"
+                f"Site: {context['site_name']}\n"
+                f"Address: {context['site_address']}\n"
+                f"Time: {context['start_time'].strftime('%I:%M %p')} - "
+                f"{context['end_time'].strftime('%I:%M %p')}\n"
+                f"Supervisor: {context['supervisor_name']} {context['supervisor_phone']}\n\n"
+                f"View your schedule: {WORKER_PORTAL_URL}\n"
+            )
+
+        if _send(subject, plain, html, email):
+            sent += 1
+
+    logger.info('Schedule reminders: %d sent, %d skipped (no email)', sent, skipped)
+    return {'sent': sent, 'skipped': skipped, 'total': assignments.count()}
 
 
 def check_and_send_followup_alerts(days_before=1, send_to_staff=True):

@@ -1,0 +1,17 @@
+Hi {{ worker_name }},
+
+Reminder: You have a shift TOMORROW.
+
+SHIFT DETAILS
+Site: {{ site_name }}
+Address: {{ site_address }}
+Date: {{ assignment_date|date:"l, F d, Y" }}
+Time: {{ start_time|time:"g:i A" }} - {{ end_time|time:"g:i A" }}
+{% if supervisor_name %}Supervisor: {{ supervisor_name }}{% if supervisor_phone %} - {{ supervisor_phone }}{% endif %}{% endif %}
+
+View your schedule: {{ portal_url }}
+
+If you can't make it, call out through the portal or contact your supervisor ASAP.
+
+--
+Mission Hiring Hall - Worker Portal

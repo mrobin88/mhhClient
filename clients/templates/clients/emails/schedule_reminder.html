@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0; }
+        .content { background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0; }
+        .shift-box { background: white; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 16px 0; }
+        .detail { margin: 8px 0; }
+        .label { font-weight: bold; color: #475569; }
+        .button { display: inline-block; background: #d97706; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 16px 0; font-weight: bold; font-size: 16px; }
+        .footer { background: #f1f5f9; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-radius: 0 0 8px 8px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 style="margin: 0;">Shift Reminder - Tomorrow</h1>
+    </div>
+
+    <div class="content">
+        <p style="font-size: 18px;">Hi {{ worker_name }},</p>
+        <p>Just a reminder - you have a shift <strong>tomorrow</strong>:</p>
+
+        <div class="shift-box">
+            <div class="detail"><span class="label">Site:</span> {{ site_name }}</div>
+            <div class="detail"><span class="label">Address:</span> {{ site_address }}</div>
+            <div class="detail"><span class="label">Date:</span> {{ assignment_date|date:"l, F d, Y" }}</div>
+            <div class="detail"><span class="label">Time:</span> {{ start_time|time:"g:i A" }} - {{ end_time|time:"g:i A" }}</div>
+            {% if supervisor_name %}
+            <div class="detail"><span class="label">Supervisor:</span> {{ supervisor_name }}{% if supervisor_phone %} - {{ supervisor_phone }}{% endif %}</div>
+            {% endif %}
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{{ portal_url }}" class="button">View My Schedule</a>
+        </div>
+
+        <p style="color: #64748b; font-size: 14px;">If you can't make it, please call out through the portal or contact your supervisor as soon as possible.</p>
+    </div>
+
+    <div class="footer">
+        <p>Mission Hiring Hall - Worker Portal</p>
+    </div>
+</body>
+</html>

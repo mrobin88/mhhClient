@@ -968,10 +968,26 @@ class WorkerAccountAdmin(admin.ModelAdmin):
     is_locked.short_description = 'Lock Status'
     
     def approve_accounts(self, request, queryset):
-        """Bulk approve worker accounts"""
-        updated = queryset.update(is_approved=True, is_active=True)
-        self.message_user(request, f'{updated} account(s) approved.')
-    approve_accounts.short_description = 'Approve selected accounts'
+        """Bulk approve worker accounts and send welcome emails"""
+        from .notifications import send_worker_welcome_email
+
+        approved = 0
+        emailed = 0
+        for account in queryset.filter(is_approved=False):
+            account.is_approved = True
+            account.is_active = True
+            account.save()
+            approved += 1
+            if send_worker_welcome_email(account):
+                emailed += 1
+
+        msg = f'{approved} account(s) approved.'
+        if emailed:
+            msg += f' {emailed} welcome email(s) sent.'
+        if approved > emailed:
+            msg += f' {approved - emailed} skipped (no email on file).'
+        self.message_user(request, msg)
+    approve_accounts.short_description = 'Approve selected accounts (sends welcome email)'
     
     def deactivate_accounts(self, request, queryset):
         """Bulk deactivate worker accounts"""

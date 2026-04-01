@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0; }
+        .content { background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0; }
+        .info-box { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin: 16px 0; }
+        .button { display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 16px 0; font-weight: bold; font-size: 16px; }
+        .footer { background: #f1f5f9; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-radius: 0 0 8px 8px; }
+        .step { display: flex; margin: 8px 0; }
+        .step-num { background: #2563eb; color: white; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; font-weight: bold; margin-right: 12px; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 style="margin: 0;">Welcome to the Worker Portal</h1>
+    </div>
+
+    <div class="content">
+        <p style="font-size: 18px;">Hi {{ worker_name }},</p>
+        <p>Your worker portal account has been approved. You can now view your schedule, confirm shifts, and report issues from your phone.</p>
+
+        <div class="info-box">
+            <h3 style="margin-top: 0; color: #1e40af;">How to log in</h3>
+            <div class="step">
+                <div class="step-num">1</div>
+                <div>Open the Worker Portal link below</div>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <div>Enter your phone number: <strong>{{ phone }}</strong></div>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <div>Enter your PIN: <strong>Last 4 digits of your phone number</strong></div>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{{ portal_url }}" class="button">Open Worker Portal</a>
+        </div>
+
+        <div class="info-box">
+            <h3 style="margin-top: 0; color: #1e40af;">What you can do</h3>
+            <ul style="margin: 0; padding-left: 20px;">
+                <li>See your upcoming shifts</li>
+                <li>Confirm your assignments</li>
+                <li>Call out if you can't make it</li>
+                <li>Set which days you're available</li>
+                <li>Report a problem at your site</li>
+            </ul>
+        </div>
+
+        <p>Questions? Talk to your supervisor.</p>
+    </div>
+
+    <div class="footer">
+        <p>Mission Hiring Hall - Worker Portal</p>
+    </div>
+</body>
+</html>

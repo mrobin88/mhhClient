@@ -168,9 +168,19 @@ class WorkAssignment(models.Model):
     def __str__(self):
         return f"{self.client.full_name} → {self.work_site.name} on {self.assignment_date}"
     
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            try:
+                from .notifications import send_assignment_notification
+                send_assignment_notification(self)
+            except Exception:
+                pass
+
     def clean(self):
         """Validate assignment doesn't exceed site capacity"""
-        if self.pk:  # Only check for existing assignments
+        if self.pk:
             return
         
         same_day_assignments = WorkAssignment.objects.filter(
