@@ -23,10 +23,6 @@ from .serializers import ClientSerializer, CaseNoteSerializer, PitStopApplicatio
 from .storage import generate_document_sas_url
 import logging
 
-# PDF generation removed - WeasyPrint no longer used
-WEASYPRINT_AVAILABLE = False
-HTML = None
-CSS = None
 from django.utils import timezone
 
 class ClientViewSet(viewsets.ModelViewSet):

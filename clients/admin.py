@@ -16,9 +16,6 @@ from django.utils import timezone
 from .models import Client, CaseNote, Document, PitStopApplication
 from .models_extensions import WorkSite, ClientAvailability, WorkAssignment, CallOutLog, WorkerAccount, ServiceRequest
 
-# PDF generation removed - WeasyPrint no longer used
-WEASYPRINT_AVAILABLE = False
-
 
 class CaseNoteInline(admin.TabularInline):
     """Inline admin for displaying case notes as a timestamped list on Client admin page"""
