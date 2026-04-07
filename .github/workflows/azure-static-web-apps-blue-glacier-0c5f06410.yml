@@ -1,7 +1,5 @@
-# Deploy the Vue frontend to Azure Static Web Apps (blue-glacier / current SWA).
-# After creating a new Static Web App in Azure, add its deployment token as repo secret:
-#   AZURE_STATIC_WEB_APPS_API_TOKEN
-# (GitHub → Settings → Secrets and variables → Actions)
+# Filename matches Azure Static Web Apps → GitHub integration (Portal "View workflow").
+# Secret: AZURE_STATIC_WEB_APPS_API_TOKEN (Deployment token from Azure Portal for this app).
 
 name: Deploy to Azure Static Web Apps
 
@@ -10,12 +8,12 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
-      - '.github/workflows/azure-static-web-apps.yml'
+      - '.github/workflows/azure-static-web-apps-blue-glacier-0c5f06410.yml'
   pull_request:
     branches: [main]
     paths:
       - 'frontend/**'
-      - '.github/workflows/azure-static-web-apps.yml'
+      - '.github/workflows/azure-static-web-apps-blue-glacier-0c5f06410.yml'
   workflow_dispatch:
 
 # Prevent overlapping deployments to avoid 409 Conflict errors
