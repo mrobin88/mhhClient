@@ -1,3 +1,7 @@
+# Deploy Django to Azure App Service. Runs only when listed paths change (not on frontend-only commits).
+# Requires repo secret: AZURE_CREDENTIALS (service principal JSON from `az ad sp create-for-rbac`).
+# Manual run: Actions → "Deploy Django Backend to Azure App Service" → Run workflow.
+
 name: Deploy Django Backend to Azure App Service
 
 on:
