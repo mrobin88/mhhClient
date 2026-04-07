@@ -45,6 +45,95 @@ class ClientViewSet(viewsets.ModelViewSet):
         if getattr(self, 'action', None) == 'create':
             return []
         return super().get_authenticators()
+
+    def create(self, request, *args, **kwargs):
+        """
+        Accept extra multipart fields for optional documents without breaking
+        ClientSerializer validation.
+
+        We persist the extra files in perform_create() via the Document model.
+        """
+        data = request.data.copy()
+        for key in (
+            'doc_sf_residency',
+            'doc_hs_diploma',
+            'doc_id',
+            'doc_photo_release',
+            'doc_other',
+            'doc_other_name',
+        ):
+            if key in data:
+                data.pop(key)
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_create(self, serializer):
+        """
+        Public client registration can include optional supporting documents.
+
+        Frontend sends files in multipart form-data:
+        - doc_sf_residency
+        - doc_hs_diploma
+        - doc_id
+        - doc_photo_release
+        - doc_other (+ optional doc_other_name)
+        """
+        client = serializer.save()
+
+        files = getattr(self.request, 'FILES', None)
+        if not files:
+            return
+
+        upload_map = [
+            ('doc_sf_residency', 'sf_residency', 'Proof of SF Residency'),
+            ('doc_hs_diploma', 'hs_diploma', 'High School Diploma / GED'),
+            ('doc_id', 'id', 'Government ID'),
+            ('doc_photo_release', 'photo_release', 'Photo Release Form'),
+            ('doc_other', 'other', None),
+        ]
+
+        uploaded_by = (
+            (self.request.user.get_full_name() or self.request.user.username)
+            if getattr(self.request, 'user', None) and self.request.user.is_authenticated
+            else 'public'
+        )
+
+        other_name = (self.request.data.get('doc_other_name') or '').strip()
+
+        for form_key, doc_type, default_title in upload_map:
+            f = files.get(form_key)
+            if not f:
+                continue
+
+            # Store under a client-scoped prefix in blob storage.
+            # This keeps documents organized per client.
+            try:
+                original = f.name
+                f.name = f"clients/{client.pk}/{doc_type}/{original}"
+            except Exception:
+                pass
+
+            title = default_title
+            if doc_type == 'other':
+                title = other_name or 'Other Document'
+
+            try:
+                Document.objects.create(
+                    client=client,
+                    title=title,
+                    doc_type=doc_type,
+                    file=f,
+                    uploaded_by=uploaded_by,
+                )
+            except Exception as exc:
+                logging.getLogger('clients').warning(
+                    'Failed to save supporting document %s for Client %s: %s',
+                    doc_type, client.pk, exc
+                )
     
     @action(detail=False, methods=['get'])
     def export_csv(self, request):

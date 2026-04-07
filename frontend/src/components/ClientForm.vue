@@ -544,6 +544,56 @@
                 Upload your resume to help us better understand your skills and experience
               </p>
             </div>
+
+            <!-- Optional supporting documents -->
+            <div class="mt-6">
+              <p class="text-sm text-slate-700 font-semibold mb-3">Optional documents (you can upload now or later)</p>
+
+              <div class="docs-well">
+                <div class="docs-scroll">
+                  <div class="doc-tile">
+                    <div class="doc-title">Proof of SF Residency</div>
+                    <div class="doc-subtitle">Utility bill, lease, mail</div>
+                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'sf_residency')" />
+                    <div v-if="docFiles.sf_residency" class="doc-filename">{{ docFiles.sf_residency.name }}</div>
+                  </div>
+
+                  <div class="doc-tile">
+                    <div class="doc-title">High School Graduation</div>
+                    <div class="doc-subtitle">Diploma or GED</div>
+                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'hs_diploma')" />
+                    <div v-if="docFiles.hs_diploma" class="doc-filename">{{ docFiles.hs_diploma.name }}</div>
+                  </div>
+
+                  <div class="doc-tile">
+                    <div class="doc-title">Identification</div>
+                    <div class="doc-subtitle">Any ID you have</div>
+                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'id')" />
+                    <div v-if="docFiles.id" class="doc-filename">{{ docFiles.id.name }}</div>
+                  </div>
+
+                  <div class="doc-tile">
+                    <div class="doc-title">Photo Release Form</div>
+                    <div class="doc-subtitle">Signed form</div>
+                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'photo_release')" />
+                    <div v-if="docFiles.photo_release" class="doc-filename">{{ docFiles.photo_release.name }}</div>
+                  </div>
+
+                  <div class="doc-tile">
+                    <div class="doc-title">Additional Document</div>
+                    <div class="doc-subtitle">Name it (optional)</div>
+                    <input
+                      v-model="otherDocName"
+                      type="text"
+                      class="form-input !py-2 !px-3 !text-sm mb-3"
+                      placeholder="Example: OSHA card, certificate"
+                    />
+                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'other')" />
+                    <div v-if="docFiles.other" class="doc-filename">{{ docFiles.other.name }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Submit Section -->
@@ -661,6 +711,15 @@ const pitstop = ref({
 })
 
 const resumeFile = ref(null)
+const docAccept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.txt'
+const docFiles = ref({
+  sf_residency: null,
+  hs_diploma: null,
+  id: null,
+  photo_release: null,
+  other: null,
+})
+const otherDocName = ref('')
 
 const error = ref('')
 const success = ref(false)
@@ -689,6 +748,29 @@ const handleFileUpload = (event) => {
     resumeFile.value = file
     error.value = ''
   }
+}
+
+const handleDocUpload = (event, key) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  // Max 8MB for supporting docs
+  if (file.size > 8 * 1024 * 1024) {
+    error.value = 'Document file size must be less than 8MB'
+    event.target.value = ''
+    return
+  }
+
+  const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png']
+  const ext = '.' + file.name.split('.').pop().toLowerCase()
+  if (!allowedExtensions.includes(ext)) {
+    error.value = 'Please upload PDF, Word, image, or text files'
+    event.target.value = ''
+    return
+  }
+
+  docFiles.value[key] = file
+  error.value = ''
 }
 
 // Weekly schedule: multiple selections per day
@@ -757,6 +839,16 @@ async function handleSubmit() {
     // Add resume file if selected
     if (resumeFile.value) {
       formData.append('resume', resumeFile.value)
+    }
+
+    // Add supporting documents (optional)
+    if (docFiles.value.sf_residency) formData.append('doc_sf_residency', docFiles.value.sf_residency)
+    if (docFiles.value.hs_diploma) formData.append('doc_hs_diploma', docFiles.value.hs_diploma)
+    if (docFiles.value.id) formData.append('doc_id', docFiles.value.id)
+    if (docFiles.value.photo_release) formData.append('doc_photo_release', docFiles.value.photo_release)
+    if (docFiles.value.other) {
+      formData.append('doc_other', docFiles.value.other)
+      if (otherDocName.value.trim()) formData.append('doc_other_name', otherDocName.value.trim())
     }
     
     const url = getApiUrl('/api/clients/')
@@ -847,10 +939,14 @@ async function handleSubmit() {
 
       // Reset resume file
       resumeFile.value = null
+      docFiles.value = { sf_residency: null, hs_diploma: null, id: null, photo_release: null, other: null }
+      otherDocName.value = ''
       
-      // Reset file input
-      const fileInput = document.querySelector('input[type="file"]')
-      if (fileInput) fileInput.value = ''
+      // Reset file inputs
+      const fileInputs = document.querySelectorAll('input[type="file"]')
+      fileInputs.forEach((el) => {
+        try { el.value = '' } catch (_) {}
+      })
     }
   } catch (err) {
     // Network or CORS-layer errors (no response)
@@ -951,6 +1047,57 @@ async function handleSubmit() {
 
 .time-slot-compact:active {
   transform: scale(0.97);
+}
+
+.docs-well {
+  border: 2px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #f8fafc;
+  padding: 0.75rem;
+}
+
+.docs-scroll {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.doc-tile {
+  min-width: 240px;
+  max-width: 260px;
+  scroll-snap-align: start;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.9rem;
+  padding: 0.9rem;
+}
+
+.doc-title {
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.doc-subtitle {
+  color: #64748b;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.doc-input {
+  width: 100%;
+}
+
+.doc-filename {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #0f766e;
+  font-weight: 600;
+  word-break: break-word;
 }
 </style>
   

@@ -109,6 +109,26 @@ class CaseNoteInline(admin.TabularInline):
         return True
 
 
+class DocumentInline(admin.TabularInline):
+    """Inline admin for uploading/reviewing supporting documents on the Client page."""
+    model = Document
+    extra = 0
+    verbose_name = 'Document'
+    verbose_name_plural = 'Supporting Documents (stored in Azure Blob Storage)'
+    fields = ['doc_type', 'title', 'file', 'created_at', 'inline_download']
+    readonly_fields = ['created_at', 'inline_download']
+    ordering = ['-created_at']
+
+    def inline_download(self, obj):
+        if not obj or not obj.pk or not obj.file:
+            return format_html('<span style="color: #999;">-</span>')
+        url = obj.download_url
+        if url:
+            return format_html('<a href="{}" target="_blank">📥 Download</a>', url)
+        return format_html('<span style="color: #f44336;" title="File missing from Azure">⚠️ Missing</span>')
+    inline_download.short_description = 'Download'
+
+
 @admin.register(CaseNote)
 class CaseNoteAdmin(admin.ModelAdmin):
     list_display = ['formatted_date', 'client', 'note_type', 'content_preview', 'follow_up_date', 'is_overdue']
@@ -305,7 +325,7 @@ class ClientAdmin(admin.ModelAdmin):
     search_fields = ['first_name', 'last_name', 'phone', 'job_title', 'job_company']
     readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn', 'resume_preview']
     date_hierarchy = 'created_at'
-    inlines = [CaseNoteInline]  # Add case notes as inline list
+    inlines = [DocumentInline, CaseNoteInline]  # Documents + case notes
     
     def get_urls(self):
         """Add custom URL for quick case note addition"""
@@ -319,6 +339,17 @@ class ClientAdmin(admin.ModelAdmin):
             ),
         ]
         return custom_urls + urls
+
+    def save_formset(self, request, form, formset, change):
+        """
+        Ensure Document.uploaded_by is populated when adding docs from the Client page.
+        """
+        instances = formset.save(commit=False)
+        for inst in instances:
+            if isinstance(inst, Document) and not inst.uploaded_by:
+                inst.uploaded_by = request.user.get_full_name() or request.user.username
+            inst.save()
+        formset.save_m2m()
     
     def add_case_note_view(self, request, object_id):
         """Quick add case note view"""
