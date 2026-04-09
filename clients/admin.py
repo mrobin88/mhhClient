@@ -15,6 +15,7 @@ from django.contrib import messages
 from django.utils import timezone
 from .models import Client, CaseNote, Document, PitStopApplication
 from .models_extensions import WorkSite, ClientAvailability, WorkAssignment, CallOutLog, WorkerAccount, ServiceRequest
+from .phone_utils import default_worker_pin_from_phone
 
 
 class CaseNoteInline(admin.TabularInline):
@@ -526,8 +527,6 @@ class ClientAdmin(admin.ModelAdmin):
     
     def create_worker_accounts(self, request, queryset):
         """Create worker portal accounts for selected PitStop clients"""
-        from django.contrib.auth.hashers import make_password
-        
         created = 0
         skipped = 0
         errors = []
@@ -544,18 +543,16 @@ class ClientAdmin(admin.ModelAdmin):
                 continue
             
             try:
-                # Generate PIN from last 4 digits of phone
-                pin = client.phone[-4:] if len(client.phone) >= 4 else '1234'
-                
-                # Create worker account
-                WorkerAccount.objects.create(
+                pin = default_worker_pin_from_phone(client.phone)
+
+                account = WorkerAccount(
                     client=client,
                     phone=client.phone,
-                    pin_hash=make_password(pin),
                     is_active=True,
-                    is_approved=True,
-                    created_by=request.user.username
+                    created_by=request.user.username,
                 )
+                account.set_pin(pin)
+                account.save()
                 created += 1
             except Exception as e:
                 errors.append(f'{client.full_name}: {str(e)}')
@@ -966,18 +963,20 @@ class PitStopApplicationAdmin(admin.ModelAdmin):
 
 @admin.register(WorkerAccount)
 class WorkerAccountAdmin(admin.ModelAdmin):
-    """Admin interface for worker portal accounts"""
-    list_display = ['client', 'phone', 'is_active', 'is_approved', 'last_login', 'login_attempts', 'is_locked']
-    list_filter = ['is_active', 'is_approved', 'created_at']
+    """Admin interface for worker portal accounts — portal access is a single on/off switch."""
+    list_display = ['client', 'phone', 'portal_access_display', 'last_login', 'login_attempts', 'is_locked']
+    list_filter = ['is_active', 'created_at']
     search_fields = ['client__first_name', 'client__last_name', 'phone']
     readonly_fields = ['pin_hash', 'last_login', 'login_attempts', 'locked_until', 'created_at']
     
     fieldsets = (
         ('Worker Information', {
-            'fields': ('client', 'phone')
+            'fields': ('client', 'phone'),
+            'description': 'Phone is saved as digits only so workers can log in with their mobile keypad.',
         }),
-        ('Account Status', {
-            'fields': ('is_active', 'is_approved', 'last_login', 'login_attempts', 'locked_until')
+        ('Portal access', {
+            'fields': ('is_active', 'last_login', 'login_attempts', 'locked_until'),
+            'description': 'Uncheck “Portal access” to block login. PIN reset: use action “Reset PIN to last 4 digits of phone”.',
         }),
         ('Account Management', {
             'fields': ('created_by', 'created_at', 'notes')
@@ -985,11 +984,17 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         ('Security', {
             'fields': ('pin_hash',),
             'classes': ('collapse',),
-            'description': 'PIN is hashed for security. To reset PIN, use the action below.'
+            'description': 'PIN is hashed. Use list action to reset to last 4 digits of the stored phone number.'
         }),
     )
     
     actions = ['approve_accounts', 'deactivate_accounts', 'reset_pins', 'unlock_accounts']
+
+    def portal_access_display(self, obj):
+        if obj.is_active:
+            return format_html('<span style="color: green; font-weight: bold;">✓ On</span>')
+        return format_html('<span style="color: #999;">Off</span>')
+    portal_access_display.short_description = 'Portal'
     
     def is_locked(self, obj):
         """Show if account is currently locked"""
@@ -999,26 +1004,27 @@ class WorkerAccountAdmin(admin.ModelAdmin):
     is_locked.short_description = 'Lock Status'
     
     def approve_accounts(self, request, queryset):
-        """Bulk approve worker accounts and send welcome emails"""
+        """Turn portal on and send welcome emails (same as checking Portal access for each row)."""
         from .notifications import send_worker_welcome_email
 
         approved = 0
         emailed = 0
-        for account in queryset.filter(is_approved=False):
-            account.is_approved = True
+        for account in queryset.filter(is_active=False):
             account.is_active = True
             account.save()
             approved += 1
             if send_worker_welcome_email(account):
                 emailed += 1
 
-        msg = f'{approved} account(s) approved.'
+        msg = f'{approved} account(s) enabled for portal.'
         if emailed:
             msg += f' {emailed} welcome email(s) sent.'
-        if approved > emailed:
+        if approved > emailed and approved:
             msg += f' {approved - emailed} skipped (no email on file).'
+        if approved == 0:
+            msg = 'No changes — selected accounts already had portal access on.'
         self.message_user(request, msg)
-    approve_accounts.short_description = 'Approve selected accounts (sends welcome email)'
+    approve_accounts.short_description = 'Enable portal + send welcome email (if inactive)'
     
     def deactivate_accounts(self, request, queryset):
         """Bulk deactivate worker accounts"""
@@ -1027,11 +1033,9 @@ class WorkerAccountAdmin(admin.ModelAdmin):
     deactivate_accounts.short_description = 'Deactivate selected accounts'
     
     def reset_pins(self, request, queryset):
-        """Reset PINs to default (phone last 4 digits)"""
-        from django.contrib.auth.hashers import make_password
+        """Reset PINs to last four digits of the phone number (numeric)."""
         for account in queryset:
-            default_pin = account.phone[-4:] if len(account.phone) >= 4 else '1234'
-            account.pin_hash = make_password(default_pin)
+            account.set_pin(default_worker_pin_from_phone(account.phone))
             account.login_attempts = 0
             account.locked_until = None
             account.save()

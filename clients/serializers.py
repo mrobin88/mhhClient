@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Client, CaseNote, PitStopApplication
 from .models_extensions import WorkerAccount, ServiceRequest, WorkAssignment, ClientAvailability, WorkSite
+from .phone_utils import find_by_normalized_phone, phone_digits
 
 class ClientSerializer(serializers.ModelSerializer):
     age = serializers.ReadOnlyField()
@@ -105,34 +106,33 @@ class WorkerLoginSerializer(serializers.Serializer):
     pin = serializers.CharField(max_length=6, write_only=True)
     
     def validate(self, data):
-        """Validate phone and PIN combination"""
+        """Validate phone and PIN combination (phone may be formatted in DB; PIN is digits-only)."""
         phone = data.get('phone')
-        pin = data.get('pin')
-        
-        try:
-            worker_account = WorkerAccount.objects.select_related('client').get(phone=phone)
-        except WorkerAccount.DoesNotExist:
+        pin = phone_digits(data.get('pin') or '')
+        if len(pin) < 4:
+            raise serializers.ValidationError({'pin': ['Enter a 4-digit PIN.']})
+        if len(pin) > 6:
+            pin = pin[:6]
+
+        worker_account = find_by_normalized_phone(
+            WorkerAccount.objects.select_related('client'),
+            phone,
+        )
+        if not worker_account:
             raise serializers.ValidationError('Invalid phone number or PIN')
-        
-        # Check if account is locked
+
         if worker_account.is_locked:
             raise serializers.ValidationError('Account is temporarily locked. Please try again later.')
-        
-        # Check if account is active and approved
+
         if not worker_account.is_active:
-            raise serializers.ValidationError('Account is not active. Please contact your supervisor.')
-        
-        if not worker_account.is_approved:
-            raise serializers.ValidationError('Account is pending approval. Please contact your supervisor.')
-        
-        # Check PIN
+            raise serializers.ValidationError('Portal access is turned off. Ask your supervisor to enable it.')
+
         if not worker_account.check_pin(pin):
             worker_account.increment_login_attempts()
             raise serializers.ValidationError('Invalid phone number or PIN')
-        
-        # Reset login attempts on successful validation
+
         worker_account.reset_login_attempts()
-        
+
         data['worker_account'] = worker_account
         return data
 

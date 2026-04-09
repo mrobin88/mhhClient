@@ -1,21 +1,29 @@
 <template>
-  <div class="min-h-screen bg-slate-50">
+  <div class="min-h-screen bg-slate-100">
     <!-- Navigation Bar -->
-    <nav v-if="isAuthenticated" class="bg-blue-600 text-white shadow-lg">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center h-16">
-          <div class="flex items-center">
-            <button @click="currentView = 'dashboard'" class="text-xl font-bold hover:text-blue-100 transition">
-              🏢 Worker Portal
+    <nav v-if="isAuthenticated" class="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white shadow-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div class="flex justify-between items-center gap-4">
+          <div class="min-w-0 flex-1">
+            <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-blue-200 truncate">
+              Mission Hiring Hall · PitStop
+            </p>
+            <button
+              type="button"
+              @click="currentView = 'dashboard'"
+              class="text-lg sm:text-xl font-bold hover:text-blue-100 transition text-left truncate block w-full"
+            >
+              Worker hub
             </button>
           </div>
-          <div class="flex items-center space-x-4">
-            <span class="text-sm font-medium">{{ workerName }}</span>
-            <button 
+          <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+            <span class="text-xs sm:text-sm font-medium text-right max-w-[140px] sm:max-w-[200px] truncate" :title="workerName">{{ workerName }}</span>
+            <button
+              type="button"
               @click="logout"
-              class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded-lg text-sm font-medium transition"
+              class="bg-white/15 hover:bg-white/25 border border-white/30 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition"
             >
-              Logout
+              Log out
             </button>
           </div>
         </div>
@@ -23,21 +31,36 @@
     </nav>
 
     <!-- Bottom Navigation (All screens) -->
-    <div v-if="isAuthenticated" class="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 z-50 shadow-xl">
-      <div class="flex justify-around">
+    <div v-if="isAuthenticated" class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      <div class="flex justify-around max-w-lg mx-auto">
         <button
           v-for="item in navItems"
           :key="item.id"
+          type="button"
           @click="currentView = item.id"
           :class="[
-            'flex-1 py-4 text-center transition-all max-w-[200px]',
-            currentView === item.id 
-              ? 'text-blue-600 bg-blue-50 border-t-4 border-blue-600' 
-              : 'text-slate-700 hover:bg-slate-50'
+            'flex-1 py-3 sm:py-4 text-center transition-all',
+            currentView === item.id
+              ? 'text-blue-600'
+              : 'text-slate-600 hover:text-slate-900'
           ]"
         >
-          <div class="text-3xl mb-1">{{ item.icon }}</div>
-          <div class="text-xs font-semibold">{{ item.label }}</div>
+          <div
+            :class="[
+              'text-2xl sm:text-3xl mb-0.5',
+              currentView === item.id ? 'scale-110' : ''
+            ]"
+          >{{ item.icon }}</div>
+          <div
+            :class="[
+              'text-[10px] sm:text-xs font-bold uppercase tracking-wide',
+              currentView === item.id ? 'text-blue-600' : 'text-slate-500'
+            ]"
+          >{{ item.label }}</div>
+          <div
+            v-if="currentView === item.id"
+            class="h-0.5 w-8 mx-auto mt-1 rounded-full bg-blue-600"
+          />
         </button>
       </div>
     </div>
@@ -46,27 +69,30 @@
     <div class="pb-20">
       <div class="max-w-3xl mx-auto px-4 py-4">
         <!-- Quick actions (ONLY on dashboard) -->
-        <div v-if="isAuthenticated && currentView === 'dashboard'" class="mb-6 grid grid-cols-3 gap-3">
+        <div v-if="isAuthenticated && currentView === 'dashboard'" class="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
           <button
+            type="button"
             @click="currentView = 'assignments'"
-            class="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-xl p-4 transition-all text-center"
+            class="bg-white border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow rounded-xl p-3 sm:p-4 transition-all text-center"
           >
-            <div class="text-3xl mb-1">📋</div>
-            <div class="text-sm font-bold text-slate-900">My Work</div>
+            <div class="text-2xl sm:text-3xl mb-1">📋</div>
+            <div class="text-xs sm:text-sm font-bold text-slate-900">Shifts</div>
           </button>
           <button
+            type="button"
             @click="currentView = 'availability'"
-            class="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-xl p-4 transition-all text-center"
+            class="bg-white border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow rounded-xl p-3 sm:p-4 transition-all text-center"
           >
-            <div class="text-3xl mb-1">📅</div>
-            <div class="text-sm font-bold text-slate-900">Schedule</div>
+            <div class="text-2xl sm:text-3xl mb-1">📅</div>
+            <div class="text-xs sm:text-sm font-bold text-slate-900">When I’m free</div>
           </button>
           <button
+            type="button"
             @click="currentView = 'requests'"
-            class="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-xl p-4 transition-all text-center"
+            class="bg-white border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow rounded-xl p-3 sm:p-4 transition-all text-center"
           >
-            <div class="text-3xl mb-1">🔧</div>
-            <div class="text-sm font-bold text-slate-900">Help</div>
+            <div class="text-2xl sm:text-3xl mb-1">🔧</div>
+            <div class="text-xs sm:text-sm font-bold text-slate-900">Site help</div>
           </button>
         </div>
 

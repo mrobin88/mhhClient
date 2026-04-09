@@ -6,7 +6,7 @@ Run: python manage.py quick_add_worker
 from django.core.management.base import BaseCommand
 from clients.models import Client
 from clients.models_extensions import WorkerAccount
-from django.contrib.auth.hashers import make_password
+from clients.phone_utils import default_worker_pin_from_phone, find_by_normalized_phone
 
 
 class Command(BaseCommand):
@@ -31,11 +31,10 @@ class Command(BaseCommand):
         pitstop_clients = Client.objects.filter(training_interest='pit_stop')
         
         if options['phone']:
-            # Create for specific phone
+            # Create for specific phone (match formatted or digits-only)
             phone = options['phone'].strip()
-            try:
-                client = pitstop_clients.get(phone=phone)
-            except Client.DoesNotExist:
+            client = find_by_normalized_phone(pitstop_clients, phone)
+            if not client:
                 self.stdout.write(self.style.ERROR(f'✗ No PitStop client found with phone: {phone}'))
                 return
             
@@ -67,18 +66,16 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(f'⚠ {client.full_name} already has a worker account'))
                 continue
             
-            # Generate PIN from last 4 digits of phone
-            pin = client.phone[-4:] if len(client.phone) >= 4 else '1234'
-            
-            # Create worker account
-            worker_account = WorkerAccount.objects.create(
+            pin = default_worker_pin_from_phone(client.phone)
+
+            worker_account = WorkerAccount(
                 client=client,
                 phone=client.phone,
-                pin_hash=make_password(pin),
                 is_active=True,
-                is_approved=True,
-                created_by='Quick Add Command'
+                created_by='Quick Add Command',
             )
+            worker_account.set_pin(pin)
+            worker_account.save()
             
             self.stdout.write(self.style.SUCCESS(
                 f'✓ Created worker account for {client.full_name}\n'

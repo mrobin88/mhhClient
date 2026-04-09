@@ -264,14 +264,15 @@ class WorkerAccount(models.Model):
         help_text='Hashed 4-6 digit PIN for authentication'
     )
     
-    # Account status
+    # Account status (single gate: is_active = can use portal; is_approved is kept in sync for legacy/admin)
     is_active = models.BooleanField(
         default=True,
-        help_text='Whether this worker can access the portal'
+        verbose_name='Portal access',
+        help_text='When on, this worker can log in to the PitStop worker portal.',
     )
     is_approved = models.BooleanField(
-        default=False,
-        help_text='Whether account is approved by staff'
+        default=True,
+        help_text='Synced with portal access; kept for compatibility'
     )
     
     # Login tracking
@@ -295,7 +296,18 @@ class WorkerAccount(models.Model):
     
     def __str__(self):
         return f"{self.client.full_name} - {self.phone}"
-    
+
+    def save(self, *args, **kwargs):
+        """One flag for portal access; store phone as digits so login matches mobile keyboards."""
+        from .phone_utils import phone_digits
+
+        self.is_approved = self.is_active
+        if self.phone:
+            d = phone_digits(self.phone)
+            if d:
+                self.phone = d
+        super().save(*args, **kwargs)
+
     def check_pin(self, raw_pin):
         """Check if provided PIN matches stored hash"""
         from django.contrib.auth.hashers import check_password

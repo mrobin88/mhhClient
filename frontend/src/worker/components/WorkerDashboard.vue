@@ -1,10 +1,23 @@
 <template>
   <div class="space-y-4">
+    <div
+      v-if="workerAccount?.client_name"
+      class="rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-5 sm:p-6 shadow-lg"
+    >
+      <p class="text-xs font-semibold uppercase tracking-wider text-blue-200">Welcome back</p>
+      <h2 class="text-xl sm:text-2xl font-bold mt-1">{{ workerAccount.client_name }}</h2>
+      <p class="text-sm text-blue-100 mt-2 leading-snug">
+        Below is your schedule summary. Use the bottom tabs to confirm shifts, update availability, or report a site issue.
+      </p>
+    </div>
+
     <div class="flex justify-between items-center mb-2">
-      <h1 class="text-2xl font-bold text-slate-900">Dashboard</h1>
-      <button 
+      <h1 class="text-2xl font-bold text-slate-900">Home</h1>
+      <button
+        type="button"
         @click="loadDashboard"
-        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
+        class="bg-white border border-slate-200 hover:border-blue-400 text-slate-800 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
+        title="Refresh"
       >
         🔄
       </button>
