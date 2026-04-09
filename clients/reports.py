@@ -9,7 +9,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Count
 
 from .models import Client
-from .models_extensions import WorkAssignment, WorkSite, CallOutLog
+from .models_extensions import WorkAssignment, WorkSite
 
 
 class AvailableWorkersCSVView(LoginRequiredMixin, View):
@@ -29,14 +29,11 @@ class AvailableWorkersCSVView(LoginRequiredMixin, View):
         clients = Client.objects.filter(
             status__in=['active', 'program_complete'],
             job_placed=False  # Not yet placed in permanent job
-        ).select_related().prefetch_related('availability', 'work_assignments')
-        
-        # Filter by availability if day specified
+        ).select_related().prefetch_related('work_assignments')
+
+        # `day` filter was tied to removed weekly-availability records; ignored for compatibility.
         if specific_day:
-            clients = clients.filter(
-                availability__day_of_week=specific_day,
-                availability__available=True
-            )
+            pass
         
         # Exclude clients already assigned for specific date
         if specific_date:
@@ -71,11 +68,7 @@ class AvailableWorkersCSVView(LoginRequiredMixin, View):
         
         # Data rows
         for client in clients:
-            # Get availability summary
-            available_days = ', '.join([
-                avail.get_day_of_week_display() 
-                for avail in client.availability.filter(available=True)
-            ])
+            available_days = ''
             
             # Count recent assignments
             thirty_days_ago = date.today() - timedelta(days=30)
@@ -100,7 +93,7 @@ class AvailableWorkersCSVView(LoginRequiredMixin, View):
                 client.phone or '',
                 client.email or '',
                 client.get_language_display(),
-                available_days or 'Not set',
+                available_days or '—',
                 recent_assignments,
                 no_shows,
                 call_outs,
@@ -182,58 +175,51 @@ class WorkAssignmentsReportCSVView(LoginRequiredMixin, View):
 
 class CallOutReportCSVView(LoginRequiredMixin, View):
     """
-    Export CSV of call-outs for analysis
+    Export CSV of assignments marked called out (manual call-outs tracked on the assignment).
     GET parameters:
         - start_date: start date (YYYY-MM-DD)
         - end_date: end date (YYYY-MM-DD)
     """
-    
+
     def get(self, request):
         start_date = request.GET.get('start_date', (date.today() - timedelta(days=30)).isoformat())
         end_date = request.GET.get('end_date', date.today().isoformat())
-        
-        call_outs = CallOutLog.objects.filter(
-            assignment__assignment_date__gte=start_date,
-            assignment__assignment_date__lte=end_date
-        ).select_related('assignment__client', 'assignment__work_site', 'assignment__replacement_client')
-        
+
+        assignments = WorkAssignment.objects.filter(
+            assignment_date__gte=start_date,
+            assignment_date__lte=end_date,
+            status='called_out',
+        ).select_related('client', 'work_site', 'replacement_client')
+
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="callouts_{start_date}_to_{end_date}.csv"'
-        
+
         writer = csv.writer(response)
         writer.writerow([
             'Date',
             'Worker Name',
             'Phone',
             'Work Site',
-            'Reported At',
-            'Reported By',
-            'Advance Notice (hours)',
-            'Reason',
-            'Replacements Contacted',
-            'Replacement Found',
-            'Replacement Name',
-            'Follow-up Done',
-            'Follow-up Notes'
+            'Called out recorded at',
+            'Call-out reason',
+            'Replacement found',
+            'Replacement name',
+            'Assignment notes',
         ])
-        
-        for log in call_outs:
+
+        for a in assignments:
             writer.writerow([
-                log.assignment.assignment_date,
-                log.assignment.client.full_name,
-                log.assignment.client.phone or '',
-                log.assignment.work_site.name,
-                log.reported_at.strftime('%Y-%m-%d %I:%M %p'),
-                log.reported_by,
-                log.advance_notice_hours,
-                log.reason,
-                log.replacement_contacted_count,
-                'Yes' if log.assignment.replacement_found else 'No',
-                log.assignment.replacement_client.full_name if log.assignment.replacement_client else '',
-                'Yes' if log.client_contacted_after else 'No',
-                log.follow_up_notes or ''
+                a.assignment_date,
+                a.client.full_name,
+                a.client.phone or '',
+                a.work_site.name,
+                a.called_out_at.strftime('%Y-%m-%d %I:%M %p') if a.called_out_at else '',
+                a.callout_reason or '',
+                'Yes' if a.replacement_found else 'No',
+                a.replacement_client.full_name if a.replacement_client else '',
+                a.assignment_notes or '',
             ])
-        
+
         return response
 
 

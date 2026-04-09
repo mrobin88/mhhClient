@@ -439,4 +439,4 @@ class PitStopApplication(models.Model):
 
 
 # Import extended models for worker dispatch system
-from .models_extensions import WorkSite, ClientAvailability, WorkAssignment, CallOutLog
+from .models_extensions import WorkSite, WorkAssignment, OpenShift, ShiftCoverInterest

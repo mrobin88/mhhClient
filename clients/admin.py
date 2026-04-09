@@ -14,7 +14,14 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from django.utils import timezone
 from .models import Client, CaseNote, Document, PitStopApplication
-from .models_extensions import WorkSite, ClientAvailability, WorkAssignment, CallOutLog, WorkerAccount, ServiceRequest
+from .models_extensions import (
+    WorkSite,
+    WorkAssignment,
+    WorkerAccount,
+    ServiceRequest,
+    OpenShift,
+    ShiftCoverInterest,
+)
 from .phone_utils import default_worker_pin_from_phone
 
 
@@ -1149,6 +1156,92 @@ class ServiceRequestAdmin(admin.ModelAdmin):
     mark_resolved.short_description = 'Mark as Resolved'
 
 
+class ShiftCoverInterestInline(admin.TabularInline):
+    model = ShiftCoverInterest
+    extra = 0
+    readonly_fields = ['created_at']
+    autocomplete_fields = ['worker_account']
+    fields = ['worker_account', 'status', 'staff_note', 'created_at']
+
+
+@admin.register(OpenShift)
+class OpenShiftAdmin(admin.ModelAdmin):
+    """Post shifts that need coverage; workers tap interest from the worker portal."""
+
+    list_display = [
+        'role_title',
+        'shift_date',
+        'time_range',
+        'work_site',
+        'is_open',
+        'interest_count',
+        'created_at',
+    ]
+    list_filter = ['is_open', 'shift_date', 'work_site']
+    search_fields = ['role_title', 'notes', 'location_label', 'created_by']
+    date_hierarchy = 'shift_date'
+    inlines = [ShiftCoverInterestInline]
+    autocomplete_fields = ['work_site']
+    fieldsets = (
+        (
+            'Shift',
+            {
+                'fields': (
+                    'role_title',
+                    'work_site',
+                    'location_label',
+                    'shift_date',
+                    'start_time',
+                    'end_time',
+                    'notes',
+                )
+            },
+        ),
+        (
+            'Staff',
+            {
+                'fields': ('is_open', 'created_by'),
+                'description': 'Uncheck “Is open” when the shift is filled — pending worker interests move to “cancelled” automatically.',
+            },
+        ),
+    )
+
+    def time_range(self, obj):
+        if obj.start_time and obj.end_time:
+            return f'{obj.start_time.strftime("%I:%M %p")} – {obj.end_time.strftime("%I:%M %p")}'
+        return '—'
+
+    time_range.short_description = 'Time'
+
+    def interest_count(self, obj):
+        return obj.cover_interests.count()
+
+    interest_count.short_description = 'Interests'
+
+    def save_model(self, request, obj, form, change):
+        if not (obj.created_by or '').strip():
+            obj.created_by = request.user.get_full_name() or request.user.username
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(ShiftCoverInterest)
+class ShiftCoverInterestAdmin(admin.ModelAdmin):
+    list_display = ['open_shift', 'worker_name', 'status', 'created_at']
+    list_filter = ['status', 'created_at']
+    search_fields = [
+        'worker_account__client__first_name',
+        'worker_account__client__last_name',
+        'open_shift__role_title',
+    ]
+    readonly_fields = ['created_at', 'updated_at']
+    autocomplete_fields = ['worker_account', 'open_shift']
+
+    def worker_name(self, obj):
+        return obj.worker_account.client.full_name
+
+    worker_name.short_description = 'Worker'
+
+
 # Register existing worker dispatch models if not already registered
 try:
     admin.site.register(WorkSite)
@@ -1156,16 +1249,6 @@ except admin.sites.AlreadyRegistered:
     pass
 
 try:
-    admin.site.register(ClientAvailability)
-except admin.sites.AlreadyRegistered:
-    pass
-
-try:
     admin.site.register(WorkAssignment)
-except admin.sites.AlreadyRegistered:
-    pass
-
-try:
-    admin.site.register(CallOutLog)
 except admin.sites.AlreadyRegistered:
     pass

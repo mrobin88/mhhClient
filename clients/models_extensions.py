@@ -64,53 +64,6 @@ class WorkSite(models.Model):
         return self.current_assignments_count < self.max_workers_per_shift
 
 
-class ClientAvailability(models.Model):
-    """Track client availability for work assignments"""
-    
-    DAY_CHOICES = [
-        ('monday', 'Monday'),
-        ('tuesday', 'Tuesday'),
-        ('wednesday', 'Wednesday'),
-        ('thursday', 'Thursday'),
-        ('friday', 'Friday'),
-        ('saturday', 'Saturday'),
-        ('sunday', 'Sunday')
-    ]
-    
-    TIME_SLOT_CHOICES = [
-        ('6-12', '6am-12pm'),
-        ('13-21', '1pm-9pm'),
-        ('22-5', '10pm-5am'),
-    ]
-    
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='availability')
-    
-    # Regular weekly availability
-    day_of_week = models.CharField(max_length=10, choices=DAY_CHOICES)
-    available = models.BooleanField(default=True)
-    preferred_time_slots = models.JSONField(
-        default=list,
-        help_text='List of preferred time slots: ["6-12", "13-21", "22-5"]'
-    )
-    
-    # Legacy time fields (for backward compatibility)
-    start_time = models.TimeField(null=True, blank=True)
-    end_time = models.TimeField(null=True, blank=True)
-    
-    # Notes
-    notes = models.TextField(blank=True, help_text='e.g., "Can only work mornings", "Available after 2pm"')
-    
-    class Meta:
-        ordering = ['client', 'day_of_week']
-        verbose_name = 'Client Availability'
-        verbose_name_plural = 'Client Availabilities'
-        unique_together = ['client', 'day_of_week']
-    
-    def __str__(self):
-        status = "Available" if self.available else "Not available"
-        return f"{self.client.full_name} - {self.get_day_of_week_display()}: {status}"
-
-
 class WorkAssignment(models.Model):
     """Track work assignments for clients at Pit Stop sites"""
     
@@ -210,39 +163,97 @@ class WorkAssignment(models.Model):
         return self.status == 'called_out' and not self.replacement_found
 
 
-class CallOutLog(models.Model):
-    """Detailed log of call-outs for reporting and tracking"""
-    
-    assignment = models.OneToOneField(WorkAssignment, on_delete=models.CASCADE, related_name='callout_log')
-    
-    # Call-out details
-    reported_at = models.DateTimeField(auto_now_add=True)
-    reported_by = models.CharField(max_length=100, help_text='Who received the call-out')
-    reason = models.TextField(help_text='Reason for call-out')
-    advance_notice_hours = models.IntegerField(help_text='How many hours notice was given')
-    
-    # Actions taken
-    replacement_contacted_count = models.IntegerField(default=0, help_text='Number of replacements contacted')
-    replacement_found_at = models.DateTimeField(null=True, blank=True)
-    
-    # Follow-up
-    client_contacted_after = models.BooleanField(default=False)
-    follow_up_notes = models.TextField(blank=True)
-    
+class OpenShift(models.Model):
+    """
+    A shift that needs coverage. Staff post these so workers can tap “I’m interested.”
+    Supervisors still coordinate in Teams; this only collects interest.
+    """
+
+    work_site = models.ForeignKey(
+        WorkSite,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='open_shifts',
+    )
+    role_title = models.CharField(max_length=200, help_text='Role or type of shift')
+    location_label = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text='Use if no work site is selected, or to add extra location detail',
+    )
+    shift_date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    notes = models.TextField(blank=True, help_text='Shown to workers (keep short)')
+    created_by = models.CharField(max_length=200, blank=True, help_text='Staff or supervisor name')
+    is_open = models.BooleanField(
+        default=True,
+        help_text='Turn off when the shift is filled or cancelled',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
-    
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
-        ordering = ['-reported_at']
-        verbose_name = 'Call-Out Log'
-        verbose_name_plural = 'Call-Out Logs'
-    
+        ordering = ['shift_date', 'start_time']
+        verbose_name = 'Open shift (needs coverage)'
+        verbose_name_plural = 'Open shifts (need coverage)'
+
     def __str__(self):
-        return f"Call-out: {self.assignment.client.full_name} - {self.assignment.assignment_date}"
-    
-    @property
-    def is_last_minute(self):
-        """Check if call-out was less than 4 hours notice"""
-        return self.advance_notice_hours < 4
+        return f"{self.role_title} — {self.shift_date}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if not self.is_open:
+            ShiftCoverInterest.objects.filter(
+                open_shift=self,
+                status=ShiftCoverInterest.STATUS_PENDING,
+            ).update(status=ShiftCoverInterest.STATUS_CANCELLED)
+
+
+class ShiftCoverInterest(models.Model):
+    """Worker tapped interest in covering an open shift (not a guarantee of assignment)."""
+
+    STATUS_PENDING = 'pending'
+    STATUS_SELECTED = 'selected'
+    STATUS_NOT_SELECTED = 'not_selected'
+    STATUS_CANCELLED = 'cancelled'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Interest noted — staff may follow up'),
+        (STATUS_SELECTED, 'Selected for this shift'),
+        (STATUS_NOT_SELECTED, 'Not selected (shift filled another way)'),
+        (STATUS_CANCELLED, 'Shift no longer open'),
+    ]
+
+    worker_account = models.ForeignKey(
+        'WorkerAccount',
+        on_delete=models.CASCADE,
+        related_name='shift_cover_interests',
+    )
+    open_shift = models.ForeignKey(
+        OpenShift,
+        on_delete=models.CASCADE,
+        related_name='cover_interests',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    staff_note = models.TextField(blank=True, help_text='Internal note (workers do not see this)')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Shift cover interest'
+        verbose_name_plural = 'Shift cover interests'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['worker_account', 'open_shift'],
+                name='uniq_worker_openshift_interest',
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.worker_account.client.full_name} → {self.open_shift}"
 
 
 class WorkerAccount(models.Model):

@@ -1,42 +1,37 @@
 """
-Views for Worker Portal API
-Provides endpoints for workers to access their assignments, submit call-outs, and manage service requests
+Worker Portal API — open shifts + “I’m interested” (no scheduling, no call-out forms).
 """
-from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, action, permission_classes
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from django.utils import timezone
-from django.db.models import Q
-from datetime import date, timedelta, datetime
-import logging
+from datetime import date, timedelta
 
-from .models import Client
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+
 from .models_extensions import (
-    WorkerAccount, WorkAssignment, ClientAvailability, 
-    ServiceRequest, WorkSite, CallOutLog, WorkerSessionToken
+    WorkerAccount,
+    WorkerSessionToken,
+    OpenShift,
+    ShiftCoverInterest,
 )
 from .serializers import (
-    WorkerLoginSerializer, WorkerAccountSerializer,
-    WorkerAssignmentSerializer, WorkAssignmentSerializer,
-    ClientAvailabilitySerializer, ServiceRequestSerializer,
-    WorkerServiceRequestSerializer, CallOutSerializer,
-    WorkSiteSerializer
+    WorkerLoginSerializer,
+    WorkerAccountSerializer,
+    OpenShiftSerializer,
+    ShiftCoverInterestSerializer,
+    ShiftCoverInterestStaffSerializer,
 )
 
-logger = logging.getLogger(__name__)
-
-
-# Simple session-based authentication token
 class WorkerSession:
-    """Persistent session storage for worker authentication (DB-backed)"""
-    
+    """DB-backed worker portal session (multi-process safe)."""
+
     @classmethod
     def create_session(cls, worker_account):
-        """Create a new session for a worker"""
         import uuid
+
         token = str(uuid.uuid4())
-        # 7-day expiry (can be adjusted). Shorter is safer; longer is more convenient.
         expires_at = timezone.now() + timedelta(days=7)
         WorkerSessionToken.objects.create(
             token=token,
@@ -44,14 +39,15 @@ class WorkerSession:
             expires_at=expires_at,
         )
         return token
-    
+
     @classmethod
     def get_session(cls, token):
-        """Get session data by token"""
         if not token:
             return None
         try:
-            session = WorkerSessionToken.objects.select_related('worker_account', 'worker_account__client').get(
+            session = WorkerSessionToken.objects.select_related(
+                'worker_account', 'worker_account__client'
+            ).get(
                 token=token,
                 expires_at__gt=timezone.now(),
             )
@@ -62,403 +58,203 @@ class WorkerSession:
             }
         except WorkerSessionToken.DoesNotExist:
             return None
-    
+
     @classmethod
     def delete_session(cls, token):
-        """Delete a session"""
         if not token:
             return
         WorkerSessionToken.objects.filter(token=token).delete()
 
 
+def _worker_token(request):
+    return (request.headers.get('Authorization') or '').replace('Token ', '').strip()
+
+
+def _require_worker(request):
+    session = WorkerSession.get_session(_worker_token(request))
+    if not session:
+        return None, Response(
+            {'error': 'Invalid or expired session'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+    try:
+        account = WorkerAccount.objects.select_related('client').get(
+            id=session['worker_account_id']
+        )
+    except WorkerAccount.DoesNotExist:
+        return None, Response(
+            {'error': 'Worker account not found'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    if not account.is_active:
+        return None, Response(
+            {'error': 'Portal access is turned off'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return account, None
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def worker_login(request):
-    """
-    Worker login endpoint - authenticate with phone + PIN
-    
-    POST /api/worker/login/
-    {
-        "phone": "415-555-1234",
-        "pin": "1234"
-    }
-    
-    Returns:
-    {
-        "token": "session-token",
-        "worker_account": {...},
-        "message": "Login successful"
-    }
-    """
     serializer = WorkerLoginSerializer(data=request.data)
-    
     if serializer.is_valid():
         worker_account = serializer.validated_data['worker_account']
         token = WorkerSession.create_session(worker_account)
-        
-        return Response({
-            'token': token,
-            'worker_account': WorkerAccountSerializer(worker_account).data,
-            'message': 'Login successful'
-        }, status=status.HTTP_200_OK)
-    
+        return Response(
+            {
+                'token': token,
+                'worker_account': WorkerAccountSerializer(worker_account).data,
+                'message': 'Login successful',
+            },
+            status=status.HTTP_200_OK,
+        )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def worker_logout(request):
-    """
-    Worker logout endpoint
-    
-    POST /api/worker/logout/
-    Headers: Authorization: Token <session-token>
-    """
-    token = request.headers.get('Authorization', '').replace('Token ', '')
-    WorkerSession.delete_session(token)
-    
-    return Response({'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
+    WorkerSession.delete_session(_worker_token(request))
+    return Response({'message': 'Logged out successfully'})
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def worker_profile(request):
-    """
-    Get worker profile information
-    
-    GET /api/worker/profile/
-    Headers: Authorization: Token <session-token>
-    """
-    token = request.headers.get('Authorization', '').replace('Token ', '')
+    token = _worker_token(request)
     session = WorkerSession.get_session(token)
-    
     if not session:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_401_UNAUTHORIZED)
-    
+        return Response(
+            {'error': 'Invalid or expired session'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
     try:
-        worker_account = WorkerAccount.objects.select_related('client').get(id=session['worker_account_id'])
+        worker_account = WorkerAccount.objects.select_related('client').get(
+            id=session['worker_account_id']
+        )
         return Response(WorkerAccountSerializer(worker_account).data)
     except WorkerAccount.DoesNotExist:
-        return Response({'error': 'Worker account not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {'error': 'Worker account not found'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def worker_assignments(request):
-    """
-    Get worker's assignments
-    
-    GET /api/worker/assignments/?filter=upcoming|today|past
-    Headers: Authorization: Token <session-token>
-    """
-    token = request.headers.get('Authorization', '').replace('Token ', '')
-    session = WorkerSession.get_session(token)
-    
-    if not session:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    client_id = session['client_id']
-    filter_type = request.GET.get('filter', 'upcoming')
-    
+def worker_open_shifts(request):
+    """List shifts that still need coverage (staff posts these)."""
+    _, err = _require_worker(request)
+    if err:
+        return err
+
     today = date.today()
-    
-    # Base queryset
-    assignments = WorkAssignment.objects.filter(
-        client_id=client_id
-    ).select_related('work_site').order_by('-assignment_date', 'start_time')
-    
-    # Apply filters
-    if filter_type == 'today':
-        assignments = assignments.filter(assignment_date=today)
-    elif filter_type == 'upcoming':
-        assignments = assignments.filter(assignment_date__gte=today)
-    elif filter_type == 'past':
-        assignments = assignments.filter(assignment_date__lt=today)
-    
-    serializer = WorkerAssignmentSerializer(assignments, many=True)
-    return Response(serializer.data)
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def worker_confirm_assignment(request, assignment_id):
-    """
-    Confirm an assignment
-    
-    POST /api/worker/assignments/<id>/confirm/
-    Headers: Authorization: Token <session-token>
-    """
-    token = request.headers.get('Authorization', '').replace('Token ', '')
-    session = WorkerSession.get_session(token)
-    
-    if not session:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    try:
-        assignment = WorkAssignment.objects.get(
-            id=assignment_id,
-            client_id=session['client_id']
-        )
-        
-        assignment.confirmed_by_client = True
-        assignment.confirmed_at = timezone.now()
-        if assignment.status == 'pending':
-            assignment.status = 'confirmed'
-        assignment.save()
-        
-        return Response({
-            'message': 'Assignment confirmed',
-            'assignment': WorkerAssignmentSerializer(assignment).data
-        })
-    except WorkAssignment.DoesNotExist:
-        return Response({'error': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def worker_call_out(request):
-    """
-    Submit a call-out for an assignment
-    
-    POST /api/worker/call-out/
-    {
-        "assignment_id": 123,
-        "reason": "I'm sick",
-        "advance_notice_hours": 4
-    }
-    Headers: Authorization: Token <session-token>
-    """
-    token = request.headers.get('Authorization', '').replace('Token ', '')
-    session = WorkerSession.get_session(token)
-    
-    if not session:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    serializer = CallOutSerializer(data=request.data)
-    
-    if serializer.is_valid():
-        assignment_id = serializer.validated_data['assignment_id']
-        reason = serializer.validated_data['reason']
-        advance_notice_hours = serializer.validated_data['advance_notice_hours']
-        
-        try:
-            assignment = WorkAssignment.objects.get(
-                id=assignment_id,
-                client_id=session['client_id']
-            )
-            
-            # Update assignment
-            assignment.status = 'called_out'
-            assignment.called_out_at = timezone.now()
-            assignment.callout_reason = reason
-            assignment.save()
-            
-            # Create call-out log
-            CallOutLog.objects.create(
-                assignment=assignment,
-                reported_by='Worker Portal',
-                reason=reason,
-                advance_notice_hours=advance_notice_hours
-            )
-            
-            return Response({
-                'message': 'Call-out submitted successfully',
-                'assignment': WorkerAssignmentSerializer(assignment).data
-            })
-        except WorkAssignment.DoesNotExist:
-            return Response({'error': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET', 'PUT'])
-@permission_classes([AllowAny])
-def worker_availability(request):
-    """
-    Get or update worker's availability
-    
-    GET /api/worker/availability/
-    PUT /api/worker/availability/
-    Headers: Authorization: Token <session-token>
-    """
-    token = request.headers.get('Authorization', '').replace('Token ', '')
-    session = WorkerSession.get_session(token)
-    
-    if not session:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    client_id = session['client_id']
-    
-    if request.method == 'GET':
-        availability = ClientAvailability.objects.filter(client_id=client_id)
-        serializer = ClientAvailabilitySerializer(availability, many=True)
-        return Response(serializer.data)
-    
-    elif request.method == 'PUT':
-        # Expect array of availability objects
-        # [{"day_of_week": "monday", "available": true, "preferred_time_slots": ["6-12"]}, ...]
-        availability_data = request.data
-        
-        if not isinstance(availability_data, list):
-            return Response({'error': 'Expected array of availability objects'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Update or create availability for each day
-        for day_data in availability_data:
-            day_of_week = day_data.get('day_of_week')
-            if not day_of_week:
-                continue
-            
-            availability, created = ClientAvailability.objects.get_or_create(
-                client_id=client_id,
-                day_of_week=day_of_week
-            )
-            
-            availability.available = day_data.get('available', True)
-            availability.preferred_time_slots = day_data.get('preferred_time_slots', [])
-            availability.notes = day_data.get('notes', '')
-            availability.save()
-        
-        # Return updated availability
-        updated_availability = ClientAvailability.objects.filter(client_id=client_id)
-        serializer = ClientAvailabilitySerializer(updated_availability, many=True)
-        return Response(serializer.data)
+    shifts = (
+        OpenShift.objects.filter(is_open=True, shift_date__gte=today)
+        .select_related('work_site')
+        .order_by('shift_date', 'start_time')
+    )
+    return Response(OpenShiftSerializer(shifts, many=True).data)
 
 
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
-def worker_service_requests(request):
-    """
-    Get worker's service requests or submit a new one
-    
-    GET /api/worker/service-requests/
-    POST /api/worker/service-requests/
-    Headers: Authorization: Token <session-token>
-    """
-    token = request.headers.get('Authorization', '').replace('Token ', '')
-    session = WorkerSession.get_session(token)
-    
-    if not session:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    client_id = session['client_id']
-    
+def worker_shift_interests(request):
+    """GET: this worker’s interests. POST: express interest in an open shift."""
+    account, err = _require_worker(request)
+    if err:
+        return err
+
     if request.method == 'GET':
-        service_requests = ServiceRequest.objects.filter(
-            submitted_by_id=client_id
-        ).select_related('work_site').order_by('-created_at')
-        
-        serializer = ServiceRequestSerializer(service_requests, many=True)
-        return Response(serializer.data)
-    
-    elif request.method == 'POST':
-        serializer = WorkerServiceRequestSerializer(data=request.data)
-        
-        if serializer.is_valid():
-            service_request = serializer.save(submitted_by_id=client_id)
-            
-            return Response(
-                ServiceRequestSerializer(service_request).data,
-                status=status.HTTP_201_CREATED
-            )
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        qs = (
+            ShiftCoverInterest.objects.filter(worker_account=account)
+            .select_related('open_shift', 'open_shift__work_site')
+            .order_by('-created_at')
+        )
+        return Response(ShiftCoverInterestSerializer(qs, many=True).data)
 
+    open_shift_id = request.data.get('open_shift_id')
+    if open_shift_id is None:
+        return Response(
+            {'open_shift_id': ['This field is required.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        open_shift_id = int(open_shift_id)
+    except (TypeError, ValueError):
+        return Response(
+            {'open_shift_id': ['Invalid id.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def worker_work_sites(request):
-    """
-    Get list of active work sites
-    
-    GET /api/worker/work-sites/
-    Headers: Authorization: Token <session-token>
-    """
-    token = request.headers.get('Authorization', '').replace('Token ', '')
-    session = WorkerSession.get_session(token)
-    
-    if not session:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    work_sites = WorkSite.objects.filter(is_active=True).order_by('name')
-    serializer = WorkSiteSerializer(work_sites, many=True)
-    return Response(serializer.data)
-
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def worker_dashboard(request):
-    """
-    Get dashboard summary for worker
-    
-    GET /api/worker/dashboard/
-    Headers: Authorization: Token <session-token>
-    
-    Returns:
-    {
-        "today_assignments": [...],
-        "upcoming_assignments": [...],
-        "recent_service_requests": [...],
-        "stats": {
-            "total_assignments_this_month": 10,
-            "completed_assignments": 8,
-            "pending_service_requests": 2
-        }
-    }
-    """
-    token = request.headers.get('Authorization', '').replace('Token ', '')
-    session = WorkerSession.get_session(token)
-    
-    if not session:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    client_id = session['client_id']
     today = date.today()
-    
-    # Today's assignments
-    today_assignments = WorkAssignment.objects.filter(
-        client_id=client_id,
-        assignment_date=today
-    ).select_related('work_site')
-    
-    # Upcoming assignments (next 7 days)
-    upcoming_assignments = WorkAssignment.objects.filter(
-        client_id=client_id,
-        assignment_date__gt=today,
-        assignment_date__lte=today + timedelta(days=7)
-    ).select_related('work_site').order_by('assignment_date', 'start_time')
-    
-    # Recent service requests
-    recent_service_requests = ServiceRequest.objects.filter(
-        submitted_by_id=client_id
-    ).select_related('work_site').order_by('-created_at')[:5]
-    
-    # Stats
-    first_day_of_month = today.replace(day=1)
-    total_assignments_this_month = WorkAssignment.objects.filter(
-        client_id=client_id,
-        assignment_date__gte=first_day_of_month,
-        assignment_date__lte=today
-    ).count()
-    
-    completed_assignments = WorkAssignment.objects.filter(
-        client_id=client_id,
-        assignment_date__gte=first_day_of_month,
-        assignment_date__lte=today,
-        status='completed'
-    ).count()
-    
-    pending_service_requests = ServiceRequest.objects.filter(
-        submitted_by_id=client_id,
-        status__in=['open', 'acknowledged', 'in_progress']
-    ).count()
-    
-    return Response({
-        'today_assignments': WorkerAssignmentSerializer(today_assignments, many=True).data,
-        'upcoming_assignments': WorkerAssignmentSerializer(upcoming_assignments, many=True).data,
-        'recent_service_requests': ServiceRequestSerializer(recent_service_requests, many=True).data,
-        'stats': {
-            'total_assignments_this_month': total_assignments_this_month,
-            'completed_assignments': completed_assignments,
-            'pending_service_requests': pending_service_requests
-        }
-    })
+    try:
+        shift = OpenShift.objects.get(
+            pk=open_shift_id,
+            is_open=True,
+            shift_date__gte=today,
+        )
+    except OpenShift.DoesNotExist:
+        return Response(
+            {'error': 'That shift is not available anymore.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    existing = ShiftCoverInterest.objects.filter(
+        worker_account=account,
+        open_shift=shift,
+    ).first()
+    if existing:
+        return Response(
+            {
+                'error': 'You already let us know for this shift.',
+                'interest': ShiftCoverInterestSerializer(existing).data,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    interest = ShiftCoverInterest.objects.create(
+        worker_account=account,
+        open_shift=shift,
+        status=ShiftCoverInterest.STATUS_PENDING,
+    )
+    interest = ShiftCoverInterest.objects.select_related(
+        'open_shift', 'open_shift__work_site'
+    ).get(pk=interest.pk)
+    return Response(ShiftCoverInterestSerializer(interest).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['PATCH'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_shift_interest_update(request, pk):
+    """
+    Staff/supervisor: set status (selected / not_selected / pending / cancelled).
+    Uses Django session login (admin user).
+    """
+    if not request.user.is_staff:
+        return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        interest = ShiftCoverInterest.objects.select_related(
+            'open_shift', 'worker_account__client'
+        ).get(pk=pk)
+    except ShiftCoverInterest.DoesNotExist:
+        return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = ShiftCoverInterestStaffSerializer(
+        interest,
+        data=request.data,
+        partial=True,
+    )
+    if serializer.is_valid():
+        serializer.save()
+        return Response(
+            ShiftCoverInterestSerializer(
+                ShiftCoverInterest.objects.select_related(
+                    'open_shift', 'open_shift__work_site'
+                ).get(pk=interest.pk)
+            ).data
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

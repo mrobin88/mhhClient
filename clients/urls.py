@@ -8,10 +8,12 @@ from .reports import (
     TodaysAssignmentsCSVView
 )
 from .worker_views import (
-    worker_login, worker_logout, worker_profile,
-    worker_assignments, worker_confirm_assignment, worker_call_out,
-    worker_availability, worker_service_requests, worker_work_sites,
-    worker_dashboard
+    worker_login,
+    worker_logout,
+    worker_profile,
+    worker_open_shifts,
+    worker_shift_interests,
+    staff_shift_interest_update,
 )
 
 router = DefaultRouter()
@@ -31,15 +33,15 @@ urlpatterns = [
     path('reports/callouts/', CallOutReportCSVView.as_view(), name='callouts-report-csv'),
     path('reports/todays-assignments/', TodaysAssignmentsCSVView.as_view(), name='todays-assignments-csv'),
     
-    # Worker Portal API Endpoints
+    # Worker Portal API (open shifts + cover interest)
     path('worker/login/', worker_login, name='worker-login'),
     path('worker/logout/', worker_logout, name='worker-logout'),
     path('worker/profile/', worker_profile, name='worker-profile'),
-    path('worker/dashboard/', worker_dashboard, name='worker-dashboard'),
-    path('worker/assignments/', worker_assignments, name='worker-assignments'),
-    path('worker/assignments/<int:assignment_id>/confirm/', worker_confirm_assignment, name='worker-confirm-assignment'),
-    path('worker/call-out/', worker_call_out, name='worker-call-out'),
-    path('worker/availability/', worker_availability, name='worker-availability'),
-    path('worker/service-requests/', worker_service_requests, name='worker-service-requests'),
-    path('worker/work-sites/', worker_work_sites, name='worker-work-sites'),
+    path('worker/open-shifts/', worker_open_shifts, name='worker-open-shifts'),
+    path('worker/shift-interests/', worker_shift_interests, name='worker-shift-interests'),
+    path(
+        'staff/shift-interests/<int:pk>/',
+        staff_shift_interest_update,
+        name='staff-shift-interest-update',
+    ),
 ]

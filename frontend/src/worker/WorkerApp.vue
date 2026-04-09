@@ -1,206 +1,98 @@
 <template>
-  <div class="min-h-screen bg-slate-100">
-    <!-- Navigation Bar -->
-    <nav v-if="isAuthenticated" class="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white shadow-md">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-        <div class="flex justify-between items-center gap-4">
-          <div class="min-w-0 flex-1">
-            <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-blue-200 truncate">
-              Mission Hiring Hall · PitStop
-            </p>
-            <button
-              type="button"
-              @click="currentView = 'dashboard'"
-              class="text-lg sm:text-xl font-bold hover:text-blue-100 transition text-left truncate block w-full"
-            >
-              Worker hub
-            </button>
-          </div>
-          <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-            <span class="text-xs sm:text-sm font-medium text-right max-w-[140px] sm:max-w-[200px] truncate" :title="workerName">{{ workerName }}</span>
-            <button
-              type="button"
-              @click="logout"
-              class="bg-white/15 hover:bg-white/25 border border-white/30 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition"
-            >
-              Log out
-            </button>
-          </div>
-        </div>
-      </div>
-    </nav>
+  <div class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+    <WorkerLogin v-if="!isAuthenticated" @login-success="handleLoginSuccess" />
 
-    <!-- Bottom Navigation (All screens) -->
-    <div v-if="isAuthenticated" class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
-      <div class="flex justify-around max-w-lg mx-auto">
-        <button
-          v-for="item in navItems"
-          :key="item.id"
-          type="button"
-          @click="currentView = item.id"
-          :class="[
-            'flex-1 py-3 sm:py-4 text-center transition-all',
-            currentView === item.id
-              ? 'text-blue-600'
-              : 'text-slate-600 hover:text-slate-900'
-          ]"
-        >
-          <div
-            :class="[
-              'text-2xl sm:text-3xl mb-0.5',
-              currentView === item.id ? 'scale-110' : ''
-            ]"
-          >{{ item.icon }}</div>
-          <div
-            :class="[
-              'text-[10px] sm:text-xs font-bold uppercase tracking-wide',
-              currentView === item.id ? 'text-blue-600' : 'text-slate-500'
-            ]"
-          >{{ item.label }}</div>
-          <div
-            v-if="currentView === item.id"
-            class="h-0.5 w-8 mx-auto mt-1 rounded-full bg-blue-600"
-          />
-        </button>
-      </div>
-    </div>
-
-    <!-- Main Content Area -->
-    <div class="pb-20">
-      <div class="max-w-3xl mx-auto px-4 py-4">
-        <!-- Quick actions (ONLY on dashboard) -->
-        <div v-if="isAuthenticated && currentView === 'dashboard'" class="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
+    <template v-else>
+      <header class="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-sm">
+        <div class="max-w-lg mx-auto px-4 pt-4 pb-2 flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h1 class="text-lg font-semibold text-slate-900 leading-tight">Open shifts</h1>
+            <p class="text-sm text-slate-500 truncate mt-0.5">{{ workerName }}</p>
+          </div>
           <button
             type="button"
-            @click="currentView = 'assignments'"
-            class="bg-white border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow rounded-xl p-3 sm:p-4 transition-all text-center"
+            class="shrink-0 text-sm font-semibold text-teal-700 hover:text-teal-800 py-1.5 px-2 rounded-lg hover:bg-teal-50"
+            @click="logout"
           >
-            <div class="text-2xl sm:text-3xl mb-1">📋</div>
-            <div class="text-xs sm:text-sm font-bold text-slate-900">Shifts</div>
-          </button>
-          <button
-            type="button"
-            @click="currentView = 'availability'"
-            class="bg-white border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow rounded-xl p-3 sm:p-4 transition-all text-center"
-          >
-            <div class="text-2xl sm:text-3xl mb-1">📅</div>
-            <div class="text-xs sm:text-sm font-bold text-slate-900">When I’m free</div>
-          </button>
-          <button
-            type="button"
-            @click="currentView = 'requests'"
-            class="bg-white border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow rounded-xl p-3 sm:p-4 transition-all text-center"
-          >
-            <div class="text-2xl sm:text-3xl mb-1">🔧</div>
-            <div class="text-xs sm:text-sm font-bold text-slate-900">Site help</div>
+            Sign out
           </button>
         </div>
+        <nav class="max-w-lg mx-auto flex px-2 pb-0" aria-label="Main">
+          <button
+            type="button"
+            @click="tab = 'open'"
+            :class="tab === 'open' ? tabActive : tabIdle"
+          >
+            <BriefcaseIcon class="w-5 h-5 mb-1" aria-hidden="true" />
+            Shifts open
+          </button>
+          <button
+            type="button"
+            @click="tab = 'mine'"
+            :class="tab === 'mine' ? tabActive : tabIdle"
+          >
+            <ClipboardDocumentListIcon class="w-5 h-5 mb-1" aria-hidden="true" />
+            My requests
+          </button>
+        </nav>
+      </header>
 
-        <!-- Login View -->
-        <WorkerLogin 
-          v-if="!isAuthenticated" 
-          @login-success="handleLoginSuccess"
-        />
-
-        <!-- Dashboard -->
-        <WorkerDashboard 
-          v-else-if="currentView === 'dashboard'"
-          :worker-account="workerAccount"
-          :cached-data="cachedDashboard"
-          @update-cache="updateDashboardCache"
-        />
-
-        <!-- My Assignments -->
-        <WorkerAssignments 
-          v-else-if="currentView === 'assignments'"
-        />
-
-        <!-- Availability -->
-        <WorkerAvailability 
-          v-else-if="currentView === 'availability'"
-        />
-
-        <!-- Service Requests -->
-        <WorkerServiceRequests 
-          v-else-if="currentView === 'requests'"
-        />
-      </div>
-    </div>
+      <main class="max-w-lg mx-auto px-4 py-5 pb-28">
+        <WorkerOpenShifts v-if="tab === 'open'" @interest-recorded="onInterestRecorded" />
+        <WorkerMyRequests v-else :key="myRequestsKey" />
+      </main>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { BriefcaseIcon, ClipboardDocumentListIcon } from '@heroicons/vue/24/outline'
 import { workerFetch } from './api'
 import WorkerLogin from './components/WorkerLogin.vue'
-import WorkerDashboard from './components/WorkerDashboard.vue'
-import WorkerAssignments from './components/WorkerAssignments.vue'
-import WorkerAvailability from './components/WorkerAvailability.vue'
-import WorkerServiceRequests from './components/WorkerServiceRequests.vue'
+import WorkerOpenShifts from './components/WorkerOpenShifts.vue'
+import WorkerMyRequests from './components/WorkerMyRequests.vue'
 
 const isAuthenticated = ref(false)
-const workerAccount = ref<any>(null)
-const currentView = ref('dashboard')
-const cachedDashboard = ref<any>(null)
+const workerAccount = ref<Record<string, unknown> | null>(null)
+const tab = ref<'open' | 'mine'>('open')
+const myRequestsKey = ref(0)
 
-const navItems = [
-  { id: 'dashboard', label: 'Home', icon: '🏠' },
-  { id: 'assignments', label: 'Work', icon: '📋' },
-  { id: 'availability', label: 'Schedule', icon: '📅' },
-  { id: 'requests', label: 'Help', icon: '🔧' }
-]
+const tabActive =
+  'flex-1 flex flex-col items-center py-3 text-xs font-semibold text-teal-700 border-b-2 border-teal-600'
+const tabIdle =
+  'flex-1 flex flex-col items-center py-3 text-xs font-semibold text-slate-500 border-b-2 border-transparent hover:text-slate-700'
 
 const workerName = computed(() => {
-  return workerAccount.value?.client_name || 'Worker'
+  const n = workerAccount.value?.client_name
+  return typeof n === 'string' ? n : 'Worker'
 })
 
-function handleLoginSuccess(data: any) {
+function handleLoginSuccess(data: { token: string; worker_account: Record<string, unknown> }) {
   isAuthenticated.value = true
   workerAccount.value = data.worker_account
   localStorage.setItem('worker_token', data.token)
   localStorage.setItem('worker_account', JSON.stringify(data.worker_account))
-  
-  // Pre-fetch dashboard data after login
-  fetchDashboardData()
+  tab.value = 'open'
 }
 
-async function fetchDashboardData() {
-  try {
-    const resp = await workerFetch('/api/worker/dashboard/')
-    if (resp.ok) {
-      const data = await resp.json()
-      cachedDashboard.value = data
-      localStorage.setItem('worker_dashboard', JSON.stringify(data))
-    }
-  } catch (err) {
-    console.error('Failed to fetch dashboard:', err)
-  }
-}
-
-function updateDashboardCache(data: any) {
-  cachedDashboard.value = data
-  localStorage.setItem('worker_dashboard', JSON.stringify(data))
+function onInterestRecorded() {
+  myRequestsKey.value += 1
+  tab.value = 'mine'
 }
 
 function resetToLogin() {
   localStorage.removeItem('worker_token')
   localStorage.removeItem('worker_account')
-  localStorage.removeItem('worker_dashboard')
   isAuthenticated.value = false
   workerAccount.value = null
-  cachedDashboard.value = null
-  currentView.value = 'dashboard'
+  tab.value = 'open'
 }
 
 function logout() {
-  // Call logout API
-  const token = localStorage.getItem('worker_token')
-  if (token) {
-    workerFetch('/api/worker/logout/', {
-      method: 'POST',
-    })
+  if (localStorage.getItem('worker_token')) {
+    workerFetch('/api/worker/logout/', { method: 'POST' })
   }
-  
   resetToLogin()
 }
 
@@ -209,19 +101,13 @@ async function validateExistingSession() {
   const savedAccount = localStorage.getItem('worker_account')
   if (!token || !savedAccount) return
 
-  // Load cached data immediately
-  const cachedDash = localStorage.getItem('worker_dashboard')
-  if (cachedDash) {
-    try {
-      cachedDashboard.value = JSON.parse(cachedDash)
-    } catch {
-      // Invalid cache, ignore
-    }
-  }
-
-  // Optimistically show the logged-in UI, but verify with backend.
   isAuthenticated.value = true
-  workerAccount.value = JSON.parse(savedAccount)
+  try {
+    workerAccount.value = JSON.parse(savedAccount)
+  } catch {
+    resetToLogin()
+    return
+  }
 
   try {
     const resp = await workerFetch('/api/worker/profile/')
@@ -232,11 +118,8 @@ async function validateExistingSession() {
     const profile = await resp.json()
     workerAccount.value = profile
     localStorage.setItem('worker_account', JSON.stringify(profile))
-    
-    // Refresh dashboard in background
-    fetchDashboardData()
   } catch {
-    // If network is down, leave UI as-is; user can refresh
+    /* offline: keep optimistic session */
   }
 }
 
@@ -253,7 +136,3 @@ onBeforeUnmount(() => {
   window.removeEventListener('worker-session-expired', onSessionExpired)
 })
 </script>
-
-<style scoped>
-/* Mobile-first responsive styles */
-</style>

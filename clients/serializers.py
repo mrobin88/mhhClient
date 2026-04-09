@@ -1,6 +1,13 @@
 from rest_framework import serializers
 from .models import Client, CaseNote, PitStopApplication
-from .models_extensions import WorkerAccount, ServiceRequest, WorkAssignment, ClientAvailability, WorkSite
+from .models_extensions import (
+    WorkerAccount,
+    ServiceRequest,
+    WorkAssignment,
+    WorkSite,
+    OpenShift,
+    ShiftCoverInterest,
+)
 from .phone_utils import find_by_normalized_phone, phone_digits
 
 class ClientSerializer(serializers.ModelSerializer):
@@ -158,6 +165,74 @@ class WorkSiteSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
+class OpenShiftSerializer(serializers.ModelSerializer):
+    """Open shift listing for workers."""
+
+    location_display = serializers.SerializerMethodField()
+    work_site_name = serializers.CharField(
+        source='work_site.name', read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = OpenShift
+        fields = [
+            'id',
+            'role_title',
+            'location_display',
+            'work_site_name',
+            'shift_date',
+            'start_time',
+            'end_time',
+            'notes',
+        ]
+
+    def get_location_display(self, obj):
+        if obj.work_site:
+            parts = [obj.work_site.name]
+            if getattr(obj.work_site, 'address', None):
+                parts.append(obj.work_site.address)
+            return ' — '.join(parts)
+        return obj.location_label or 'Location to be confirmed'
+
+
+class ShiftCoverInterestSerializer(serializers.ModelSerializer):
+    """Worker-facing interest record."""
+
+    open_shift = OpenShiftSerializer(read_only=True)
+    message_for_worker = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ShiftCoverInterest
+        fields = [
+            'id',
+            'open_shift',
+            'status',
+            'message_for_worker',
+            'created_at',
+        ]
+
+    def get_message_for_worker(self, obj):
+        if obj.status == ShiftCoverInterest.STATUS_PENDING:
+            return (
+                'Thanks — we noted your interest. A supervisor may reach out if you are picked for this shift.'
+            )
+        if obj.status == ShiftCoverInterest.STATUS_SELECTED:
+            return 'You were selected for this shift. Watch for a call or message from the team.'
+        if obj.status == ShiftCoverInterest.STATUS_NOT_SELECTED:
+            return 'This shift was filled another way. Thank you for offering to help.'
+        if obj.status == ShiftCoverInterest.STATUS_CANCELLED:
+            return 'This shift is no longer open.'
+        return ''
+
+
+class ShiftCoverInterestStaffSerializer(serializers.ModelSerializer):
+    """Staff PATCH: status and internal note."""
+
+    class Meta:
+        model = ShiftCoverInterest
+        fields = ['status', 'staff_note']
+
+
 class WorkAssignmentSerializer(serializers.ModelSerializer):
     """Serializer for work assignments"""
     client_name = serializers.CharField(source='client.full_name', read_only=True)
@@ -173,51 +248,6 @@ class WorkAssignmentSerializer(serializers.ModelSerializer):
         model = WorkAssignment
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at', 'assigned_by']
-
-
-class WorkerAssignmentSerializer(serializers.ModelSerializer):
-    """Simplified serializer for worker's own assignments"""
-    work_site_name = serializers.CharField(source='work_site.name', read_only=True)
-    work_site_address = serializers.CharField(source='work_site.address', read_only=True)
-    work_site_supervisor = serializers.CharField(source='work_site.supervisor_name', read_only=True)
-    work_site_supervisor_phone = serializers.CharField(source='work_site.supervisor_phone', read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
-    class Meta:
-        model = WorkAssignment
-        fields = [
-            'id', 'assignment_date', 'start_time', 'end_time', 
-            'work_site_name', 'work_site_address', 
-            'work_site_supervisor', 'work_site_supervisor_phone',
-            'status', 'status_display', 'confirmed_by_client', 'assignment_notes'
-        ]
-        read_only_fields = ['assignment_date', 'start_time', 'end_time', 'assignment_notes']
-
-
-class CallOutSerializer(serializers.Serializer):
-    """Serializer for workers to submit call-outs"""
-    assignment_id = serializers.IntegerField()
-    reason = serializers.CharField(max_length=500)
-    advance_notice_hours = serializers.IntegerField(min_value=0, max_value=72)
-    
-    def validate_assignment_id(self, value):
-        """Validate that assignment exists and belongs to the worker"""
-        try:
-            assignment = WorkAssignment.objects.get(id=value)
-            # Additional validation will be done in the view
-            return value
-        except WorkAssignment.DoesNotExist:
-            raise serializers.ValidationError('Assignment not found')
-
-
-class ClientAvailabilitySerializer(serializers.ModelSerializer):
-    """Serializer for client availability"""
-    day_display = serializers.CharField(source='get_day_of_week_display', read_only=True)
-    
-    class Meta:
-        model = ClientAvailability
-        fields = '__all__'
-        read_only_fields = ['client']
 
 
 class ServiceRequestSerializer(serializers.ModelSerializer):
@@ -238,12 +268,3 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         ]
 
 
-class WorkerServiceRequestSerializer(serializers.ModelSerializer):
-    """Simplified serializer for workers to submit service requests"""
-    
-    class Meta:
-        model = ServiceRequest
-        fields = [
-            'work_site', 'issue_type', 'title', 'description',
-            'location_detail', 'priority', 'photo'
-        ]
