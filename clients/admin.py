@@ -1156,6 +1156,15 @@ class ServiceRequestAdmin(admin.ModelAdmin):
     mark_resolved.short_description = 'Mark as Resolved'
 
 
+@admin.register(WorkSite)
+class WorkSiteAdmin(admin.ModelAdmin):
+    """Must register before OpenShiftAdmin so autocomplete_fields → work_site passes admin.E040."""
+
+    list_display = ['name', 'neighborhood', 'site_type', 'is_active', 'max_workers_per_shift']
+    list_filter = ['is_active', 'site_type', 'neighborhood']
+    search_fields = ['name', 'address', 'neighborhood', 'supervisor_name', 'supervisor_email']
+
+
 class ShiftCoverInterestInline(admin.TabularInline):
     model = ShiftCoverInterest
     extra = 0
@@ -1181,7 +1190,8 @@ class OpenShiftAdmin(admin.ModelAdmin):
     search_fields = ['role_title', 'notes', 'location_label', 'created_by']
     date_hierarchy = 'shift_date'
     inlines = [ShiftCoverInterestInline]
-    autocomplete_fields = ['work_site']
+    # No autocomplete_fields for work_site — avoids admin.E040 if WorkSite admin
+    # ordering/registry differs on some hosts; use the select dropdown instead.
     fieldsets = (
         (
             'Shift',
@@ -1243,11 +1253,6 @@ class ShiftCoverInterestAdmin(admin.ModelAdmin):
 
 
 # Register existing worker dispatch models if not already registered
-try:
-    admin.site.register(WorkSite)
-except admin.sites.AlreadyRegistered:
-    pass
-
 try:
     admin.site.register(WorkAssignment)
 except admin.sites.AlreadyRegistered:
