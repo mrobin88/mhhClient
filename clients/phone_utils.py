@@ -6,6 +6,7 @@ Stored numbers may include formatting; workers typically enter digits only.
 import re
 
 from django.db import connection
+from django.db.models import Q
 
 
 def phone_digits(phone) -> str:
@@ -54,3 +55,38 @@ def find_by_normalized_phone(queryset, phone_raw: str):
         if phone_digits(obj.phone) == digits:
             return obj
     return None
+
+
+def find_all_by_normalized_phone(queryset, phone_raw: str):
+    """
+    All rows whose phone matches phone_raw when compared as digits-only
+    (same rules as find_by_normalized_phone, but returns every match).
+    """
+    digits = phone_digits(phone_raw)
+    if not digits:
+        return queryset.none()
+
+    q = Q()
+    if phone_raw:
+        q |= Q(phone=phone_raw)
+    q |= Q(phone=digits)
+    exact = queryset.filter(q).distinct()
+    if exact.exists():
+        return exact
+
+    model = queryset.model
+    table = model._meta.db_table
+
+    if connection.vendor == 'postgresql':
+        return queryset.extra(
+            where=[f"regexp_replace({table}.phone, '[^0-9]', '', 'g') = %s"],
+            params=[digits],
+        ).distinct()
+
+    pks = []
+    for obj in queryset.iterator(chunk_size=500):
+        if phone_digits(obj.phone) == digits:
+            pks.append(obj.pk)
+    if not pks:
+        return queryset.none()
+    return queryset.filter(pk__in=pks).distinct()

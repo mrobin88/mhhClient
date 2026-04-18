@@ -6,6 +6,8 @@
       "/worker/",
       "/worker/*",
       "/worker.html",
+      "/checkin.html",
+      "/checkin/*",
       "/assets/*",
       "*.css",
       "*.js",
@@ -21,6 +23,10 @@
     {
       "route": "/worker.html",
       "serve": "/worker/index.html"
+    },
+    {
+      "route": "/checkin.html",
+      "serve": "/checkin/index.html"
     }
   ],
   "globalHeaders": {

@@ -21,6 +21,8 @@ def api_info(request):
         <li><a href="/api/clients/">/api/clients/</a> - Client Management</li>
         <li><a href="/api/pitstop-applications/">/api/pitstop-applications/</a> - Applications</li>
         <li><a href="/health">/health</a> - Health Check</li>
+        <li><a href="/api/kiosk/check-in/lookup/">/api/kiosk/check-in/lookup/</a> - Kiosk lookup (POST JSON)</li>
+        <li><a href="/api/kiosk/check-in/submit/">/api/kiosk/check-in/submit/</a> - Kiosk check-in (POST JSON)</li>
     </ul>
     """)
 
