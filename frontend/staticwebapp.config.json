@@ -6,8 +6,6 @@
       "/worker/",
       "/worker/*",
       "/worker.html",
-      "/checkin.html",
-      "/checkin/*",
       "/assets/*",
       "*.css",
       "*.js",
@@ -26,7 +24,8 @@
     },
     {
       "route": "/checkin.html",
-      "serve": "/checkin/index.html"
+      "redirect": "/checkin",
+      "statusCode": 302
     }
   ],
   "globalHeaders": {

@@ -306,21 +306,35 @@ class CaseNoteAdmin(admin.ModelAdmin):
             self.message_user(request, f'❌ {errors} error(s) occurred', level='error')
     
     send_followup_alerts_action.short_description = "Send follow-up alert emails for selected case notes"
+
+    def save_model(self, request, obj, form, change):
+        """Stamp staff member from logged-in user when missing."""
+        if not obj.staff_member:
+            obj.staff_member = request.user.get_full_name() or request.user.username
+        super().save_model(request, obj, form, change)
     
     def changelist_view(self, request, extra_context=None):
         """Add overdue follow-ups alert to changelist"""
         response = super().changelist_view(request, extra_context)
         
         if hasattr(response, 'context_data'):
-            overdue_count = CaseNote.objects.filter(
+            overdue_qs = CaseNote.objects.filter(
                 follow_up_date__lt=timezone.now().date()
-            ).exclude(follow_up_date__isnull=True).count()
+            ).exclude(follow_up_date__isnull=True)
+            overdue_count = overdue_qs.count()
             
             if overdue_count > 0:
                 from django.contrib import messages
+                today = timezone.now().date()
+                overdue_30 = overdue_qs.filter(follow_up_date__lte=today - timedelta(days=30)).count()
+                overdue_60 = overdue_qs.filter(follow_up_date__lte=today - timedelta(days=60)).count()
+                overdue_90 = overdue_qs.filter(follow_up_date__lte=today - timedelta(days=90)).count()
                 messages.warning(
                     request,
-                    f'⚠️ You have {overdue_count} case note(s) with overdue follow-ups! Check the list below.',
+                    (
+                        f'⚠️ Overdue follow-ups: {overdue_count} total '
+                        f'({overdue_30} at 30+ days, {overdue_60} at 60+ days, {overdue_90} at 90+ days).'
+                    ),
                     extra_tags='alert'
                 )
         

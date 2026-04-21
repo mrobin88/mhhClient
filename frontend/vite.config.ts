@@ -39,7 +39,6 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         worker: resolve(__dirname, 'worker/index.html'),
-        checkin: resolve(__dirname, 'checkin/index.html'),
       },
     },
   },

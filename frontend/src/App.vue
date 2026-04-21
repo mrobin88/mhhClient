@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import ClientForm from './components/ClientForm.vue'
+import { RouterView } from 'vue-router'
 </script>
 
 <template>
-  <ClientForm />
+  <RouterView />
 </template>
 
 <style>

@@ -5,7 +5,9 @@ from .reports import (
     AvailableWorkersCSVView,
     WorkAssignmentsReportCSVView,
     CallOutReportCSVView,
-    TodaysAssignmentsCSVView
+    TodaysAssignmentsCSVView,
+    ClientOutcomesReportCSVView,
+    StaffFollowUpScorecardCSVView,
 )
 from .worker_views import (
     worker_login,
@@ -33,6 +35,8 @@ urlpatterns = [
     path('reports/assignments/', WorkAssignmentsReportCSVView.as_view(), name='assignments-report-csv'),
     path('reports/callouts/', CallOutReportCSVView.as_view(), name='callouts-report-csv'),
     path('reports/todays-assignments/', TodaysAssignmentsCSVView.as_view(), name='todays-assignments-csv'),
+    path('reports/client-outcomes/', ClientOutcomesReportCSVView.as_view(), name='client-outcomes-report-csv'),
+    path('reports/staff-followup-scorecard/', StaffFollowUpScorecardCSVView.as_view(), name='staff-followup-scorecard-csv'),
     
     # Worker Portal API (open shifts + cover interest)
     path('worker/login/', worker_login, name='worker-login'),

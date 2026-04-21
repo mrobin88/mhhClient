@@ -12,6 +12,26 @@ logger = logging.getLogger('clients')
 
 WORKER_PORTAL_URL = 'https://blue-glacier-0c5f06410.3.azurestaticapps.net/worker.html'
 
+
+def followup_stage(follow_up_date, today=None):
+    """
+    Return follow-up aging bucket for dashboards/scorecards.
+    """
+    if not follow_up_date:
+        return 'no_followup'
+    today = today or date.today()
+    days_overdue = (today - follow_up_date).days
+    if days_overdue <= 0:
+        return 'current'
+    if days_overdue >= 90:
+        return 'overdue_90_plus'
+    if days_overdue >= 60:
+        return 'overdue_60_plus'
+    if days_overdue >= 30:
+        return 'overdue_30_plus'
+    return 'overdue_under_30'
+
+
 def _get_admin_base_url():
     return getattr(settings, 'ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net')
 
@@ -246,9 +266,20 @@ def check_and_send_followup_alerts(days_before=1, send_to_staff=True):
     
     sent_count = 0
     error_count = 0
+    bucket_counts = {
+        'current': 0,
+        'overdue_under_30': 0,
+        'overdue_30_plus': 0,
+        'overdue_60_plus': 0,
+        'overdue_90_plus': 0,
+    }
     
     for note in case_notes:
         try:
+            stage = followup_stage(note.follow_up_date, today=today)
+            if stage in bucket_counts:
+                bucket_counts[stage] += 1
+
             # Try to find user by staff_member name or email
             user_email = None
             
@@ -304,5 +335,6 @@ def check_and_send_followup_alerts(days_before=1, send_to_staff=True):
         'total_notes': case_notes.count(),
         'emails_sent': sent_count,
         'errors': error_count,
+        'bucket_counts': bucket_counts,
     }
 

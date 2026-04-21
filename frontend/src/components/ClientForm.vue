@@ -14,8 +14,9 @@
         <p class="text-xl text-slate-600 relative z-10">Professional Service Management System</p>
         <p class="text-mission-800 relative z-10 mt-3 text-base">
           Already registered?
-          <a href="/checkin.html" class="font-semibold underline hover:text-mission-900">Check in here</a>
+          <RouterLink to="/checkin" class="font-semibold underline hover:text-mission-900">Check in here</RouterLink>
         </p>
+
         <div class="mt-4 flex justify-center space-x-2">
           <div class="w-2 h-2 bg-mission-400 rounded-full"></div>
           <div class="w-2 h-2 bg-mission-500 rounded-full"></div>

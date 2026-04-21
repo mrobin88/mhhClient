@@ -87,6 +87,13 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(
                 f'📧 Sent {result["emails_sent"]} email alert(s)'
             ))
+            buckets = result.get('bucket_counts') or {}
+            if buckets:
+                self.stdout.write('\nFollow-up aging buckets:')
+                self.stdout.write(f'  - <30 overdue: {buckets.get("overdue_under_30", 0)}')
+                self.stdout.write(f'  - 30+ overdue: {buckets.get("overdue_30_plus", 0)}')
+                self.stdout.write(f'  - 60+ overdue: {buckets.get("overdue_60_plus", 0)}')
+                self.stdout.write(f'  - 90+ overdue: {buckets.get("overdue_90_plus", 0)}')
             
             if result['errors'] > 0:
                 self.stdout.write(self.style.ERROR(

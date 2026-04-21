@@ -202,7 +202,24 @@ class CaseNoteViewSet(viewsets.ModelViewSet):
         client_id = self.request.query_params.get('client', None)
         if client_id:
             queryset = queryset.filter(client_id=client_id)
+        mine = self.request.query_params.get('mine')
+        if mine in {'1', 'true', 'True'} and self.request.user.is_authenticated:
+            full_name = (self.request.user.get_full_name() or '').strip()
+            aliases = {self.request.user.username}
+            if full_name:
+                aliases.add(full_name)
+            if self.request.user.email:
+                aliases.add(self.request.user.email)
+            queryset = queryset.filter(staff_member__in=aliases)
         return queryset
+
+    def perform_create(self, serializer):
+        """
+        Always stamp the logged-in staff member for auditability.
+        This keeps reports reliable for "who made the change".
+        """
+        staff_member = self.request.user.get_full_name() or self.request.user.username
+        serializer.save(staff_member=staff_member)
 
 
 @method_decorator(login_required, name='dispatch')

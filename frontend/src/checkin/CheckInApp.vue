@@ -1,103 +1,97 @@
 <template>
   <div
-    class="checkin-shell min-h-[100dvh] min-w-full flex flex-col items-center justify-center px-4 py-10 sm:py-14 text-zinc-200 antialiased"
+    class="checkin-shell min-h-[100dvh] min-w-full flex flex-col items-center justify-center px-5 py-12 sm:px-8 sm:py-16 text-slate-800 antialiased"
   >
-    <!-- ambient grid + vignette -->
     <div class="checkin-shell__grid pointer-events-none fixed inset-0 -z-10" aria-hidden="true" />
-    <div class="checkin-shell__vignette pointer-events-none fixed inset-0 -z-10" aria-hidden="true" />
+    <div class="checkin-shell__wash pointer-events-none fixed inset-0 -z-10" aria-hidden="true" />
 
-    <div class="w-full max-w-[420px] mx-auto flex flex-col items-center">
-      <!-- brand rail -->
-      <header class="checkin-reveal text-center mb-8 sm:mb-10 w-full" style="animation-delay: 60ms">
-        <p class="text-[10px] sm:text-xs font-semibold tracking-[0.35em] uppercase text-amber-400 mb-3">
+    <div class="w-full max-w-2xl mx-auto flex flex-col items-center">
+      <header class="checkin-reveal text-center mb-10 sm:mb-12 w-full" style="animation-delay: 60ms">
+        <p class="text-xs sm:text-sm font-semibold tracking-[0.28em] uppercase text-mission-700 mb-4">
           Visitor check-in
         </p>
-        <h1 class="text-[1.65rem] sm:text-3xl font-bold tracking-tight text-white leading-tight">
+        <h1 class="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold tracking-tight text-slate-900 leading-tight">
           Record your arrival
         </h1>
-        <p class="mt-3 text-sm sm:text-[15px] text-zinc-300 leading-relaxed max-w-[34ch] mx-auto font-medium">
+        <p class="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto font-medium px-2">
           Enter the phone number we have on file. Staff receives a time-stamped visit note.
         </p>
       </header>
 
       <article
-        class="checkin-card w-full rounded-sm border border-zinc-500/80 bg-zinc-800 shadow-[0_24px_64px_-8px_rgba(0,0,0,0.45)] overflow-hidden checkin-reveal"
+        class="checkin-card w-full rounded-xl border border-slate-200/90 bg-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.06),0_20px_50px_-12px_rgba(15,118,110,0.12)] overflow-hidden checkin-reveal"
         style="animation-delay: 120ms"
       >
-        <!-- caution accent (minimal, not playful) -->
-        <div class="h-1 w-full bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600" aria-hidden="true" />
+        <div class="h-1.5 w-full bg-gradient-to-r from-mission-600 via-mission-500 to-mission-600" aria-hidden="true" />
 
-        <div class="px-5 pt-5 pb-1 border-b border-zinc-600/80 bg-zinc-800/80">
-          <h2 class="text-[11px] font-bold tracking-[0.2em] uppercase text-zinc-300">{{ stepTitle }}</h2>
+        <div class="px-6 sm:px-8 pt-6 pb-2 border-b border-slate-100 bg-slate-50/80">
+          <h2 class="text-xs sm:text-sm font-bold tracking-[0.18em] uppercase text-slate-500">{{ stepTitle }}</h2>
         </div>
 
-        <div class="p-5 sm:p-6 min-h-[200px] bg-zinc-800">
+        <div class="p-6 sm:p-8 sm:pt-7 min-h-[240px] bg-white">
           <Transition name="panel" mode="out-in">
-            <div :key="step" class="space-y-5">
+            <div :key="step" class="space-y-6 sm:space-y-7">
               <p
                 v-if="message"
-                class="text-sm rounded-sm px-3.5 py-2.5 border checkin-message"
+                class="text-base rounded-lg px-4 py-3 border"
                 :class="messageClass"
                 role="alert"
               >
                 {{ message }}
               </p>
 
-              <!-- PHONE -->
               <template v-if="step === 'phone'">
-                <div class="space-y-3">
+                <div class="space-y-4">
                   <label
                     for="phone"
-                    class="block text-center text-[11px] font-semibold tracking-[0.22em] uppercase text-zinc-400"
+                    class="block text-center text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase text-slate-500"
                   >
                     Phone on file
                   </label>
 
-                  <!-- well: lighter pit so digits read clearly (not black-on-black) -->
                   <div
-                    class="checkin-well rounded-sm border border-zinc-500 bg-zinc-700/90 p-1.5 shadow-[inset_0_2px_6px_rgba(0,0,0,0.25)]"
+                    class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2 sm:p-2.5 shadow-[inset_0_1px_2px_rgba(255,255,255,0.9),inset_0_-2px_8px_rgba(15,23,42,0.04)]"
                   >
-                    <div class="px-4 py-7 sm:py-9 sm:px-6 rounded-[2px] bg-zinc-700/50">
+                    <div class="px-5 py-9 sm:py-11 sm:px-8 rounded-lg bg-white border border-slate-100">
                       <input
                         id="phone"
                         v-model="phone"
                         type="tel"
                         inputmode="tel"
                         autocomplete="tel"
-                        class="checkin-phone-input w-full bg-transparent border-0 text-center text-2xl sm:text-[1.75rem] font-semibold tracking-[0.08em] text-white placeholder:text-zinc-400 focus:ring-0 focus:outline-none caret-amber-400"
+                        class="checkin-phone-input w-full bg-transparent border-0 text-center text-3xl sm:text-4xl lg:text-[2.65rem] font-semibold tracking-[0.06em] text-slate-900 placeholder:text-slate-400 focus:ring-0 focus:outline-none caret-mission-600"
                         placeholder="000 000 0000"
                         @keyup.enter="lookup"
                       />
                     </div>
                   </div>
-                  <p class="text-center text-[11px] text-zinc-400 font-medium tracking-wide">
+                  <p class="text-center text-sm text-slate-500 font-medium">
                     Digits only or formatted — both work
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  class="checkin-cta group relative w-full overflow-hidden rounded-sm py-4 px-4 font-bold uppercase tracking-[0.18em] text-xs sm:text-[13px] text-zinc-950 bg-amber-500 hover:bg-amber-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400/80 disabled:opacity-50 disabled:pointer-events-none transition-[transform,box-shadow,background-color] duration-200 ease-out hover:shadow-[0_0_0_1px_rgba(251,191,36,0.35),0_16px_40px_-8px_rgba(245,158,11,0.35)] active:translate-y-[1px]"
+                  class="checkin-cta w-full rounded-xl py-4 sm:py-5 px-6 font-bold uppercase tracking-[0.16em] text-sm text-white bg-mission-600 hover:bg-mission-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mission-600 disabled:opacity-50 disabled:pointer-events-none shadow-sm hover:shadow-md transition-[transform,box-shadow,background-color] duration-200 ease-out active:translate-y-px"
                   :disabled="loading"
                   @click="lookup"
                 >
-                  <span
-                    v-if="loading"
-                    class="inline-flex items-center justify-center gap-2"
-                  >
-                    <span class="checkin-spinner h-4 w-4 rounded-full border-2 border-zinc-950/30 border-t-zinc-950" aria-hidden="true" />
+                  <span v-if="loading" class="inline-flex items-center justify-center gap-3">
+                    <span
+                      class="checkin-spinner h-5 w-5 rounded-full border-2 border-white/35 border-t-white"
+                      aria-hidden="true"
+                    />
                     Locating profile
                   </span>
                   <span v-else>Continue</span>
                 </button>
               </template>
 
-              <!-- PICK -->
               <template v-else-if="step === 'pick'">
-                <p class="text-sm text-zinc-300 text-center leading-relaxed font-medium">
+                <p class="text-base sm:text-lg text-slate-600 text-center leading-relaxed font-medium">
                   Multiple profiles match this number. Select the name that is yours.
                 </p>
-                <ul class="space-y-2.5" role="listbox">
+                <ul class="space-y-3" role="listbox">
                   <li
                     v-for="(c, i) in clients"
                     :key="c.id"
@@ -106,7 +100,7 @@
                   >
                     <button
                       type="button"
-                      class="checkin-name-btn w-full text-left rounded-sm border border-zinc-500 bg-zinc-700/80 px-4 py-3.5 font-semibold text-white tracking-tight transition-[border-color,background-color,transform,box-shadow] duration-200 ease-out hover:border-amber-400/70 hover:bg-zinc-600/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 active:scale-[0.99]"
+                      class="checkin-name-btn w-full text-left rounded-xl border-2 border-slate-200 bg-slate-50 px-5 py-4 sm:py-5 text-lg font-semibold text-slate-900 tracking-tight transition-[border-color,background-color,transform,box-shadow] duration-200 ease-out hover:border-mission-400 hover:bg-white hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mission-600 active:scale-[0.998]"
                       @click="selectClient(c)"
                     >
                       {{ c.first_name }} {{ c.last_name }}
@@ -115,81 +109,82 @@
                 </ul>
                 <button
                   type="button"
-                  class="w-full text-center text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 hover:text-amber-300 transition-colors duration-200 py-2"
+                  class="w-full text-center text-sm font-semibold uppercase tracking-[0.15em] text-slate-500 hover:text-mission-700 transition-colors duration-200 py-2"
                   @click="resetFlow"
                 >
                   Use different number
                 </button>
               </template>
 
-              <!-- REASON -->
               <template v-else-if="step === 'reason'">
-                <p class="text-center text-lg sm:text-xl font-semibold text-white tracking-tight">
+                <p class="text-center text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
                   Welcome back,
-                  <span class="text-amber-300">{{ selectedName }}</span>
+                  <span class="text-mission-700">{{ selectedName }}</span>
                 </p>
 
                 <label
                   for="reason"
-                  class="block text-center text-[11px] font-semibold tracking-[0.22em] uppercase text-zinc-400"
+                  class="block text-center text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase text-slate-500"
                 >
                   Reason for visit
                 </label>
                 <div
-                  class="checkin-well rounded-sm border border-zinc-500 bg-zinc-700/90 p-1.5 shadow-[inset_0_2px_6px_rgba(0,0,0,0.25)]"
+                  class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2 sm:p-2.5 shadow-[inset_0_1px_2px_rgba(255,255,255,0.9),inset_0_-2px_8px_rgba(15,23,42,0.04)]"
                 >
                   <textarea
                     id="reason"
                     v-model="visitReason"
-                    rows="5"
-                    class="checkin-textarea w-full resize-none bg-transparent border-0 rounded-[2px] px-4 py-4 text-[15px] sm:text-base text-zinc-100 placeholder:text-zinc-400 focus:ring-0 focus:outline-none leading-relaxed bg-zinc-700/50"
+                    rows="6"
+                    class="checkin-textarea w-full resize-none bg-white border border-slate-100 rounded-lg px-5 py-5 text-base sm:text-lg text-slate-800 placeholder:text-slate-400 focus:ring-0 focus:outline-none leading-relaxed min-h-[160px]"
                     placeholder="State the purpose of your visit in clear terms."
                   />
                 </div>
 
                 <button
                   type="button"
-                  class="checkin-cta group relative w-full overflow-hidden rounded-sm py-4 px-4 font-bold uppercase tracking-[0.18em] text-xs sm:text-[13px] text-zinc-950 bg-amber-500 hover:bg-amber-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400/80 disabled:opacity-45 disabled:pointer-events-none transition-[transform,box-shadow,background-color] duration-200 ease-out hover:shadow-[0_0_0_1px_rgba(251,191,36,0.35),0_16px_40px_-8px_rgba(245,158,11,0.35)] active:translate-y-[1px]"
+                  class="checkin-cta w-full rounded-xl py-4 sm:py-5 px-6 font-bold uppercase tracking-[0.16em] text-sm text-white bg-mission-600 hover:bg-mission-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mission-600 disabled:opacity-45 disabled:pointer-events-none shadow-sm hover:shadow-md transition-[transform,box-shadow,background-color] duration-200 ease-out active:translate-y-px"
                   :disabled="loading || !visitReason.trim()"
                   @click="submit"
                 >
-                  <span v-if="loading" class="inline-flex items-center justify-center gap-2">
-                    <span class="checkin-spinner h-4 w-4 rounded-full border-2 border-zinc-950/30 border-t-zinc-950" aria-hidden="true" />
+                  <span v-if="loading" class="inline-flex items-center justify-center gap-3">
+                    <span
+                      class="checkin-spinner h-5 w-5 rounded-full border-2 border-white/35 border-t-white"
+                      aria-hidden="true"
+                    />
                     Submitting
                   </span>
                   <span v-else>Submit check-in</span>
                 </button>
                 <button
                   type="button"
-                  class="w-full text-center text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 hover:text-amber-300 transition-colors duration-200 py-2"
+                  class="w-full text-center text-sm font-semibold uppercase tracking-[0.15em] text-slate-500 hover:text-mission-700 transition-colors duration-200 py-2"
                   @click="resetFlow"
                 >
                   Start over
                 </button>
               </template>
 
-              <!-- DONE -->
               <template v-else-if="step === 'done'">
-                <div class="text-center space-y-3 py-2">
+                <div class="text-center space-y-4 py-3">
                   <div
-                    class="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-900/35 checkin-success-ring"
+                    class="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-emerald-200 bg-emerald-50 checkin-success-ring"
                     aria-hidden="true"
                   >
-                    <svg class="h-6 w-6 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <svg class="h-8 w-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <p class="text-white font-semibold text-base tracking-tight">Check-in recorded</p>
-                  <p class="text-sm text-zinc-300 leading-relaxed">
+                  <p class="text-slate-900 font-semibold text-xl tracking-tight">Check-in recorded</p>
+                  <p class="text-base text-slate-600 leading-relaxed max-w-md mx-auto">
                     Staff can review your visit note in the case file.
                   </p>
-                  <p v-if="savedAt" class="text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
+                  <p v-if="savedAt" class="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">
                     {{ savedAt }}
                   </p>
                 </div>
                 <button
                   type="button"
-                  class="w-full rounded-sm border border-zinc-500 py-3.5 text-xs font-bold uppercase tracking-[0.18em] text-zinc-100 hover:border-zinc-400 hover:bg-zinc-700/80 transition-all duration-200"
+                  class="w-full rounded-xl border-2 border-slate-200 py-4 text-sm font-bold uppercase tracking-[0.14em] text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-all duration-200"
                   @click="resetFlow"
                 >
                   Check in again
@@ -201,16 +196,16 @@
       </article>
 
       <p
-        class="checkin-reveal mt-10 text-center text-[11px] sm:text-xs text-zinc-400 max-w-[36ch] leading-relaxed font-medium"
+        class="checkin-reveal mt-12 text-center text-sm sm:text-base text-slate-600 max-w-lg leading-relaxed font-medium px-2"
         style="animation-delay: 180ms"
       >
         New to services?
-        <a
-          href="/"
-          class="text-amber-300 hover:text-amber-200 underline-offset-4 hover:underline transition-colors font-semibold"
+        <RouterLink
+          to="/"
+          class="text-mission-700 hover:text-mission-800 font-semibold underline underline-offset-4 decoration-mission-300 hover:decoration-mission-600 transition-colors"
         >
           Client registration
-        </a>
+        </RouterLink>
         — this kiosk only adds a note for an existing profile.
       </p>
     </div>
@@ -218,18 +213,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { getApiUrl } from '../config/api'
-
-const DOC_BG = '#18181b'
-onMounted(() => {
-  document.documentElement.style.backgroundColor = DOC_BG
-  document.body.style.backgroundColor = DOC_BG
-})
-onUnmounted(() => {
-  document.documentElement.style.backgroundColor = ''
-  document.body.style.backgroundColor = ''
-})
 
 type ClientRow = { id: number; first_name: string; last_name: string }
 
@@ -255,8 +240,8 @@ const stepTitle = computed(() => {
 
 const messageClass = computed(() =>
   messageKind.value === 'err'
-    ? 'bg-red-900/40 text-red-100 border-red-500/50'
-    : 'bg-emerald-900/35 text-emerald-50 border-emerald-500/45',
+    ? 'bg-red-50 text-red-900 border-red-200'
+    : 'bg-emerald-50 text-emerald-900 border-emerald-200',
 )
 
 const selectedName = computed(() => {
@@ -357,32 +342,32 @@ function resetFlow() {
 </script>
 
 <style scoped>
+/* Light shell — aligned with intake portal (soft teal + white), no dark fills */
 .checkin-shell {
-  background-color: #18181b;
-  background-image: linear-gradient(165deg, #27272a 0%, #18181b 42%, #141416 100%);
+  background: linear-gradient(to bottom right, #f0fdfa, #e2f8f4, #ccfbf1);
 }
 
 .checkin-shell__grid {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(ellipse 90% 75% at 50% 35%, black 25%, transparent 70%);
-  opacity: 0.35;
+    linear-gradient(rgba(15, 118, 110, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 118, 110, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 95% 80% at 50% 20%, black 15%, transparent 65%);
+  opacity: 0.5;
 }
 
-.checkin-shell__vignette {
-  background: radial-gradient(ellipse 100% 70% at 50% -5%, rgba(251, 191, 36, 0.09), transparent 50%);
+.checkin-shell__wash {
+  background: radial-gradient(ellipse 120% 70% at 50% 0%, rgba(255, 255, 255, 0.75), transparent 55%);
 }
 
 .checkin-card {
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-    0 20px 50px -10px rgba(0, 0, 0, 0.4);
+    0 0 0 1px rgba(255, 255, 255, 0.8) inset,
+    0 20px 50px -12px rgba(15, 118, 110, 0.15);
 }
 
 .checkin-phone-input::placeholder {
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
 }
 
 .checkin-textarea:focus,
@@ -391,16 +376,15 @@ function resetFlow() {
 }
 
 .checkin-well:focus-within {
-  border-color: rgba(251, 191, 36, 0.75);
+  border-color: rgba(13, 148, 136, 0.45);
   box-shadow:
-    inset 0 2px 6px rgba(0, 0, 0, 0.2),
-    0 0 0 1px rgba(251, 191, 36, 0.25),
-    0 0 24px -6px rgba(251, 191, 36, 0.2);
-  transition: border-color 220ms ease, box-shadow 220ms ease;
+    inset 0 1px 2px rgba(255, 255, 255, 0.95),
+    0 0 0 3px rgba(13, 148, 136, 0.12);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
 .checkin-well {
-  transition: border-color 220ms ease, box-shadow 220ms ease;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
 .checkin-spinner {
@@ -408,33 +392,32 @@ function resetFlow() {
 }
 
 .checkin-success-ring {
-  animation: checkin-success-pulse 1.4s ease-out 1 both;
+  animation: checkin-success-pulse 1.35s ease-out 1 both;
 }
 
 .checkin-reveal {
-  animation: checkin-reveal-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: checkin-reveal-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .checkin-stagger {
-  animation: checkin-stagger-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: checkin-stagger-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* Step transitions */
 .panel-enter-active,
 .panel-leave-active {
   transition:
-    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .panel-enter-from {
   opacity: 0;
-  transform: translateY(14px);
+  transform: translateY(12px);
 }
 
 .panel-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-8px);
 }
 
 @keyframes checkin-spin {
@@ -446,7 +429,7 @@ function resetFlow() {
 @keyframes checkin-reveal-up {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -457,7 +440,7 @@ function resetFlow() {
 @keyframes checkin-stagger-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -467,13 +450,13 @@ function resetFlow() {
 
 @keyframes checkin-success-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.35);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35);
   }
   70% {
-    box-shadow: 0 0 0 14px rgba(52, 211, 153, 0);
+    box-shadow: 0 0 0 14px rgba(16, 185, 129, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
   }
 }
 
@@ -488,7 +471,8 @@ function resetFlow() {
 
   .checkin-spinner {
     animation: none;
-    border-color: rgba(9, 9, 11, 0.5);
+    border-color: rgba(255, 255, 255, 0.45);
+    border-top-color: white;
   }
 
   .panel-enter-active,
@@ -496,10 +480,7 @@ function resetFlow() {
     transition-duration: 0.01ms !important;
   }
 
-  .checkin-cta {
-    transition: none !important;
-  }
-
+  .checkin-cta,
   .checkin-name-btn {
     transition: none !important;
   }
