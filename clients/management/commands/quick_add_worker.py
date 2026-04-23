@@ -9,7 +9,8 @@ from clients.models_extensions import WorkerAccount
 from clients.phone_utils import default_worker_pin_from_phone, find_by_normalized_phone
 
 
-class Command(BaseCommand):
+class 
+(BaseCommand):
     help = 'Quick add worker accounts for PitStop clients without existing accounts'
 
     def add_arguments(self, parser):

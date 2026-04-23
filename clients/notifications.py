@@ -240,6 +240,69 @@ def send_schedule_reminders():
     return {'sent': sent, 'skipped': skipped, 'total': assignments.count()}
 
 
+def send_open_shift_broadcast_emails(open_shift):
+    """
+    Broadcast a newly opened shift to active worker accounts via email.
+    Uses existing org email infrastructure (no third-party SMS dependency).
+    """
+    from .models_extensions import WorkerAccount
+
+    if not getattr(settings, 'OPEN_SHIFT_EMAIL_ALERTS_ENABLED', True):
+        logger.info('Open shift alerts disabled by settings; skipping shift %s', open_shift.pk)
+        return {'sent': 0, 'skipped': 0, 'total': 0}
+
+    accounts = (
+        WorkerAccount.objects.filter(is_active=True)
+        .select_related('client')
+        .order_by('client__first_name', 'client__last_name')
+    )
+
+    location = (
+        open_shift.work_site.name
+        if open_shift.work_site
+        else (open_shift.location_label or 'Mission Hiring Hall site')
+    )
+    date_label = open_shift.shift_date.strftime('%A, %b %d')
+    time_label = f"{open_shift.start_time.strftime('%I:%M %p')} - {open_shift.end_time.strftime('%I:%M %p')}"
+
+    sent = 0
+    skipped = 0
+    total = accounts.count()
+
+    for account in accounts:
+        email = (account.client.email or '').strip()
+        if not email:
+            skipped += 1
+            continue
+
+        worker_name = account.client.first_name or account.client.full_name
+        subject = f"Open shift available: {open_shift.role_title} on {open_shift.shift_date.strftime('%b %d')}"
+        notes_line = f"Notes: {open_shift.notes}\n" if open_shift.notes else ''
+        plain = (
+            f"Hi {worker_name},\n\n"
+            f"A new open shift is available.\n\n"
+            f"Role: {open_shift.role_title}\n"
+            f"Location: {location}\n"
+            f"Date: {date_label}\n"
+            f"Time: {time_label}\n"
+            f"{notes_line}\n"
+            f"Log in to the worker portal to respond:\n"
+            f"{WORKER_PORTAL_URL}\n\n"
+            f"Mission Hiring Hall\n"
+        )
+
+        if _send(subject, plain, None, email):
+            sent += 1
+        else:
+            skipped += 1
+
+    logger.info(
+        'Open shift broadcast complete for shift %s: sent=%s skipped=%s total=%s',
+        open_shift.pk, sent, skipped, total
+    )
+    return {'sent': sent, 'skipped': skipped, 'total': total}
+
+
 def check_and_send_followup_alerts(days_before=1, send_to_staff=True):
     """
     Check for case notes with upcoming or overdue follow-ups and send alerts

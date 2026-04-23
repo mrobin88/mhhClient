@@ -17,7 +17,7 @@ from .worker_views import (
     worker_shift_interests,
     staff_shift_interest_update,
 )
-from .kiosk_views import KioskCheckInLookupView, KioskCheckInSubmitView
+from .kiosk_views import KioskCheckInLookupView, KioskCheckInSubmitView, KioskDocumentUploadView
 
 router = DefaultRouter()
 router.register(r'clients', ClientViewSet)
@@ -52,4 +52,5 @@ urlpatterns = [
     # Lobby kiosk: self check-in case note (static web app -> API)
     path('kiosk/check-in/lookup/', KioskCheckInLookupView.as_view(), name='kiosk-check-in-lookup'),
     path('kiosk/check-in/submit/', KioskCheckInSubmitView.as_view(), name='kiosk-check-in-submit'),
+    path('kiosk/check-in/upload-document/', KioskDocumentUploadView.as_view(), name='kiosk-check-in-upload-document'),
 ]

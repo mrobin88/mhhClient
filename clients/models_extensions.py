@@ -203,12 +203,26 @@ class OpenShift(models.Model):
         return f"{self.role_title} — {self.shift_date}"
 
     def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        was_open = None
+        if not is_new:
+            was_open = type(self).objects.filter(pk=self.pk).values_list('is_open', flat=True).first()
+
         super().save(*args, **kwargs)
         if not self.is_open:
             ShiftCoverInterest.objects.filter(
                 open_shift=self,
                 status=ShiftCoverInterest.STATUS_PENDING,
             ).update(status=ShiftCoverInterest.STATUS_CANCELLED)
+            return
+
+        # Broadcast free, low-overhead email alerts when a shift opens/reopens.
+        if is_new or was_open is False:
+            try:
+                from .notifications import send_open_shift_broadcast_emails
+                send_open_shift_broadcast_emails(self)
+            except Exception:
+                pass
 
 
 class ShiftCoverInterest(models.Model):

@@ -14,7 +14,7 @@
           Record your arrival
         </h1>
         <p class="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto font-medium px-2">
-          Enter the phone number we have on file. Staff receives a time-stamped visit note.
+          Enter the phone number we have on file. Your check-in is securely recorded.
         </p>
       </header>
 
@@ -144,7 +144,7 @@
                   type="button"
                   class="checkin-cta w-full rounded-xl py-4 sm:py-5 px-6 font-bold uppercase tracking-[0.16em] text-sm text-white bg-mission-600 hover:bg-mission-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mission-600 disabled:opacity-45 disabled:pointer-events-none shadow-sm hover:shadow-md transition-[transform,box-shadow,background-color] duration-200 ease-out active:translate-y-px"
                   :disabled="loading || !visitReason.trim()"
-                  @click="submit"
+                  @click="submitCheckIn"
                 >
                   <span v-if="loading" class="inline-flex items-center justify-center gap-3">
                     <span
@@ -164,6 +164,111 @@
                 </button>
               </template>
 
+              <template v-else-if="step === 'uploadPrompt'">
+                <div class="text-center space-y-4 py-2">
+                  <p class="text-slate-900 font-semibold text-xl tracking-tight">Check-in recorded</p>
+                  <p class="text-base text-slate-600 leading-relaxed max-w-md mx-auto">
+                    Would you like to upload a document now?
+                  </p>
+                  <p class="text-sm text-slate-500">You can skip this and do it later with staff.</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    class="w-full rounded-xl py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-white bg-mission-600 hover:bg-mission-700 disabled:opacity-50"
+                    :disabled="loading"
+                    @click="goToUpload"
+                  >
+                    Yes, upload now
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full rounded-xl border-2 border-slate-200 py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                    :disabled="loading"
+                    @click="finishCheckIn"
+                  >
+                    No, finish
+                  </button>
+                </div>
+              </template>
+
+              <template v-else-if="step === 'upload'">
+                <p class="text-center text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
+                  Upload document
+                </p>
+                <div class="space-y-4">
+                  <div>
+                    <label for="docType" class="block text-sm font-semibold text-slate-700 mb-2">Document type</label>
+                    <select
+                      id="docType"
+                      v-model="uploadDocType"
+                      class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-800"
+                    >
+                      <option v-for="opt in docTypeOptions" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label for="docTitle" class="block text-sm font-semibold text-slate-700 mb-2">Document title</label>
+                    <input
+                      id="docTitle"
+                      v-model="uploadTitle"
+                      type="text"
+                      class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-800"
+                      placeholder="Example: Driver License, Resume, Diploma"
+                    />
+                  </div>
+
+                  <div>
+                    <label for="docFile" class="block text-sm font-semibold text-slate-700 mb-2">Choose file</label>
+                    <input
+                      id="docFile"
+                      type="file"
+                      class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-700 bg-white"
+                      @change="onFileChange"
+                    />
+                    <p class="mt-2 text-xs text-slate-500">Accepted by device: PDF, image, Word, or related file types.</p>
+                  </div>
+
+                  <div>
+                    <label for="docNotes" class="block text-sm font-semibold text-slate-700 mb-2">Notes (optional)</label>
+                    <textarea
+                      id="docNotes"
+                      v-model="uploadNotes"
+                      rows="3"
+                      class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-800"
+                      placeholder="Optional notes about this document."
+                    />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    class="w-full rounded-xl py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-white bg-mission-600 hover:bg-mission-700 disabled:opacity-45"
+                    :disabled="loading || !uploadFile"
+                    @click="submitUpload"
+                  >
+                    <span v-if="loading">Uploading</span>
+                    <span v-else>Upload document</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full rounded-xl border-2 border-slate-200 py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                    :disabled="loading"
+                    @click="finishCheckIn"
+                  >
+                    Finish check-in
+                  </button>
+                </div>
+
+                <p v-if="uploadedCount > 0" class="text-center text-sm text-emerald-700 font-medium">
+                  {{ uploadedCount }} document{{ uploadedCount > 1 ? 's' : '' }} uploaded successfully.
+                </p>
+              </template>
+
               <template v-else-if="step === 'done'">
                 <div class="text-center space-y-4 py-3">
                   <div
@@ -174,9 +279,9 @@
                       <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <p class="text-slate-900 font-semibold text-xl tracking-tight">Check-in recorded</p>
+                  <p class="text-slate-900 font-semibold text-xl tracking-tight">All set</p>
                   <p class="text-base text-slate-600 leading-relaxed max-w-md mx-auto">
-                    Staff can review your visit note in the case file.
+                    Thank you. Your information has been received.
                   </p>
                   <p v-if="savedAt" class="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">
                     {{ savedAt }}
@@ -206,7 +311,7 @@
         >
           Client registration
         </RouterLink>
-        — this kiosk only adds a note for an existing profile.
+        — this kiosk is for returning clients.
       </p>
     </div>
   </div>
@@ -217,8 +322,9 @@ import { computed, ref } from 'vue'
 import { getApiUrl } from '../config/api'
 
 type ClientRow = { id: number; first_name: string; last_name: string }
+type Step = 'phone' | 'pick' | 'reason' | 'uploadPrompt' | 'upload' | 'done'
 
-const step = ref<'phone' | 'pick' | 'reason' | 'done'>('phone')
+const step = ref<Step>('phone')
 const phone = ref('')
 const clients = ref<ClientRow[]>([])
 const selected = ref<ClientRow | null>(null)
@@ -228,13 +334,35 @@ const message = ref('')
 const messageKind = ref<'err' | 'ok'>('err')
 const savedAt = ref('')
 
+const uploadDocType = ref('other')
+const uploadTitle = ref('')
+const uploadNotes = ref('')
+const uploadFile = ref<File | null>(null)
+const uploadedCount = ref(0)
+
+const docTypeOptions = [
+  { value: 'resume', label: 'Resume' },
+  { value: 'sf_residency', label: 'Proof of SF Residency' },
+  { value: 'hs_diploma', label: 'High School Diploma / GED' },
+  { value: 'id', label: 'Government ID' },
+  { value: 'photo_release', label: 'Photo Release Form' },
+  { value: 'intake', label: 'Intake Form' },
+  { value: 'consent', label: 'Consent Form' },
+  { value: 'certificate', label: 'Certificate / Credential' },
+  { value: 'reference', label: 'Reference Letter' },
+  { value: 'other', label: 'Other' },
+]
+
 const API_LOOKUP = getApiUrl('/api/kiosk/check-in/lookup/')
 const API_SUBMIT = getApiUrl('/api/kiosk/check-in/submit/')
+const API_UPLOAD_DOC = getApiUrl('/api/kiosk/check-in/upload-document/')
 
 const stepTitle = computed(() => {
   if (step.value === 'phone') return 'Identity'
   if (step.value === 'pick') return 'Confirmation'
   if (step.value === 'reason') return 'Visit log'
+  if (step.value === 'uploadPrompt') return 'Optional documents'
+  if (step.value === 'upload') return 'Document upload'
   return 'Complete'
 })
 
@@ -300,7 +428,7 @@ function selectClient(c: ClientRow) {
   clearMessage()
 }
 
-async function submit() {
+async function submitCheckIn() {
   clearMessage()
   if (!selected.value) return
   loading.value = true
@@ -324,10 +452,66 @@ async function submit() {
       typeof data.case_note?.formatted_timestamp === 'string'
         ? data.case_note.formatted_timestamp
         : new Date().toLocaleString()
-    step.value = 'done'
+    step.value = 'uploadPrompt'
+    uploadTitle.value = ''
+    uploadNotes.value = ''
+    uploadDocType.value = 'other'
+    uploadFile.value = null
+    uploadedCount.value = 0
   } finally {
     loading.value = false
   }
+}
+
+function goToUpload() {
+  clearMessage()
+  step.value = 'upload'
+}
+
+function onFileChange(event: Event) {
+  const input = event.target as HTMLInputElement | null
+  uploadFile.value = input?.files?.[0] ?? null
+}
+
+async function submitUpload() {
+  clearMessage()
+  if (!selected.value || !uploadFile.value) return
+
+  loading.value = true
+  try {
+    const body = new FormData()
+    body.append('client_id', String(selected.value.id))
+    body.append('phone', phone.value.trim())
+    body.append('doc_type', uploadDocType.value)
+    body.append('title', uploadTitle.value.trim())
+    body.append('notes', uploadNotes.value.trim())
+    body.append('file', uploadFile.value)
+
+    const res = await fetch(API_UPLOAD_DOC, {
+      method: 'POST',
+      body,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      messageKind.value = 'err'
+      message.value = typeof data.detail === 'string' ? data.detail : 'Upload failed. Please try again.'
+      return
+    }
+
+    uploadedCount.value += 1
+    uploadFile.value = null
+    uploadTitle.value = ''
+    uploadNotes.value = ''
+    messageKind.value = 'ok'
+    message.value = 'Document uploaded successfully.'
+  } finally {
+    loading.value = false
+  }
+}
+
+function finishCheckIn() {
+  clearMessage()
+  step.value = 'done'
 }
 
 function resetFlow() {
@@ -337,12 +521,16 @@ function resetFlow() {
   selected.value = null
   visitReason.value = ''
   savedAt.value = ''
+  uploadDocType.value = 'other'
+  uploadTitle.value = ''
+  uploadNotes.value = ''
+  uploadFile.value = null
+  uploadedCount.value = 0
   clearMessage()
 }
 </script>
 
 <style scoped>
-/* Light shell — aligned with intake portal (soft teal + white), no dark fills */
 .checkin-shell {
   background: linear-gradient(to bottom right, #f0fdfa, #e2f8f4, #ccfbf1);
 }
