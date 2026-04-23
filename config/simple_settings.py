@@ -4,6 +4,7 @@ Simple Django settings without django-environ dependency
 
 import os
 from pathlib import Path
+import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,6 +14,13 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key-change-in-pro
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+
+if not DEBUG and SECRET_KEY == 'django-insecure-fallback-key-change-in-production':
+    logging.getLogger('django.security').warning(
+        'Using fallback SECRET_KEY in production mode. Set SECRET_KEY env as soon as possible.'
+    )
+    if os.getenv('REQUIRE_STRONG_SECRET_KEY', 'false').lower() == 'true':
+        raise RuntimeError('SECRET_KEY must be configured in production.')
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,169.254.130.2,mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net').split(',')
 
@@ -227,13 +235,24 @@ ADMIN_BASE_URL = os.getenv('ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzg
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
-    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        ['rest_framework.authentication.SessionAuthentication']
+        + (
+            ['rest_framework.authentication.BasicAuthentication']
+            if os.getenv('ENABLE_BASIC_AUTH', 'true').lower() == 'true'
+            else []
+        )
+    ),
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
+    'DEFAULT_THROTTLE_RATES': {
+        # Public endpoints only (applied via explicit throttle classes)
+        'public_client_create': os.getenv('THROTTLE_PUBLIC_CLIENT_CREATE', '20/hour'),
+        'kiosk_lookup': os.getenv('THROTTLE_KIOSK_LOOKUP', '120/hour'),
+        'kiosk_submit': os.getenv('THROTTLE_KIOSK_SUBMIT', '40/hour'),
+        'kiosk_upload': os.getenv('THROTTLE_KIOSK_UPLOAD', '30/hour'),
+    },
 }
 
 # Admin site customization moved to users.apps.UsersConfig.ready() to avoid AppRegistryNotReady

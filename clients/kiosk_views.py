@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from .models import CaseNote, Client, Document
 from .phone_utils import find_all_by_normalized_phone, phone_digits
 from .serializers import CaseNoteSerializer
+from .throttles import KioskLookupThrottle, KioskSubmitThrottle, KioskUploadThrottle
 
 KIOSK_NOTE_AUTHOR = 'Self check-in (kiosk)'
 KIOSK_DOC_UPLOADER = 'Self upload (kiosk)'
@@ -40,6 +41,7 @@ class KioskCheckInLookupView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [KioskLookupThrottle]
 
     def post(self, request):
         phone = (request.data.get('phone') or '').strip()
@@ -68,6 +70,7 @@ class KioskCheckInSubmitView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [KioskSubmitThrottle]
 
     def post(self, request):
         phone = (request.data.get('phone') or '').strip()
@@ -107,6 +110,7 @@ class KioskDocumentUploadView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = [KioskUploadThrottle]
 
     def post(self, request):
         phone = (request.data.get('phone') or '').strip()
@@ -118,6 +122,9 @@ class KioskDocumentUploadView(APIView):
         upload = request.FILES.get('file')
         if not upload:
             return Response({'detail': 'Select a file to upload.'}, status=status.HTTP_400_BAD_REQUEST)
+        max_upload_bytes = 15 * 1024 * 1024  # 15MB safe kiosk limit
+        if getattr(upload, 'size', 0) > max_upload_bytes:
+            return Response({'detail': 'File is too large. Max size is 15MB.'}, status=status.HTTP_400_BAD_REQUEST)
 
         doc_type = (request.data.get('doc_type') or 'other').strip()
         valid_doc_types = {v for v, _ in Document.DOC_TYPE_CHOICES}

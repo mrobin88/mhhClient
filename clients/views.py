@@ -15,11 +15,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from rest_framework.throttling import ScopedRateThrottle
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from .models import Client, CaseNote, Document, PitStopApplication
 from .serializers import ClientSerializer, CaseNoteSerializer, PitStopApplicationSerializer
+from .throttles import PublicClientCreateThrottle
 from .storage import generate_document_sas_url
 import logging
 
@@ -33,6 +35,7 @@ class ClientViewSet(viewsets.ModelViewSet):
     serializer_class = ClientSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [SessionAuthentication, BasicAuthentication]
+    throttle_classes = [ScopedRateThrottle]
 
     def get_permissions(self):
         # Allow public client registration (create); require auth otherwise
@@ -45,6 +48,12 @@ class ClientViewSet(viewsets.ModelViewSet):
         if getattr(self, 'action', None) == 'create':
             return []
         return super().get_authenticators()
+
+    def get_throttles(self):
+        # Tighten only the public create path; keep staff flows unaffected.
+        if getattr(self, 'action', None) == 'create':
+            return [PublicClientCreateThrottle()]
+        return super().get_throttles()
 
     def create(self, request, *args, **kwargs):
         """
