@@ -240,6 +240,42 @@ def send_schedule_reminders():
     return {'sent': sent, 'skipped': skipped, 'total': assignments.count()}
 
 
+def send_pitstop_application_alert(application):
+    """
+    Send alert email when a new Pit Stop application is submitted.
+    Uses PITSTOP_APPLICATION_ALERT_EMAILS env (comma-separated).
+    """
+    recipients = getattr(settings, 'PITSTOP_APPLICATION_ALERT_EMAILS', '')
+    if isinstance(recipients, str):
+        recipients = [r.strip() for r in recipients.split(',') if r.strip()]
+    if not recipients:
+        logger.info('No PITSTOP_APPLICATION_ALERT_EMAILS configured; skipping alert for application %s', application.pk)
+        return {'sent': 0, 'total': 0}
+
+    client = application.client
+    day_count = len(application.available_days_list)
+    subject = f"New Pit Stop Application: {client.full_name}"
+    plain = (
+        f"New Pit Stop application submitted.\n\n"
+        f"Client: {client.full_name}\n"
+        f"Phone: {client.phone or '-'}\n"
+        f"Email: {client.email or '-'}\n"
+        f"Position: {application.position_applied_for}\n"
+        f"Start Date: {application.available_start_date or '-'}\n"
+        f"Employment Desired: {', '.join(application.employment_desired or []) or '-'}\n"
+        f"Days Available: {day_count}\n"
+        f"Submitted At: {application.created_at}\n\n"
+        f"Review in admin:\n"
+        f"{_get_admin_base_url()}/admin/clients/pitstopapplication/{application.pk}/change/\n"
+    )
+
+    sent = 0
+    for recipient in recipients:
+        if _send(subject, plain, None, recipient):
+            sent += 1
+    return {'sent': sent, 'total': len(recipients)}
+
+
 def send_open_shift_broadcast_emails(open_shift):
     """
     Broadcast a newly opened shift to active worker accounts via email.

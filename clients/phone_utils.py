@@ -15,9 +15,26 @@ def phone_digits(phone) -> str:
     return re.sub(r'\D', '', str(phone))
 
 
+def normalize_login_phone(phone) -> str:
+    """
+    Normalize worker login phone to a predictable digits-only format.
+    - Strips common extension markers (ext, x, # and trailing digits)
+    - Converts +1XXXXXXXXXX / 1XXXXXXXXXX to 10-digit US format
+    """
+    if phone is None:
+        return ''
+    raw = str(phone).strip()
+    # Remove extension chunks before digit extraction.
+    raw = re.split(r'(?i)\b(?:ext\.?|x|#)\b', raw)[0]
+    d = phone_digits(raw)
+    if len(d) == 11 and d.startswith('1'):
+        d = d[1:]
+    return d
+
+
 def default_worker_pin_from_phone(phone) -> str:
     """Last four digits of the phone number (not the last four characters)."""
-    d = phone_digits(phone)
+    d = normalize_login_phone(phone)
     if len(d) >= 4:
         return d[-4:]
     if d:
@@ -30,7 +47,7 @@ def find_by_normalized_phone(queryset, phone_raw: str):
     Find a model instance whose `phone` field matches the given input when
     both are reduced to digits-only (plus exact-match fallbacks).
     """
-    digits = phone_digits(phone_raw)
+    digits = normalize_login_phone(phone_raw)
     if not digits:
         return None
 
@@ -52,7 +69,7 @@ def find_by_normalized_phone(queryset, phone_raw: str):
             return hit
 
     for obj in queryset.iterator(chunk_size=500):
-        if phone_digits(obj.phone) == digits:
+        if normalize_login_phone(obj.phone) == digits:
             return obj
     return None
 
@@ -62,7 +79,7 @@ def find_all_by_normalized_phone(queryset, phone_raw: str):
     All rows whose phone matches phone_raw when compared as digits-only
     (same rules as find_by_normalized_phone, but returns every match).
     """
-    digits = phone_digits(phone_raw)
+    digits = normalize_login_phone(phone_raw)
     if not digits:
         return queryset.none()
 
@@ -85,7 +102,7 @@ def find_all_by_normalized_phone(queryset, phone_raw: str):
 
     pks = []
     for obj in queryset.iterator(chunk_size=500):
-        if phone_digits(obj.phone) == digits:
+        if normalize_login_phone(obj.phone) == digits:
             pks.append(obj.pk)
     if not pks:
         return queryset.none()

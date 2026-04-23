@@ -26,116 +26,7 @@ def _staff_aliases(user):
 
 
 def _client_metrics_snapshot():
-    clients = Client.objects.all()
-    today = date.today()
-
-    def _age_bucket(dob):
-        if not dob:
-            return 'unknown'
-        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-        if age <= 17:
-            return 'youth_17_under'
-        if 18 <= age <= 24:
-            return 'tay_18_24'
-        if 25 <= age <= 54:
-            return 'adult_25_54'
-        return 'older_55_plus'
-
-    metrics = {
-        'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'total_clients': clients.count(),
-        'active_clients': clients.filter(status='active').count(),
-        'program_counts': {},
-        'gender_counts': {
-            'Female': 0,
-            'Male': 0,
-            'Genderqueer or Gender Non-binary': 0,
-            'Not listed, specified': 0,
-            'Declined to state': 0,
-            'Data Unknown or Unavailable.': 0,
-        },
-        'age_counts': {
-            'Youth (17 and under)': 0,
-            'TAY (age 18 to 24)': 0,
-            'Adults (age 25 to 54)': 0,
-            'Older Adults (age 55 and over)': 0,
-            'Declined to state': 0,
-            'Data Unknown or Unavailable.': 0,
-        },
-        'race_counts': {
-            'American Indian or Alaska Native, alone': 0,
-            'Asian, alone': 0,
-            'Black or African-American, alone': 0,
-            'Hispanic, Latino, or Spanish': 0,
-            'Middle Eastern or North African, alone': 0,
-            'Native Hawaiian or Other Pacific Islander, alone': 0,
-            'White, alone': 0,
-            'Other Race, alone': 0,
-            'Two or More Races': 0,
-            'Declined to state': 0,
-            'Data Unknown or Unavailable.': 0,
-        },
-        'zip_counts': {},
-    }
-
-    # Training/program interest snapshot
-    for key, label in Client.TRAINING_INTEREST_CHOICES:
-        metrics['program_counts'][label] = clients.filter(training_interest=key).count()
-
-    for c in clients.only('gender', 'dob', 'demographic_info', 'zip_code'):
-        # Gender
-        if c.gender == 'F':
-            metrics['gender_counts']['Female'] += 1
-        elif c.gender == 'M':
-            metrics['gender_counts']['Male'] += 1
-        elif c.gender == 'NB':
-            metrics['gender_counts']['Genderqueer or Gender Non-binary'] += 1
-        elif c.gender == 'O':
-            metrics['gender_counts']['Not listed, specified'] += 1
-        elif c.gender == 'P':
-            metrics['gender_counts']['Declined to state'] += 1
-        else:
-            metrics['gender_counts']['Data Unknown or Unavailable.'] += 1
-
-        # Age
-        age_bucket = _age_bucket(c.dob)
-        if age_bucket == 'youth_17_under':
-            metrics['age_counts']['Youth (17 and under)'] += 1
-        elif age_bucket == 'tay_18_24':
-            metrics['age_counts']['TAY (age 18 to 24)'] += 1
-        elif age_bucket == 'adult_25_54':
-            metrics['age_counts']['Adults (age 25 to 54)'] += 1
-        elif age_bucket == 'older_55_plus':
-            metrics['age_counts']['Older Adults (age 55 and over)'] += 1
-        else:
-            metrics['age_counts']['Data Unknown or Unavailable.'] += 1
-
-        # Demographic mapping
-        if c.demographic_info == 'native':
-            metrics['race_counts']['American Indian or Alaska Native, alone'] += 1
-        elif c.demographic_info == 'asian':
-            metrics['race_counts']['Asian, alone'] += 1
-        elif c.demographic_info == 'black':
-            metrics['race_counts']['Black or African-American, alone'] += 1
-        elif c.demographic_info == 'latinx':
-            metrics['race_counts']['Hispanic, Latino, or Spanish'] += 1
-        elif c.demographic_info == 'white':
-            metrics['race_counts']['White, alone'] += 1
-        elif c.demographic_info == 'mixed':
-            metrics['race_counts']['Two or More Races'] += 1
-        elif c.demographic_info == 'prefer_not':
-            metrics['race_counts']['Declined to state'] += 1
-        elif c.demographic_info == 'other':
-            metrics['race_counts']['Other Race, alone'] += 1
-        else:
-            metrics['race_counts']['Data Unknown or Unavailable.'] += 1
-
-        # Zip code
-        zip_code = (c.zip_code or '').strip()
-        if zip_code:
-            metrics['zip_counts'][zip_code] = metrics['zip_counts'].get(zip_code, 0) + 1
-
-    return metrics
+    return _client_metrics_snapshot_for_queryset(Client.objects.all())
 
 
 class AvailableWorkersCSVView(LoginRequiredMixin, View):
@@ -239,7 +130,24 @@ class WorkforceInventoryPackageView(LoginRequiredMixin, View):
     """
 
     def get(self, request):
-        metrics = _client_metrics_snapshot()
+        start_date_str = (request.GET.get('start_date') or '').strip()
+        end_date_str = (request.GET.get('end_date') or '').strip()
+        clients = Client.objects.all()
+
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                clients = clients.filter(created_at__date__gte=start_date)
+            except ValueError:
+                return HttpResponse('Invalid start_date. Use YYYY-MM-DD.', status=400)
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                clients = clients.filter(created_at__date__lte=end_date)
+            except ValueError:
+                return HttpResponse('Invalid end_date. Use YYYY-MM-DD.', status=400)
+
+        metrics = _client_metrics_snapshot_for_queryset(clients)
 
         # 1) Main prefill CSV (easy to copy into FY workbook)
         prefill_io = io.StringIO()
@@ -311,6 +219,116 @@ th {{ background: #f1f5f9; text-align: left; }}
         response = HttpResponse(out.getvalue(), content_type='application/zip')
         response['Content-Disposition'] = f'attachment; filename="workforce_inventory_package_{date.today().isoformat()}.zip"'
         return response
+
+
+def _client_metrics_snapshot_for_queryset(clients):
+    """
+    Same metric rollups as _client_metrics_snapshot(), but for a filtered queryset.
+    """
+    today = date.today()
+
+    def _age_bucket(dob):
+        if not dob:
+            return 'unknown'
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        if age <= 17:
+            return 'youth_17_under'
+        if 18 <= age <= 24:
+            return 'tay_18_24'
+        if 25 <= age <= 54:
+            return 'adult_25_54'
+        return 'older_55_plus'
+
+    metrics = {
+        'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'total_clients': clients.count(),
+        'active_clients': clients.filter(status='active').count(),
+        'program_counts': {},
+        'gender_counts': {
+            'Female': 0,
+            'Male': 0,
+            'Genderqueer or Gender Non-binary': 0,
+            'Not listed, specified': 0,
+            'Declined to state': 0,
+            'Data Unknown or Unavailable.': 0,
+        },
+        'age_counts': {
+            'Youth (17 and under)': 0,
+            'TAY (age 18 to 24)': 0,
+            'Adults (age 25 to 54)': 0,
+            'Older Adults (age 55 and over)': 0,
+            'Declined to state': 0,
+            'Data Unknown or Unavailable.': 0,
+        },
+        'race_counts': {
+            'American Indian or Alaska Native, alone': 0,
+            'Asian, alone': 0,
+            'Black or African-American, alone': 0,
+            'Hispanic, Latino, or Spanish': 0,
+            'Middle Eastern or North African, alone': 0,
+            'Native Hawaiian or Other Pacific Islander, alone': 0,
+            'White, alone': 0,
+            'Other Race, alone': 0,
+            'Two or More Races': 0,
+            'Declined to state': 0,
+            'Data Unknown or Unavailable.': 0,
+        },
+        'zip_counts': {},
+    }
+
+    for key, label in Client.TRAINING_INTEREST_CHOICES:
+        metrics['program_counts'][label] = clients.filter(training_interest=key).count()
+
+    for c in clients.only('gender', 'dob', 'demographic_info', 'zip_code'):
+        if c.gender == 'F':
+            metrics['gender_counts']['Female'] += 1
+        elif c.gender == 'M':
+            metrics['gender_counts']['Male'] += 1
+        elif c.gender == 'NB':
+            metrics['gender_counts']['Genderqueer or Gender Non-binary'] += 1
+        elif c.gender == 'O':
+            metrics['gender_counts']['Not listed, specified'] += 1
+        elif c.gender == 'P':
+            metrics['gender_counts']['Declined to state'] += 1
+        else:
+            metrics['gender_counts']['Data Unknown or Unavailable.'] += 1
+
+        age_bucket = _age_bucket(c.dob)
+        if age_bucket == 'youth_17_under':
+            metrics['age_counts']['Youth (17 and under)'] += 1
+        elif age_bucket == 'tay_18_24':
+            metrics['age_counts']['TAY (age 18 to 24)'] += 1
+        elif age_bucket == 'adult_25_54':
+            metrics['age_counts']['Adults (age 25 to 54)'] += 1
+        elif age_bucket == 'older_55_plus':
+            metrics['age_counts']['Older Adults (age 55 and over)'] += 1
+        else:
+            metrics['age_counts']['Data Unknown or Unavailable.'] += 1
+
+        if c.demographic_info == 'native':
+            metrics['race_counts']['American Indian or Alaska Native, alone'] += 1
+        elif c.demographic_info == 'asian':
+            metrics['race_counts']['Asian, alone'] += 1
+        elif c.demographic_info == 'black':
+            metrics['race_counts']['Black or African-American, alone'] += 1
+        elif c.demographic_info == 'latinx':
+            metrics['race_counts']['Hispanic, Latino, or Spanish'] += 1
+        elif c.demographic_info == 'white':
+            metrics['race_counts']['White, alone'] += 1
+        elif c.demographic_info == 'mixed':
+            metrics['race_counts']['Two or More Races'] += 1
+        elif c.demographic_info == 'prefer_not':
+            metrics['race_counts']['Declined to state'] += 1
+        elif c.demographic_info == 'other':
+            metrics['race_counts']['Other Race, alone'] += 1
+        else:
+            metrics['race_counts']['Data Unknown or Unavailable.'] += 1
+
+        zip_code = (c.zip_code or '').strip()
+        if zip_code:
+            metrics['zip_counts'][zip_code] = metrics['zip_counts'].get(zip_code, 0) + 1
+
+    return metrics
 
 
 class WorkAssignmentsReportCSVView(LoginRequiredMixin, View):

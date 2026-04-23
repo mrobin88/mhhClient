@@ -324,11 +324,11 @@ class WorkerAccount(models.Model):
 
     def save(self, *args, **kwargs):
         """One flag for portal access; store phone as digits so login matches mobile keyboards."""
-        from .phone_utils import phone_digits
+        from .phone_utils import normalize_login_phone
 
         self.is_approved = self.is_active
         if self.phone:
-            d = phone_digits(self.phone)
+            d = normalize_login_phone(self.phone)
             if d:
                 self.phone = d
         super().save(*args, **kwargs)

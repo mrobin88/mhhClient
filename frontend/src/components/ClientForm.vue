@@ -148,102 +148,7 @@
               </p>
             </div>
 
-            <!-- Pit Stop Specific Fields -->
-            <div v-if="form.training_interest === 'pit_stop'" class="space-y-6 p-6 border rounded-xl bg-slate-50">
-              <h4 class="text-xl font-semibold text-slate-800">Pit Stop Application</h4>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label class="form-label">Are you legally able to work in the U.S.?</label>
-                  <select v-model="pitstop.can_work_us" class="form-select">
-                    <option :value="true">Yes</option>
-                    <option :value="false">No</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="form-label">Are you a veteran?</label>
-                  <select v-model="pitstop.is_veteran" class="form-select">
-                    <option :value="false">No</option>
-                    <option :value="true">Yes</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="form-label">Position you are applying for</label>
-                  <input v-model="pitstop.position_applied_for" type="text" class="form-input" placeholder="Pit Stop Attendant" />
-                </div>
-                <div>
-                  <label class="form-label">Available Start Date</label>
-                  <input v-model="pitstop.available_start_date" type="date" class="form-input" />
-                </div>
-                <div>
-                  <label class="form-label">Employment desired</label>
-                  <div class="flex gap-4">
-                    <label class="inline-flex items-center"><input type="checkbox" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
-                    <label class="inline-flex items-center"><input type="checkbox" value="part_time" v-model="pitstop.employment_desired" class="mr-2"/> Part-time</label>
-                    <label class="inline-flex items-center"><input type="checkbox" value="relief_list" v-model="pitstop.employment_desired" class="mr-2"/> Relief List</label>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <div class="flex items-center justify-between mb-3">
-                  <div>
-                    <label class="form-label">Weekly Schedule Availability</label>
-                    <p class="text-xs text-slate-600">Select all available time slots</p>
-                  </div>
-                  <button
-                    type="button"
-                    @click="selectAllTimeSlots"
-                    class="px-4 py-2 text-sm font-medium text-mission-700 bg-mission-50 border border-mission-200 rounded-lg hover:bg-mission-100 hover:border-mission-300 transition-colors"
-                  >
-                    ✓ Open Availability
-                  </button>
-                </div>
-                <div class="overflow-x-auto">
-                  <div class="min-w-[640px] space-y-2">
-                    <div v-for="day in days" :key="day" class="bg-white p-2.5 rounded-lg border border-slate-200">
-                      <div class="grid grid-cols-[100px_1fr] gap-3 items-center">
-                        <span class="text-sm font-semibold text-slate-700">{{ day }}</span>
-                        <div class="grid grid-cols-3 gap-2">
-                          <button
-                            v-for="shift in shifts"
-                            :key="shift.value"
-                            type="button"
-                            @click="toggleTimeForDay(day, shift.value)"
-                            :class="[
-                              'time-slot-compact',
-                              isTimeSelectedForDay(day, shift.value) ? 'time-slot-active' : 'time-slot-inactive'
-                            ]"
-                            :title="shift.label"
-                          >
-                            <span class="font-semibold">{{ shift.value }}</span>
-                            <span class="text-[10px] block leading-tight opacity-75">{{ getShiftLabel(shift.value) }}</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label class="form-label">Employment History (Last Job)</label>
-                <div class="p-4 bg-white rounded border space-y-3 mb-3">
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input v-model="pitstop.employment_history[0].company" class="form-input" placeholder="Company name" />
-                    <input v-model="pitstop.employment_history[0].title" class="form-input" placeholder="Job title/role" />
-                    <input v-model="pitstop.employment_history[0].city" class="form-input" placeholder="City" />
-                    <input v-model="pitstop.employment_history[0].state" class="form-input" placeholder="State" />
-                    <input v-model="pitstop.employment_history[0].manager" class="form-input" placeholder="Manager name" />
-                    <input v-model="pitstop.employment_history[0].phone" class="form-input" placeholder="Manager phone" />
-                    <input v-model="pitstop.employment_history[0].start_date" type="date" class="form-input" />
-                    <input v-model="pitstop.employment_history[0].end_date" type="date" class="form-input" />
-                  </div>
-                  <textarea v-model="pitstop.employment_history[0].responsibilities" class="form-input" rows="2" placeholder="Responsibilities"></textarea>
-                </div>
-              </div>
-              <div>
-                <label class="form-label">Education History</label>
-                <textarea v-model="pitstop.education_history" class="form-input" rows="3" placeholder="Schools, certifications, etc."></textarea>
-              </div>
-            </div>
+            <!-- Pit Stop section is shown later, after main application fields -->
           </div>
 
           <!-- Personal Information Section -->
@@ -291,13 +196,10 @@
               </div>
 
               <div class="space-y-3">
-                <label class="block text-sm font-semibold text-slate-700">
-                  <span class="text-mission-600">*</span> Date of Birth
-                </label>
+                <label class="block text-sm font-semibold text-slate-700">Date of Birth</label>
                 <input 
                   v-model="form.dob" 
                   type="date" 
-                  required 
                   class="form-input"
                 />
                 <p class="text-xs text-slate-500">mm/dd/yyyy</p>
@@ -598,6 +500,103 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Pit Stop Specific Fields (shown after main application) -->
+          <div v-if="form.training_interest === 'pit_stop'" class="space-y-6 p-6 border rounded-xl bg-slate-50">
+            <h4 class="text-xl font-semibold text-slate-800">Pit Stop Application</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="form-label">Are you legally able to work in the U.S.?</label>
+                <select v-model="pitstop.can_work_us" class="form-select">
+                  <option :value="true">Yes</option>
+                  <option :value="false">No</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Are you a veteran?</label>
+                <select v-model="pitstop.is_veteran" class="form-select">
+                  <option :value="false">No</option>
+                  <option :value="true">Yes</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Position you are applying for</label>
+                <input v-model="pitstop.position_applied_for" type="text" class="form-input" placeholder="Pit Stop Attendant" />
+              </div>
+              <div>
+                <label class="form-label">Available Start Date</label>
+                <input v-model="pitstop.available_start_date" type="date" class="form-input" />
+              </div>
+              <div>
+                <label class="form-label">Employment desired</label>
+                <div class="flex gap-4">
+                  <label class="inline-flex items-center"><input type="checkbox" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
+                  <label class="inline-flex items-center"><input type="checkbox" value="part_time" v-model="pitstop.employment_desired" class="mr-2"/> Part-time</label>
+                  <label class="inline-flex items-center"><input type="checkbox" value="relief_list" v-model="pitstop.employment_desired" class="mr-2"/> Relief List</label>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <label class="form-label">Weekly Schedule Availability</label>
+                  <p class="text-xs text-slate-600">Select all available time slots</p>
+                </div>
+                <button
+                  type="button"
+                  @click="selectAllTimeSlots"
+                  class="px-4 py-2 text-sm font-medium text-mission-700 bg-mission-50 border border-mission-200 rounded-lg hover:bg-mission-100 hover:border-mission-300 transition-colors"
+                >
+                  ✓ Open Availability
+                </button>
+              </div>
+              <div class="overflow-x-auto">
+                <div class="min-w-[640px] space-y-2">
+                  <div v-for="day in days" :key="day" class="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div class="grid grid-cols-[100px_1fr] gap-3 items-center">
+                      <span class="text-sm font-semibold text-slate-700">{{ day }}</span>
+                      <div class="grid grid-cols-3 gap-2">
+                        <button
+                          v-for="shift in shifts"
+                          :key="shift.value"
+                          type="button"
+                          @click="toggleTimeForDay(day, shift.value)"
+                          :class="[
+                            'time-slot-compact',
+                            isTimeSelectedForDay(day, shift.value) ? 'time-slot-active' : 'time-slot-inactive'
+                          ]"
+                          :title="shift.label"
+                        >
+                          <span class="font-semibold">{{ shift.value }}</span>
+                          <span class="text-[10px] block leading-tight opacity-75">{{ getShiftLabel(shift.value) }}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Employment History (Last Job)</label>
+              <div class="p-4 bg-white rounded border space-y-3 mb-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input v-model="pitstop.employment_history[0].company" class="form-input" placeholder="Company name" />
+                  <input v-model="pitstop.employment_history[0].title" class="form-input" placeholder="Job title/role" />
+                  <input v-model="pitstop.employment_history[0].city" class="form-input" placeholder="City" />
+                  <input v-model="pitstop.employment_history[0].state" class="form-input" placeholder="State" />
+                  <input v-model="pitstop.employment_history[0].manager" class="form-input" placeholder="Manager name" />
+                  <input v-model="pitstop.employment_history[0].phone" class="form-input" placeholder="Manager phone" />
+                  <input v-model="pitstop.employment_history[0].start_date" type="date" class="form-input" />
+                  <input v-model="pitstop.employment_history[0].end_date" type="date" class="form-input" />
+                </div>
+                <textarea v-model="pitstop.employment_history[0].responsibilities" class="form-input" rows="2" placeholder="Responsibilities"></textarea>
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Education History</label>
+              <textarea v-model="pitstop.education_history" class="form-input" rows="3" placeholder="Schools, certifications, etc."></textarea>
             </div>
           </div>
 

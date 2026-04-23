@@ -82,7 +82,7 @@ class Client(models.Model):
     first_name = models.CharField(max_length=50)
     middle_name = models.CharField(max_length=50, blank=True, null=True)
     last_name = models.CharField(max_length=50)
-    dob = models.DateField()
+    dob = models.DateField(blank=True, null=True)
     ssn = models.CharField(max_length=11, blank=True, null=True)
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True, null=True)
@@ -158,6 +158,8 @@ class Client(models.Model):
     
     @property
     def age(self):
+        if not self.dob:
+            return None
         from datetime import date
         today = date.today()
         return today.year - self.dob.year - ((today.month, today.day) < (self.dob.month, self.dob.day))

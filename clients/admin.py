@@ -22,7 +22,7 @@ from .models_extensions import (
     OpenShift,
     ShiftCoverInterest,
 )
-from .phone_utils import default_worker_pin_from_phone
+from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 
 
 class CaseNoteInline(admin.TabularInline):
@@ -562,13 +562,20 @@ class ClientAdmin(admin.ModelAdmin):
             if not client.phone:
                 errors.append(f'{client.full_name}: No phone number')
                 continue
+            normalized_phone = normalize_login_phone(client.phone)
+            if len(normalized_phone) < 10:
+                errors.append(
+                    f'{client.full_name}: Invalid phone "{client.phone}". '
+                    'Needs a valid 10-digit number for worker login.'
+                )
+                continue
             
             try:
-                pin = default_worker_pin_from_phone(client.phone)
+                pin = default_worker_pin_from_phone(normalized_phone)
 
                 account = WorkerAccount(
                     client=client,
-                    phone=client.phone,
+                    phone=normalized_phone,
                     is_active=True,
                     created_by=request.user.username,
                 )

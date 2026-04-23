@@ -228,6 +228,9 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # Case note alert email (fallback if staff member email not found)
 CASE_NOTE_ALERT_EMAIL = os.getenv('CASE_NOTE_ALERT_EMAIL', None)
 
+# Pit Stop application submission alerts (comma-separated recipients)
+PITSTOP_APPLICATION_ALERT_EMAILS = os.getenv('PITSTOP_APPLICATION_ALERT_EMAILS', '')
+
 # Admin base URL for email links
 ADMIN_BASE_URL = os.getenv('ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net')
 

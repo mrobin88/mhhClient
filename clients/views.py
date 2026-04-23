@@ -356,17 +356,90 @@ def client_dashboard_stats(request):
 class PitStopApplicationViewSet(viewsets.ModelViewSet):
     queryset = PitStopApplication.objects.select_related('client').all()
     serializer_class = PitStopApplicationSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['employment_desired', 'can_work_us', 'is_veteran']
     search_fields = ['client__first_name', 'client__last_name', 'position_applied_for']
     ordering_fields = ['created_at']
     ordering = ['-created_at']
 
+    def get_permissions(self):
+        # Keep public submit for intake flow, require auth for reads/reports.
+        if self.action in ['create']:
+            return [AllowAny()]
+        return super().get_permissions()
+
+    def get_authenticators(self):
+        # Public create should not require session auth/CSRF.
+        if getattr(self, 'action', None) == 'create':
+            return []
+        return super().get_authenticators()
+
+    def perform_create(self, serializer):
+        app = serializer.save()
+        try:
+            from .notifications import send_pitstop_application_alert
+            send_pitstop_application_alert(app)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _is_open_availability(obj):
+        """
+        Heuristic for "open availability":
+        - all 7 days present
+        - each day has a non-empty slot list
+        - slot count is high and consistent day-to-day
+        """
+        sched = obj.weekly_schedule or {}
+        if len(sched.keys()) < 7:
+            return False
+        lengths = []
+        for _, times in sched.items():
+            if not isinstance(times, list) or not times:
+                return False
+            lengths.append(len(set(times)))
+        if not lengths:
+            return False
+        return min(lengths) >= 8 and max(lengths) == min(lengths)
+
     @action(detail=False, methods=['get'])
     def report(self, request):
         """Simple report of pit stop applicants for staff/funders"""
         qs = self.get_queryset()
+        open_only = (request.query_params.get('open_availability') or '').lower() in {'1', 'true', 'yes'}
+        if open_only:
+            qs = [obj for obj in qs if self._is_open_availability(obj)]
+        format_hint = (request.query_params.get('format') or '').lower()
+
+        if not request.user.is_staff:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        if format_hint == 'csv':
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="pitstop_applications_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+            writer = csv.writer(response)
+            writer.writerow([
+                'Client Name', 'Phone', 'Email', 'Position', 'Can Work US',
+                'Veteran', 'Start Date', 'Employment Desired', 'Days Available',
+                'Open Availability', 'Submitted At'
+            ])
+            for obj in qs:
+                writer.writerow([
+                    obj.client.full_name,
+                    obj.client.phone or '',
+                    obj.client.email or '',
+                    obj.position_applied_for,
+                    'Yes' if obj.can_work_us else 'No',
+                    'Yes' if obj.is_veteran else 'No',
+                    obj.available_start_date or '',
+                    ', '.join(obj.employment_desired or []),
+                    len(obj.available_days_list or []),
+                    'Yes' if self._is_open_availability(obj) else 'No',
+                    obj.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                ])
+            return response
+
         data = [
             {
                 'client': obj.client.full_name,
@@ -375,6 +448,8 @@ class PitStopApplicationViewSet(viewsets.ModelViewSet):
                 'position': obj.position_applied_for,
                 'start_date': obj.available_start_date,
                 'employment_desired': obj.employment_desired,
+                'available_days_count': len(obj.available_days_list or []),
+                'open_availability': self._is_open_availability(obj),
                 'created_at': obj.created_at,
             }
             for obj in qs
