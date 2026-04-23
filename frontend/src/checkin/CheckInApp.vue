@@ -7,15 +7,27 @@
 
     <div class="w-full max-w-2xl mx-auto flex flex-col items-center">
       <header class="checkin-reveal text-center mb-10 sm:mb-12 w-full" style="animation-delay: 60ms">
-        <p class="text-xs sm:text-sm font-semibold tracking-[0.28em] uppercase text-mission-700 mb-4">
-          Visitor check-in
-        </p>
-        <h1 class="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold tracking-tight text-slate-900 leading-tight">
-          Record your arrival
-        </h1>
-        <p class="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto font-medium px-2">
-          Enter the phone number we have on file. Your check-in is securely recorded.
-        </p>
+        <div class="relative">
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="w-24 h-24 border-4 border-mission-400 rounded-full opacity-20 animate-pulse"></div>
+            <div class="w-12 h-12 border-2 border-mission-500 rounded-full absolute opacity-30 animate-ping"></div>
+          </div>
+          <h1 class="text-5xl font-bold text-slate-800 relative z-10 mb-4">
+            <span class="text-mission-600">Client Services</span> Portal
+          </h1>
+          <p class="text-xl text-slate-600 relative z-10">Professional Service Management System</p>
+          <p class="text-mission-800 relative z-10 mt-3 text-base font-semibold">
+            Visitor check-in
+          </p>
+          <p class="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto font-medium px-2 relative z-10">
+            Enter the phone number we have on file. Your check-in is securely recorded.
+          </p>
+          <div class="mt-4 flex justify-center space-x-2">
+            <div class="w-2 h-2 bg-mission-400 rounded-full"></div>
+            <div class="w-2 h-2 bg-mission-500 rounded-full"></div>
+            <div class="w-2 h-2 bg-mission-600 rounded-full"></div>
+          </div>
+        </div>
       </header>
 
       <article

@@ -2,6 +2,8 @@
 CSV Export views and report generation for worker dispatch
 """
 import csv
+import io
+import zipfile
 from datetime import date, datetime, timedelta
 from django.http import HttpResponse
 from django.views import View
@@ -21,6 +23,119 @@ def _staff_aliases(user):
     if user.email:
         aliases.add(user.email)
     return aliases
+
+
+def _client_metrics_snapshot():
+    clients = Client.objects.all()
+    today = date.today()
+
+    def _age_bucket(dob):
+        if not dob:
+            return 'unknown'
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        if age <= 17:
+            return 'youth_17_under'
+        if 18 <= age <= 24:
+            return 'tay_18_24'
+        if 25 <= age <= 54:
+            return 'adult_25_54'
+        return 'older_55_plus'
+
+    metrics = {
+        'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'total_clients': clients.count(),
+        'active_clients': clients.filter(status='active').count(),
+        'program_counts': {},
+        'gender_counts': {
+            'Female': 0,
+            'Male': 0,
+            'Genderqueer or Gender Non-binary': 0,
+            'Not listed, specified': 0,
+            'Declined to state': 0,
+            'Data Unknown or Unavailable.': 0,
+        },
+        'age_counts': {
+            'Youth (17 and under)': 0,
+            'TAY (age 18 to 24)': 0,
+            'Adults (age 25 to 54)': 0,
+            'Older Adults (age 55 and over)': 0,
+            'Declined to state': 0,
+            'Data Unknown or Unavailable.': 0,
+        },
+        'race_counts': {
+            'American Indian or Alaska Native, alone': 0,
+            'Asian, alone': 0,
+            'Black or African-American, alone': 0,
+            'Hispanic, Latino, or Spanish': 0,
+            'Middle Eastern or North African, alone': 0,
+            'Native Hawaiian or Other Pacific Islander, alone': 0,
+            'White, alone': 0,
+            'Other Race, alone': 0,
+            'Two or More Races': 0,
+            'Declined to state': 0,
+            'Data Unknown or Unavailable.': 0,
+        },
+        'zip_counts': {},
+    }
+
+    # Training/program interest snapshot
+    for key, label in Client.TRAINING_INTEREST_CHOICES:
+        metrics['program_counts'][label] = clients.filter(training_interest=key).count()
+
+    for c in clients.only('gender', 'dob', 'demographic_info', 'zip_code'):
+        # Gender
+        if c.gender == 'F':
+            metrics['gender_counts']['Female'] += 1
+        elif c.gender == 'M':
+            metrics['gender_counts']['Male'] += 1
+        elif c.gender == 'NB':
+            metrics['gender_counts']['Genderqueer or Gender Non-binary'] += 1
+        elif c.gender == 'O':
+            metrics['gender_counts']['Not listed, specified'] += 1
+        elif c.gender == 'P':
+            metrics['gender_counts']['Declined to state'] += 1
+        else:
+            metrics['gender_counts']['Data Unknown or Unavailable.'] += 1
+
+        # Age
+        age_bucket = _age_bucket(c.dob)
+        if age_bucket == 'youth_17_under':
+            metrics['age_counts']['Youth (17 and under)'] += 1
+        elif age_bucket == 'tay_18_24':
+            metrics['age_counts']['TAY (age 18 to 24)'] += 1
+        elif age_bucket == 'adult_25_54':
+            metrics['age_counts']['Adults (age 25 to 54)'] += 1
+        elif age_bucket == 'older_55_plus':
+            metrics['age_counts']['Older Adults (age 55 and over)'] += 1
+        else:
+            metrics['age_counts']['Data Unknown or Unavailable.'] += 1
+
+        # Demographic mapping
+        if c.demographic_info == 'native':
+            metrics['race_counts']['American Indian or Alaska Native, alone'] += 1
+        elif c.demographic_info == 'asian':
+            metrics['race_counts']['Asian, alone'] += 1
+        elif c.demographic_info == 'black':
+            metrics['race_counts']['Black or African-American, alone'] += 1
+        elif c.demographic_info == 'latinx':
+            metrics['race_counts']['Hispanic, Latino, or Spanish'] += 1
+        elif c.demographic_info == 'white':
+            metrics['race_counts']['White, alone'] += 1
+        elif c.demographic_info == 'mixed':
+            metrics['race_counts']['Two or More Races'] += 1
+        elif c.demographic_info == 'prefer_not':
+            metrics['race_counts']['Declined to state'] += 1
+        elif c.demographic_info == 'other':
+            metrics['race_counts']['Other Race, alone'] += 1
+        else:
+            metrics['race_counts']['Data Unknown or Unavailable.'] += 1
+
+        # Zip code
+        zip_code = (c.zip_code or '').strip()
+        if zip_code:
+            metrics['zip_counts'][zip_code] = metrics['zip_counts'].get(zip_code, 0) + 1
+
+    return metrics
 
 
 class AvailableWorkersCSVView(LoginRequiredMixin, View):
@@ -112,6 +227,89 @@ class AvailableWorkersCSVView(LoginRequiredMixin, View):
                 client.additional_notes or ''
             ])
         
+        return response
+
+
+class WorkforceInventoryPackageView(LoginRequiredMixin, View):
+    """
+    One-click package for audit/reporting handoff:
+      - workforce_inventory_prefill.csv
+      - zip_codes_served.csv
+      - printable_summary.html
+    """
+
+    def get(self, request):
+        metrics = _client_metrics_snapshot()
+
+        # 1) Main prefill CSV (easy to copy into FY workbook)
+        prefill_io = io.StringIO()
+        w = csv.writer(prefill_io)
+        w.writerow(['Section', 'Data Element', 'Value'])
+        w.writerow(['Program', 'Program Participants ("Duplicated" Clients)', metrics['total_clients']])
+        w.writerow(['Program', 'Unique Clients ("Unduplicated" Clients)', metrics['total_clients']])
+        w.writerow(['Program', 'Active Clients', metrics['active_clients']])
+        w.writerow([])
+        w.writerow(['Gender', 'Data Element', 'Value'])
+        for label, val in metrics['gender_counts'].items():
+            w.writerow(['Gender', label, val])
+        w.writerow([])
+        w.writerow(['Age', 'Data Element', 'Value'])
+        for label, val in metrics['age_counts'].items():
+            w.writerow(['Age', label, val])
+        w.writerow([])
+        w.writerow(['Race/Ethnicity', 'Data Element', 'Value'])
+        for label, val in metrics['race_counts'].items():
+            w.writerow(['Race/Ethnicity', label, val])
+        w.writerow([])
+        w.writerow(['Program Interest', 'Program', 'Value'])
+        for label, val in metrics['program_counts'].items():
+            w.writerow(['Program Interest', label, val])
+
+        # 2) ZIP summary CSV
+        zip_io = io.StringIO()
+        zw = csv.writer(zip_io)
+        zw.writerow(['Zip Code', 'Clients Served'])
+        for z, c in sorted(metrics['zip_counts'].items(), key=lambda item: (-item[1], item[0])):
+            zw.writerow([z, c])
+
+        # 3) Printable HTML summary
+        def table_rows(d):
+            return '\n'.join(f'<tr><td>{k}</td><td style="text-align:right;">{v}</td></tr>' for k, v in d.items())
+
+        html = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Workforce Inventory Summary</title>
+<style>
+body {{ font-family: Arial, sans-serif; margin: 28px; color: #0f172a; }}
+h1,h2 {{ margin-bottom: 8px; }}
+table {{ border-collapse: collapse; width: 100%; margin-bottom: 18px; }}
+th,td {{ border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 13px; }}
+th {{ background: #f1f5f9; text-align: left; }}
+.meta {{ color: #475569; margin-bottom: 16px; }}
+</style></head><body>
+<h1>FY Workforce Services Inventory (Auto Summary)</h1>
+<div class="meta">Generated: {metrics['generated_at']}</div>
+<h2>Topline</h2>
+<table><tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Total clients</td><td>{metrics['total_clients']}</td></tr>
+<tr><td>Active clients</td><td>{metrics['active_clients']}</td></tr>
+</table>
+<h2>Gender</h2><table><tr><th>Data Element</th><th>Value</th></tr>{table_rows(metrics['gender_counts'])}</table>
+<h2>Age</h2><table><tr><th>Data Element</th><th>Value</th></tr>{table_rows(metrics['age_counts'])}</table>
+<h2>Race/Ethnicity</h2><table><tr><th>Data Element</th><th>Value</th></tr>{table_rows(metrics['race_counts'])}</table>
+<h2>Program Interest</h2><table><tr><th>Program</th><th>Value</th></tr>{table_rows(metrics['program_counts'])}</table>
+<h2>Zip Codes Served</h2><table><tr><th>Zip</th><th>Clients Served</th></tr>{table_rows(dict(sorted(metrics['zip_counts'].items(), key=lambda item: (-item[1], item[0]))))}</table>
+</body></html>"""
+
+        # Build ZIP package
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('workforce_inventory_prefill.csv', prefill_io.getvalue())
+            zf.writestr('zip_codes_served.csv', zip_io.getvalue())
+            zf.writestr('printable_summary.html', html)
+
+        out.seek(0)
+        response = HttpResponse(out.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="workforce_inventory_package_{date.today().isoformat()}.zip"'
         return response
 
 
