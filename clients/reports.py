@@ -10,7 +10,7 @@ from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Count
 
-from .models import Client, CaseNote
+from .models import Client, CaseNote, JobPlacement
 from .models_extensions import WorkAssignment, WorkSite
 from .notifications import followup_stage
 
@@ -305,19 +305,23 @@ def _client_metrics_snapshot_for_queryset(clients):
         else:
             metrics['age_counts']['Data Unknown or Unavailable.'] += 1
 
-        if c.demographic_info == 'native':
+        if c.demographic_info in {'american_indian', 'native'}:
             metrics['race_counts']['American Indian or Alaska Native, alone'] += 1
         elif c.demographic_info == 'asian':
             metrics['race_counts']['Asian, alone'] += 1
         elif c.demographic_info == 'black':
             metrics['race_counts']['Black or African-American, alone'] += 1
-        elif c.demographic_info == 'latinx':
+        elif c.demographic_info in {'hispanic_latinx', 'latinx'}:
             metrics['race_counts']['Hispanic, Latino, or Spanish'] += 1
+        elif c.demographic_info == 'middle_eastern':
+            metrics['race_counts']['Middle Eastern or North African, alone'] += 1
+        elif c.demographic_info == 'pacific_islander':
+            metrics['race_counts']['Native Hawaiian or Other Pacific Islander, alone'] += 1
         elif c.demographic_info == 'white':
             metrics['race_counts']['White, alone'] += 1
-        elif c.demographic_info == 'mixed':
+        elif c.demographic_info in {'multiracial', 'mixed'}:
             metrics['race_counts']['Two or More Races'] += 1
-        elif c.demographic_info == 'prefer_not':
+        elif c.demographic_info in {'decline_state', 'prefer_not'}:
             metrics['race_counts']['Declined to state'] += 1
         elif c.demographic_info == 'other':
             metrics['race_counts']['Other Race, alone'] += 1
@@ -415,6 +419,8 @@ class ClientOutcomesReportCSVView(LoginRequiredMixin, View):
       - program
       - demographic
       - status
+      - start_date (YYYY-MM-DD, client created range)
+      - end_date (YYYY-MM-DD, client created range)
       - mine=1 (limit to current logged-in staff aliases)
     """
 
@@ -423,6 +429,8 @@ class ClientOutcomesReportCSVView(LoginRequiredMixin, View):
         program = (request.GET.get('program') or '').strip()
         demographic = (request.GET.get('demographic') or '').strip()
         client_status = (request.GET.get('status') or '').strip()
+        start_date = (request.GET.get('start_date') or '').strip()
+        end_date = (request.GET.get('end_date') or '').strip()
         mine = request.GET.get('mine')
 
         clients = Client.objects.all().order_by('-created_at')
@@ -436,6 +444,10 @@ class ClientOutcomesReportCSVView(LoginRequiredMixin, View):
             clients = clients.filter(demographic_info=demographic)
         if client_status:
             clients = clients.filter(status=client_status)
+        if start_date:
+            clients = clients.filter(created_at__date__gte=start_date)
+        if end_date:
+            clients = clients.filter(created_at__date__lte=end_date)
 
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = (
@@ -502,6 +514,79 @@ class ClientOutcomesReportCSVView(LoginRequiredMixin, View):
                 overdue_bucket,
             ])
 
+        return response
+
+
+class JobPlacementsReportCSVView(LoginRequiredMixin, View):
+    """
+    Export job placements for audit and manager review.
+    GET parameters:
+      - start_date (required-ish for audit windows)
+      - end_date
+      - work_type (full_time|part_time|contract)
+      - mine=1 (placements logged by current user)
+      - logged_by (string contains filter on logger name)
+    """
+
+    def get(self, request):
+        start_date = (request.GET.get('start_date') or '').strip()
+        end_date = (request.GET.get('end_date') or '').strip()
+        work_type = (request.GET.get('work_type') or '').strip()
+        mine = request.GET.get('mine')
+        logged_by = (request.GET.get('logged_by') or '').strip()
+
+        placements = JobPlacement.objects.select_related('client', 'created_by_user').all()
+        if start_date:
+            placements = placements.filter(start_date__gte=start_date)
+        if end_date:
+            placements = placements.filter(start_date__lte=end_date)
+        if work_type:
+            placements = placements.filter(work_type=work_type)
+        if mine in {'1', 'true', 'True'}:
+            aliases = _staff_aliases(request.user)
+            placements = placements.filter(
+                Q(created_by_user=request.user) | Q(created_by_name__in=aliases)
+            )
+        elif logged_by:
+            placements = placements.filter(created_by_name__icontains=logged_by)
+
+        response = HttpResponse(content_type='text/csv')
+        filename_suffix = f"{start_date or 'all'}_to_{end_date or 'all'}"
+        response['Content-Disposition'] = (
+            f'attachment; filename="job_placements_{filename_suffix}.csv"'
+        )
+        writer = csv.writer(response)
+        writer.writerow([
+            'Placement ID',
+            'Client ID',
+            'Client Name',
+            'Client Phone',
+            'Employer',
+            'Job Title',
+            'Work Type',
+            'Hourly Rate',
+            'Start Date',
+            'Employer Address',
+            'Logged By',
+            'Logged At',
+            'Notes',
+        ])
+        for p in placements.order_by('-start_date', '-created_at'):
+            writer.writerow([
+                p.id,
+                p.client_id,
+                p.client.full_name,
+                p.client.phone or '',
+                p.employer,
+                p.job_title or '',
+                p.get_work_type_display(),
+                p.hourly_rate if p.hourly_rate is not None else '',
+                p.start_date.isoformat() if p.start_date else '',
+                p.employer_address or '',
+                p.created_by_name or (p.created_by_user.username if p.created_by_user else ''),
+                p.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                p.notes or '',
+            ])
         return response
 
 

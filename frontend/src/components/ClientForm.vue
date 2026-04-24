@@ -322,14 +322,16 @@
                 </label>
                 <select v-model="form.demographic_info" required class="form-select">
                   <option disabled value="">Select ethnicity/race</option>
-                  <option value="black">Black/African American</option>
-                  <option value="white">White/Caucasian</option>
-                  <option value="latinx">Hispanic/Latinx</option>
-                  <option value="asian">Asian/Pacific Islander</option>
-                  <option value="native">Native American</option>
-                  <option value="mixed">Mixed Race</option>
+                  <option value="american_indian">American Indian or Alaska Native</option>
+                  <option value="asian">Asian</option>
+                  <option value="black">Black or African American</option>
+                  <option value="white">Caucasian or White</option>
+                  <option value="hispanic_latinx">Hispanic or Latin X</option>
+                  <option value="middle_eastern">Middle Eastern</option>
+                  <option value="pacific_islander">Native Hawaiian or Other Pacific Islander</option>
                   <option value="other">Other</option>
-                  <option value="prefer_not">Prefer not to say</option>
+                  <option value="decline_state">Decline to State</option>
+                  <option value="multiracial">Multiracial</option>
                 </select>
               </div>
 

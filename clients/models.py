@@ -1,6 +1,9 @@
 from django.db import models
 from django.urls import reverse
+from django.contrib.auth import get_user_model
 import logging
+
+User = get_user_model()
 
 class Client(models.Model):
     GENDER_CHOICES = [
@@ -21,14 +24,16 @@ class Client(models.Model):
     ]
     
     DEMOGRAPHIC_CHOICES = [
-        ('black', 'Black/African American'), 
-        ('white', 'White/Caucasian'), 
-        ('latinx', 'Hispanic/Latinx'), 
-        ('asian', 'Asian/Pacific Islander'), 
-        ('native', 'Native American'),
-        ('mixed', 'Mixed Race'),
+        ('american_indian', 'American Indian or Alaska Native'),
+        ('asian', 'Asian'),
+        ('black', 'Black or African American'),
+        ('white', 'Caucasian or White'),
+        ('hispanic_latinx', 'Hispanic or Latin X'),
+        ('middle_eastern', 'Middle Eastern'),
+        ('pacific_islander', 'Native Hawaiian or Other Pacific Islander'),
         ('other', 'Other'),
-        ('prefer_not', 'Prefer not to say')
+        ('decline_state', 'Decline to State'),
+        ('multiracial', 'Multiracial'),
     ]
     
     EDUCATION_CHOICES = [
@@ -267,6 +272,8 @@ class Document(models.Model):
         ('hs_diploma', 'High School Diploma / GED'),
         ('id', 'Government ID'),
         ('photo_release', 'Photo Release Form'),
+        ('employment_proof', 'Proof of Employment'),
+        ('self_attestation', 'Employment Self-Attestation'),
         ('intake', 'Intake Form'),
         ('consent', 'Consent Form'),
         ('certificate', 'Certificate/Credential'),
@@ -438,6 +445,44 @@ class PitStopApplication(models.Model):
     def get_times_for_day(self, day):
         """Get list of time slots for a specific day"""
         return self.weekly_schedule.get(day, [])
+
+
+class JobPlacement(models.Model):
+    """Tracks client job placement outcomes and who logged them."""
+
+    WORK_TYPE_CHOICES = [
+        ('full_time', 'Full-time'),
+        ('part_time', 'Part-time'),
+        ('contract', 'Contract'),
+    ]
+
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='job_placements')
+    employer = models.CharField(max_length=150)
+    work_type = models.CharField(max_length=20, choices=WORK_TYPE_CHOICES)
+    job_title = models.CharField(max_length=120, blank=True, null=True)
+    hourly_rate = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)
+    start_date = models.DateField()
+    employer_address = models.CharField(max_length=255, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+
+    created_by_user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='logged_job_placements',
+    )
+    created_by_name = models.CharField(max_length=100, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-start_date', '-created_at']
+        verbose_name = 'Job Placement'
+        verbose_name_plural = 'Job Placements'
+
+    def __str__(self):
+        return f"{self.client.full_name} @ {self.employer} ({self.start_date})"
 
 
 # Import extended models for worker dispatch system

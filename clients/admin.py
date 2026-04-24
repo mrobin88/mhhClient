@@ -13,7 +13,7 @@ import os
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.utils import timezone
-from .models import Client, CaseNote, Document, PitStopApplication
+from .models import Client, CaseNote, Document, PitStopApplication, JobPlacement
 from .models_extensions import (
     WorkSite,
     WorkAssignment,
@@ -983,6 +983,48 @@ class PitStopApplicationAdmin(admin.ModelAdmin):
         
         return format_html('<br>'.join(summary)) if summary else "No availability set"
     schedule_summary.short_description = 'Weekly Schedule'
+
+
+@admin.register(JobPlacement)
+class JobPlacementAdmin(admin.ModelAdmin):
+    list_display = [
+        'client',
+        'employer',
+        'job_title',
+        'work_type',
+        'hourly_rate',
+        'start_date',
+        'created_by_name',
+        'created_at',
+    ]
+    list_filter = ['work_type', 'start_date', 'created_at', 'created_by_name']
+    search_fields = [
+        'client__first_name',
+        'client__last_name',
+        'employer',
+        'job_title',
+        'created_by_name',
+    ]
+    autocomplete_fields = ['client', 'created_by_user']
+    readonly_fields = ['created_at', 'updated_at']
+
+    fieldsets = (
+        ('Placement', {
+            'fields': (
+                'client',
+                'employer',
+                'job_title',
+                'work_type',
+                'hourly_rate',
+                'start_date',
+                'employer_address',
+                'notes',
+            )
+        }),
+        ('Audit', {
+            'fields': ('created_by_user', 'created_by_name', 'created_at', 'updated_at')
+        }),
+    )
 
 
 # ========================================

@@ -1,9 +1,17 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ClientViewSet, CaseNoteViewSet, DocumentDownloadView, ResumeDownloadView, client_dashboard_stats, PitStopApplicationViewSet
+from .views import (
+    ClientViewSet,
+    CaseNoteViewSet,
+    DocumentDownloadView,
+    ResumeDownloadView,
+    client_dashboard_stats,
+    PitStopApplicationViewSet,
+    JobPlacementViewSet,
+)
 from .reports import (
     AvailableWorkersCSVView,
-    WorkAssignmentsReportCSVView,
+    JobPlacementsReportCSVView,
     CallOutReportCSVView,
     TodaysAssignmentsCSVView,
     ClientOutcomesReportCSVView,
@@ -24,6 +32,7 @@ router = DefaultRouter()
 router.register(r'clients', ClientViewSet)
 router.register(r'case-notes', CaseNoteViewSet)
 router.register(r'pitstop-applications', PitStopApplicationViewSet, basename='pitstop-application')
+router.register(r'job-placements', JobPlacementViewSet, basename='job-placement')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -33,7 +42,7 @@ urlpatterns = [
     
     # CSV Export Reports
     path('reports/available-workers/', AvailableWorkersCSVView.as_view(), name='available-workers-csv'),
-    path('reports/assignments/', WorkAssignmentsReportCSVView.as_view(), name='assignments-report-csv'),
+    path('reports/job-placements/', JobPlacementsReportCSVView.as_view(), name='job-placements-report-csv'),
     path('reports/callouts/', CallOutReportCSVView.as_view(), name='callouts-report-csv'),
     path('reports/todays-assignments/', TodaysAssignmentsCSVView.as_view(), name='todays-assignments-csv'),
     path('reports/client-outcomes/', ClientOutcomesReportCSVView.as_view(), name='client-outcomes-report-csv'),

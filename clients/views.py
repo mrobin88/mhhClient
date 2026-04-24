@@ -16,11 +16,17 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from .models import Client, CaseNote, Document, PitStopApplication
-from .serializers import ClientSerializer, CaseNoteSerializer, PitStopApplicationSerializer
+from .models import Client, CaseNote, Document, PitStopApplication, JobPlacement
+from .serializers import (
+    ClientSerializer,
+    CaseNoteSerializer,
+    PitStopApplicationSerializer,
+    JobPlacementSerializer,
+)
 from .throttles import PublicClientCreateThrottle
 from .storage import generate_document_sas_url
 import logging
@@ -455,3 +461,87 @@ class PitStopApplicationViewSet(viewsets.ModelViewSet):
             for obj in qs
         ]
         return Response(data)
+
+
+class JobPlacementViewSet(viewsets.ModelViewSet):
+    queryset = JobPlacement.objects.select_related('client', 'created_by_user').all()
+    serializer_class = JobPlacementSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['work_type', 'client', 'created_by_user']
+    search_fields = ['client__first_name', 'client__last_name', 'employer', 'job_title', 'created_by_name']
+    ordering_fields = ['start_date', 'created_at', 'hourly_rate']
+    ordering = ['-start_date', '-created_at']
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def perform_create(self, serializer):
+        display_name = self.request.user.get_full_name() or self.request.user.username
+        placement = serializer.save(
+            created_by_user=self.request.user,
+            created_by_name=display_name,
+        )
+
+        # Keep existing client outcomes fields in sync for legacy reporting.
+        client = placement.client
+        client.job_placed = True
+        client.job_placement_date = placement.start_date
+        client.job_title = placement.job_title or client.job_title
+        client.job_company = placement.employer
+        client.job_hourly_wage = placement.hourly_rate
+        if placement.work_type == 'full_time':
+            client.employment_status = 'full_time'
+        elif placement.work_type == 'part_time':
+            client.employment_status = 'part_time'
+        client.save(update_fields=[
+            'job_placed',
+            'job_placement_date',
+            'job_title',
+            'job_company',
+            'job_hourly_wage',
+            'employment_status',
+            'updated_at',
+        ])
+
+    @action(detail=True, methods=['post'], url_path='upload-proof')
+    def upload_proof(self, request, pk=None):
+        placement = self.get_object()
+        upload = request.FILES.get('file')
+        if not upload:
+            return Response({'detail': 'Select a file to upload.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        proof_type = (request.data.get('proof_type') or 'employment_proof').strip()
+        allowed = {'employment_proof', 'self_attestation'}
+        if proof_type not in allowed:
+            return Response(
+                {'detail': 'proof_type must be employment_proof or self_attestation.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        title = (request.data.get('title') or '').strip()
+        if not title:
+            title = 'Proof of Employment' if proof_type == 'employment_proof' else 'Employment Self-Attestation'
+
+        notes = (request.data.get('notes') or '').strip()
+        try:
+            upload.name = f"clients/{placement.client_id}/placements/{placement.id}/{proof_type}/{upload.name}"
+        except Exception:
+            pass
+
+        actor = request.user.get_full_name() or request.user.username
+        doc = Document.objects.create(
+            client=placement.client,
+            title=title,
+            doc_type=proof_type,
+            file=upload,
+            uploaded_by=actor,
+            notes=notes,
+        )
+        return Response(
+            {
+                'detail': 'Proof document uploaded.',
+                'document_id': doc.id,
+                'client_id': placement.client_id,
+                'placement_id': placement.id,
+            },
+            status=status.HTTP_201_CREATED,
+        )
