@@ -348,6 +348,8 @@ class ClientAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn', 'resume_preview']
     date_hierarchy = 'created_at'
     inlines = [DocumentInline, CaseNoteInline]  # Documents + case notes
+    list_per_page = 25
+    show_full_result_count = False
     
     def get_urls(self):
         """Add custom URL for quick case note addition"""
@@ -361,6 +363,15 @@ class ClientAdmin(admin.ModelAdmin):
             ),
         ]
         return custom_urls + urls
+
+    def get_inline_instances(self, request, obj=None):
+        """
+        Keep add form lean: hide inlines until the client is created.
+        This avoids rendering heavy inline formsets on /admin/clients/client/add/.
+        """
+        if obj is None:
+            return []
+        return super().get_inline_instances(request, obj)
 
     def save_formset(self, request, form, formset, change):
         """
@@ -486,7 +497,10 @@ class ClientAdmin(admin.ModelAdmin):
     resume_preview.short_description = 'Resume Preview & Download'
     
     def case_notes_count(self, obj):
-        count = obj.casenotes.count()
+        # Uses queryset annotation to avoid per-row COUNT queries on changelist.
+        count = getattr(obj, 'case_notes_total', None)
+        if count is None:
+            count = obj.casenotes.count()
         if count > 0:
             url = reverse('admin:clients_casenote_changelist') + f'?client__id__exact={obj.id}'
             return format_html('<a href="{}">{} notes</a>', url, count)
@@ -542,7 +556,7 @@ class ClientAdmin(admin.ModelAdmin):
         return fields
     
     def get_queryset(self, request):
-        return super().get_queryset(request).prefetch_related('casenotes')
+        return super().get_queryset(request).annotate(case_notes_total=Count('casenotes'))
     
     actions = ['mark_active', 'mark_completed', 'mark_job_placed', 'create_worker_accounts', 'export_to_csv', 'export_program_report', 'export_job_placement_report', 'export_client_profiles_pdf']
     

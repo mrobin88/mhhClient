@@ -1,6 +1,7 @@
 from django.db import models
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from django.conf import settings
 import logging
 
 User = get_user_model()
@@ -305,7 +306,7 @@ class Document(models.Model):
         return f"{self.client.full_name} - {self.title}"
 
     def save(self, *args, **kwargs):
-        """Auto-populate file metadata on save and verify upload."""
+        """Auto-populate file metadata on save and optionally verify upload."""
         is_new_file = False
         try:
             if self.file:
@@ -316,7 +317,10 @@ class Document(models.Model):
             pass
         super().save(*args, **kwargs)
 
-        if is_new_file and self.file:
+        # Blob existence verification adds network round trips (HEAD checks).
+        # Keep it opt-in so concurrent signups/uploads stay fast.
+        should_verify = getattr(settings, 'VERIFY_UPLOAD_ON_SAVE', False)
+        if is_new_file and self.file and should_verify:
             try:
                 from .storage import verify_upload
                 if verify_upload(self.file.name):

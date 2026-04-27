@@ -15,6 +15,9 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key-change-in-pro
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
+DB_CONN_MAX_AGE = int(os.getenv('DB_CONN_MAX_AGE', '60'))
+DB_CONNECT_TIMEOUT = int(os.getenv('DB_CONNECT_TIMEOUT', '10'))
+
 if not DEBUG and SECRET_KEY == 'django-insecure-fallback-key-change-in-production':
     logging.getLogger('django.security').warning(
         'Using fallback SECRET_KEY in production mode. Set SECRET_KEY env as soon as possible.'
@@ -121,8 +124,11 @@ if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
             'PASSWORD': url.password,
             'HOST': url.hostname,
             'PORT': url.port or 5432,
+            'CONN_MAX_AGE': DB_CONN_MAX_AGE,
+            'CONN_HEALTH_CHECKS': True,
             'OPTIONS': {
                 'sslmode': sslmode,
+                'connect_timeout': DB_CONNECT_TIMEOUT,
             },
         }
     }
@@ -139,8 +145,11 @@ elif os.getenv('DATABASE_PASSWORD'):
             'PASSWORD': os.getenv('DATABASE_PASSWORD'),
             'HOST': host,
             'PORT': os.getenv('DATABASE_PORT', '5432'),
+            'CONN_MAX_AGE': DB_CONN_MAX_AGE,
+            'CONN_HEALTH_CHECKS': True,
             'OPTIONS': {
                 'sslmode': sslmode,
+                'connect_timeout': DB_CONNECT_TIMEOUT,
             },
         }
     }
@@ -186,6 +195,10 @@ if os.getenv('DEBUG', 'False').lower() == 'true':
 else:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Static delivery tuning (helps admin asset waterfalls with long-lived caching)
+WHITENOISE_MAX_AGE = int(os.getenv('WHITENOISE_MAX_AGE', '31536000'))
+WHITENOISE_KEEP_ONLY_HASHED_FILES = os.getenv('WHITENOISE_KEEP_ONLY_HASHED_FILES', 'true').lower() == 'true'
+
 # Media files - Azure Blob Storage for production, local for dev
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -227,6 +240,10 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # Case note alert email (fallback if staff member email not found)
 CASE_NOTE_ALERT_EMAIL = os.getenv('CASE_NOTE_ALERT_EMAIL', None)
+
+# File upload verification: disable by default for faster concurrent signups.
+# Enable only when diagnosing storage consistency issues.
+VERIFY_UPLOAD_ON_SAVE = os.getenv('VERIFY_UPLOAD_ON_SAVE', 'false').lower() == 'true'
 
 # Pit Stop application submission alerts (comma-separated recipients)
 PITSTOP_APPLICATION_ALERT_EMAILS = os.getenv(
