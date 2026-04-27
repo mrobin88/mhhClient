@@ -1,0 +1,155 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in to view reports</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      color: #111827;
+      background: #0b1220;
+    }
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .header {
+      text-align: center;
+      color: #e5e7eb;
+      margin-bottom: 22px;
+    }
+    .header h1 {
+      margin: 6px 0;
+      font-size: 34px;
+    }
+    .header p {
+      margin: 0;
+      color: #cbd5e1;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+    .card h2 {
+      margin: 0 0 14px;
+      letter-spacing: 1px;
+      font-size: 20px;
+      color: #1f2937;
+      text-transform: uppercase;
+    }
+    .step {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .step-num {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 1px solid #d1d5db;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #374151;
+      font-weight: bold;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+      font-size: 20px;
+    }
+    .step p {
+      margin: 0;
+      color: #374151;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 16px 14px;
+      border-radius: 10px;
+      text-decoration: none;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      color: #111827;
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1.2;
+      box-sizing: border-box;
+    }
+    .footer {
+      color: #cbd5e1;
+      text-align: center;
+      margin-top: 22px;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    a {
+      color: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>Sign in to view reports</h1>
+      <p>The Mission Hiring Hall reports hub requires an admin account.</p>
+    </div>
+
+    <div class="card">
+      <h2>How to access reports</h2>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">Log in to Django Admin</div>
+          <p>
+            Go to <a href="/admin/login/">/admin/login/</a> and sign in with your staff credentials.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">Return to reports hub</div>
+          <p>
+            Once signed in, visit <a href="/api/reports/">/api/reports/</a> to access all available reports.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">Need feature updates?</div>
+          <p>
+            Contact <a href="mailto:mrobin@missionhiringhall.org">mrobin@missionhiringhall.org</a> for help
+            or report updates.<br />
+            Matthew Robin
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <a class="btn" href="/admin/login/">Go to admin login</a>
+
+    <div class="footer">
+      Need help or want to request a feature?<br />
+      <a href="mailto:mrobin@missionhiringhall.org">mrobin@missionhiringhall.org</a> - Matthew Robin
+    </div>
+  </div>
+</body>
+</html>

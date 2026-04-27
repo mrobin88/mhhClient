@@ -6,6 +6,7 @@ import io
 import zipfile
 from datetime import date, datetime, timedelta
 from django.http import HttpResponse
+from django.shortcuts import render
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Count
@@ -36,6 +37,13 @@ class ReportsHubView(LoginRequiredMixin, View):
     """
 
     def get(self, request):
+        if not request.user.is_authenticated:
+            return render(
+                request,
+                'clients/reports_login_required.html',
+                status=403,
+            )
+
         today = date.today().isoformat()
         start_of_month = date.today().replace(day=1).isoformat()
         html = f"""<!doctype html>
