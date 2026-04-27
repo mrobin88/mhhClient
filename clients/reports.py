@@ -29,6 +29,102 @@ def _client_metrics_snapshot():
     return _client_metrics_snapshot_for_queryset(Client.objects.all())
 
 
+class ReportsHubView(LoginRequiredMixin, View):
+    """
+    Single entry point for managers/auditors to pull reports.
+    Keeps links discoverable and avoids manual URL editing.
+    """
+
+    def get(self, request):
+        today = date.today().isoformat()
+        start_of_month = date.today().replace(day=1).isoformat()
+        html = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reports Hub</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 24px; color: #0f172a; background: #f8fafc; }}
+    h1 {{ margin-bottom: 4px; }}
+    .sub {{ color: #475569; margin-bottom: 18px; }}
+    .row {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }}
+    input {{ padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }}
+    .card {{ background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; }}
+    .title {{ font-weight: 700; margin-bottom: 8px; }}
+    .desc {{ color: #475569; font-size: 14px; margin-bottom: 10px; }}
+    a.btn {{ display: inline-block; background: #0f766e; color: #fff; text-decoration: none; padding: 8px 10px; border-radius: 8px; font-size: 13px; }}
+    a.secondary {{ background: #334155; margin-left: 6px; }}
+  </style>
+</head>
+<body>
+  <h1>Reports Hub</h1>
+  <div class="sub">Pull manager and audit exports from one place.</div>
+
+  <div class="row">
+    <label>Start date <input id="startDate" type="date" value="{start_of_month}"></label>
+    <label>End date <input id="endDate" type="date" value="{today}"></label>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="title">Client Outcomes</div>
+      <div class="desc">Case manager, program, demographics, and outcome tracking.</div>
+      <a class="btn" id="clientOutcomesCsv" href="/api/reports/client-outcomes/" target="_blank">Download CSV</a>
+    </div>
+    <div class="card">
+      <div class="title">Job Placements</div>
+      <div class="desc">Who got placed, where, pay, work type, start date, and who logged it.</div>
+      <a class="btn" id="jobPlacementsCsv" href="/api/reports/job-placements/" target="_blank">Download CSV</a>
+    </div>
+    <div class="card">
+      <div class="title">Workforce Inventory Package</div>
+      <div class="desc">ZIP package with printable summary, demographic counts, and zip codes served.</div>
+      <a class="btn" id="workforceZip" href="/api/reports/workforce-inventory-package/" target="_blank">Download ZIP</a>
+    </div>
+    <div class="card">
+      <div class="title">Staff Follow-up Scorecard</div>
+      <div class="desc">Follow-up volume and 30/60/90+ overdue buckets by staff member.</div>
+      <a class="btn" href="/api/reports/staff-followup-scorecard/" target="_blank">Download CSV</a>
+      <a class="btn secondary" href="/api/reports/staff-followup-scorecard/?since_days=30" target="_blank">Last 30 days</a>
+    </div>
+    <div class="card">
+      <div class="title">Call-outs</div>
+      <div class="desc">Attendance risk and same-day coverage pressure.</div>
+      <a class="btn" id="calloutsCsv" href="/api/reports/callouts/" target="_blank">Download CSV</a>
+    </div>
+    <div class="card">
+      <div class="title">Today's Assignments</div>
+      <div class="desc">Current day roster snapshot.</div>
+      <a class="btn" href="/api/reports/todays-assignments/" target="_blank">Download CSV</a>
+    </div>
+  </div>
+
+  <script>
+    const startEl = document.getElementById('startDate');
+    const endEl = document.getElementById('endDate');
+    const withRange = (base) => {{
+      const start = encodeURIComponent(startEl.value || '');
+      const end = encodeURIComponent(endEl.value || '');
+      const sep = base.includes('?') ? '&' : '?';
+      return `${{base}}${{sep}}start_date=${{start}}&end_date=${{end}}`;
+    }};
+    const applyLinks = () => {{
+      document.getElementById('clientOutcomesCsv').href = withRange('/api/reports/client-outcomes/');
+      document.getElementById('jobPlacementsCsv').href = withRange('/api/reports/job-placements/');
+      document.getElementById('workforceZip').href = withRange('/api/reports/workforce-inventory-package/');
+      document.getElementById('calloutsCsv').href = withRange('/api/reports/callouts/');
+    }};
+    startEl.addEventListener('change', applyLinks);
+    endEl.addEventListener('change', applyLinks);
+    applyLinks();
+  </script>
+</body>
+</html>"""
+        return HttpResponse(html, content_type='text/html')
+
+
 class AvailableWorkersCSVView(LoginRequiredMixin, View):
     """
     Export CSV of clients available for work assignments

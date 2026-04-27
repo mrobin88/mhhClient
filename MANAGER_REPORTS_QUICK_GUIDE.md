@@ -6,19 +6,25 @@ This is the simplest way to pull reports and explain why they matter.
 
 - Sign in to Django Admin first: `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/admin/`
 - Keep that tab open.
-- Open report links in a new tab. Each link downloads a CSV file.
+- Open the Reports Hub in a new tab: `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/`
+- Set date range once, then click report buttons.
 - Open CSV files in Excel or Google Sheets.
 
 ## Fast report links
 
-Use these exact links while logged in:
+Primary entry point:
+
+- Reports Hub: `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/`
+
+Direct links (if needed):
 
 - Available workers: `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/available-workers/`
-- Assignments: `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/assignments/`
+- Job placements: `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/job-placements/`
 - Call-outs: `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/callouts/`
 - Today's assignments: `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/todays-assignments/`
 - Client outcomes (program + demographics): `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/client-outcomes/`
 - Staff follow-up scorecard: `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/staff-followup-scorecard/`
+- Workforce inventory package (ZIP): `https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/reports/workforce-inventory-package/`
 
 ## Most common manager use cases
 
@@ -54,7 +60,7 @@ Why useful:
 Pull:
 
 1. `client-outcomes`
-2. `assignments`
+2. `job-placements`
 3. `callouts`
 
 Why useful:
@@ -67,14 +73,14 @@ Why useful:
 
 You can add filters directly to the URL.
 
-### Assignments
+### Job placements
 
 - Date range:
-  - `.../api/reports/assignments/?start_date=2026-04-01&end_date=2026-04-30`
+  - `.../api/reports/job-placements/?start_date=2026-04-01&end_date=2026-04-30`
 - My records only:
-  - `.../api/reports/assignments/?mine=1`
-- By assigned-by name:
-  - `.../api/reports/assignments/?assigned_by=Maria`
+  - `.../api/reports/job-placements/?mine=1`
+- By logger name:
+  - `.../api/reports/job-placements/?logged_by=Maria`
 
 ### Client outcomes
 
@@ -88,6 +94,8 @@ You can add filters directly to the URL.
   - `.../api/reports/client-outcomes/?demographic=latinx`
 - By status:
   - `.../api/reports/client-outcomes/?status=active`
+- By date range:
+  - `.../api/reports/client-outcomes/?start_date=2025-04-20&end_date=2026-04-20`
 
 ### Staff follow-up scorecard
 
@@ -101,7 +109,7 @@ You can add filters directly to the URL.
 ## What each report tells managers (plain English)
 
 - `available-workers`: Who is likely ready for dispatch and recent reliability.
-- `assignments`: Who worked, where, when, and who assigned.
+- `job-placements`: Who got placed, where, pay, work type, start date, and who logged the placement.
 - `callouts`: Attendance risk and replacement pressure.
 - `todays-assignments`: Live daily roster.
 - `client-outcomes`: Caseload + progress + outcome tracking by manager/program/demographics.
@@ -111,7 +119,7 @@ You can add filters directly to the URL.
 
 - Daily: `todays-assignments`, `callouts`, `available-workers`
 - Weekly: `client-outcomes`, `staff-followup-scorecard`
-- Monthly: export all and keep in a dated folder for board/funder reports
+- Monthly: export all from the Reports Hub with one date range and keep in a dated folder
 
 ## Troubleshooting
 

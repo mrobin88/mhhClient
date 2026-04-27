@@ -10,6 +10,7 @@ from .views import (
     JobPlacementViewSet,
 )
 from .reports import (
+    ReportsHubView,
     AvailableWorkersCSVView,
     JobPlacementsReportCSVView,
     CallOutReportCSVView,
@@ -41,6 +42,7 @@ urlpatterns = [
     path('dashboard/stats/', client_dashboard_stats, name='client-dashboard-stats'),
     
     # CSV Export Reports
+    path('reports/', ReportsHubView.as_view(), name='reports-hub'),
     path('reports/available-workers/', AvailableWorkersCSVView.as_view(), name='available-workers-csv'),
     path('reports/job-placements/', JobPlacementsReportCSVView.as_view(), name='job-placements-report-csv'),
     path('reports/callouts/', CallOutReportCSVView.as_view(), name='callouts-report-csv'),
