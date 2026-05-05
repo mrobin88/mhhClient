@@ -18,6 +18,7 @@ from .reports import (
     ClientOutcomesReportCSVView,
     StaffFollowUpScorecardCSVView,
     WorkforceInventoryPackageView,
+    ClientFilePackageView,
 )
 from .worker_views import (
     worker_login,
@@ -50,6 +51,7 @@ urlpatterns = [
     path('reports/client-outcomes/', ClientOutcomesReportCSVView.as_view(), name='client-outcomes-report-csv'),
     path('reports/staff-followup-scorecard/', StaffFollowUpScorecardCSVView.as_view(), name='staff-followup-scorecard-csv'),
     path('reports/workforce-inventory-package/', WorkforceInventoryPackageView.as_view(), name='workforce-inventory-package'),
+    path('reports/client-file-package/', ClientFilePackageView.as_view(), name='client-file-package'),
     
     # Worker Portal API (open shifts + cover interest)
     path('worker/login/', worker_login, name='worker-login'),

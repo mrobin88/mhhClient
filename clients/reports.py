@@ -3,8 +3,10 @@ CSV Export views and report generation for worker dispatch
 """
 import csv
 import io
+import re
 import zipfile
 from datetime import date, datetime, timedelta
+from html import escape
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.views import View
@@ -28,6 +30,84 @@ def _staff_aliases(user):
 
 def _client_metrics_snapshot():
     return _client_metrics_snapshot_for_queryset(Client.objects.all())
+
+
+def _digits_only(value):
+    return re.sub(r'\D', '', value or '')
+
+
+def _slug_for_filename(value):
+    slug = re.sub(r'[^a-z0-9]+', '_', (value or '').lower()).strip('_')
+    return slug or 'client'
+
+
+def _resolve_client_lookup(raw_lookup):
+    lookup = (raw_lookup or '').strip()
+    if not lookup:
+        return None, 'Provide a client ID, phone number, or name.'
+
+    if lookup.isdigit():
+        by_id = Client.objects.filter(pk=int(lookup)).first()
+        if by_id:
+            return by_id, None
+
+    lookup_digits = _digits_only(lookup)
+    if lookup_digits:
+        for candidate in Client.objects.only('id', 'phone'):
+            candidate_digits = _digits_only(candidate.phone)
+            if not candidate_digits:
+                continue
+            if (
+                candidate_digits == lookup_digits
+                or candidate_digits.endswith(lookup_digits)
+                or lookup_digits.endswith(candidate_digits)
+            ):
+                return candidate, None
+
+    by_name = list(
+        Client.objects.filter(
+            Q(first_name__icontains=lookup)
+            | Q(last_name__icontains=lookup)
+            | Q(staff_name__icontains=lookup)
+        ).order_by('-updated_at')[:2]
+    )
+    if len(by_name) == 1:
+        return by_name[0], None
+    if len(by_name) > 1:
+        return None, 'More than one client matches that name. Try client ID or phone number.'
+
+    return None, 'No client matched that search. Check the ID/phone/name and try again.'
+
+
+def _build_client_case_narrative(client, notes):
+    if not notes:
+        return (
+            f"{client.full_name} does not yet have case notes on file. "
+            "Use this printable to start a consistent timeline for staff handoffs."
+        )
+
+    first_note = notes[0]
+    last_note = notes[-1]
+    note_type_counts = {}
+    overdue_notes = 0
+    upcoming_followups = 0
+    for note in notes:
+        note_type_counts[note.get_note_type_display()] = note_type_counts.get(note.get_note_type_display(), 0) + 1
+        stage = followup_stage(note.follow_up_date)
+        if stage in {'overdue_under_30', 'overdue_30_plus', 'overdue_60_plus', 'overdue_90_plus'}:
+            overdue_notes += 1
+        elif stage == 'current':
+            upcoming_followups += 1
+
+    top_note_type = max(note_type_counts.items(), key=lambda item: item[1])[0]
+    job_status = 'has a job placement on record' if client.job_placed else 'does not have a recorded job placement yet'
+    return (
+        f"{client.full_name} entered services on {client.created_at.strftime('%Y-%m-%d')} and currently "
+        f"{job_status}. Their case timeline includes {len(notes)} notes from "
+        f"{first_note.created_at.strftime('%Y-%m-%d')} through {last_note.created_at.strftime('%Y-%m-%d')}, with "
+        f"most activity in {top_note_type.lower()}. There are {overdue_notes} overdue follow-up items and "
+        f"{upcoming_followups} upcoming follow-up items currently on file."
+    )
 
 
 class ReportsHubView(LoginRequiredMixin, View):
@@ -56,8 +136,14 @@ class ReportsHubView(LoginRequiredMixin, View):
     body {{ font-family: Arial, sans-serif; margin: 24px; color: #0f172a; background: #f8fafc; }}
     h1 {{ margin-bottom: 4px; }}
     .sub {{ color: #475569; margin-bottom: 18px; }}
-    .row {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }}
-    input {{ padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; }}
+    .row {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: end; }}
+    label {{ color: #0f172a; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }}
+    input, select {{ padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; min-height: 38px; }}
+    .toggle {{ display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; }}
+    .toggle input {{ min-height: auto; }}
+    .filters {{ background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 12px; }}
+    .filters h2 {{ font-size: 16px; margin: 0 0 10px; }}
+    .filters p {{ margin: 0 0 10px; color: #475569; font-size: 13px; }}
     .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }}
     .card {{ background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; }}
     .title {{ font-weight: 700; margin-bottom: 8px; }}
@@ -70,9 +156,53 @@ class ReportsHubView(LoginRequiredMixin, View):
   <h1>Reports Hub</h1>
   <div class="sub">Pull manager and audit exports from one place.</div>
 
-  <div class="row">
-    <label>Start date <input id="startDate" type="date" value="{start_of_month}"></label>
-    <label>End date <input id="endDate" type="date" value="{today}"></label>
+  <div class="filters">
+    <h2>Selectors</h2>
+    <p>Set filters once, then use the report buttons. Filters apply automatically to matching reports.</p>
+    <div class="row">
+      <label>Start date <input id="startDate" type="date" value="{start_of_month}"></label>
+      <label>End date <input id="endDate" type="date" value="{today}"></label>
+      <label>Program
+        <select id="program">
+          <option value="">All programs</option>
+          <option value="citybuild">CityBuild Academy</option>
+          <option value="citybuild_pro">CityBuild Pro | CAPSA</option>
+          <option value="security">Security Guard Card Program</option>
+          <option value="construction">Construction On Ramp</option>
+          <option value="pit_stop">Pit Stop Program</option>
+          <option value="general">General job readiness</option>
+          <option value="other">Other training</option>
+        </select>
+      </label>
+      <label>Client status
+        <select id="clientStatus">
+          <option value="">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </label>
+      <label>Work type
+        <select id="workType">
+          <option value="">All work types</option>
+          <option value="full_time">Full-time</option>
+          <option value="part_time">Part-time</option>
+          <option value="contract">Contract</option>
+        </select>
+      </label>
+      <label>Follow-up window
+        <select id="sinceDays">
+          <option value="30">Last 30 days</option>
+          <option value="60">Last 60 days</option>
+          <option value="90" selected>Last 90 days</option>
+          <option value="180">Last 180 days</option>
+        </select>
+      </label>
+      <label>Case manager / logger name <input id="staffName" type="text" placeholder="e.g., Maria"></label>
+      <label>Client lookup (ID, phone, or name) <input id="clientLookup" type="text" placeholder="e.g., 123 or 4155551234"></label>
+      <label class="toggle"><input id="mineOnly" type="checkbox"> Only my records</label>
+    </div>
   </div>
 
   <div class="grid">
@@ -92,10 +222,15 @@ class ReportsHubView(LoginRequiredMixin, View):
       <a class="btn" id="workforceZip" href="/api/reports/workforce-inventory-package/" target="_blank">Download ZIP</a>
     </div>
     <div class="card">
+      <div class="title">Client File Package (Printable)</div>
+      <div class="desc">Client profile + case notes timeline + narrative summary in one printable ZIP package.</div>
+      <a class="btn" id="clientFileZip" href="/api/reports/client-file-package/" target="_blank">Download ZIP</a>
+    </div>
+    <div class="card">
       <div class="title">Staff Follow-up Scorecard</div>
       <div class="desc">Follow-up volume and 30/60/90+ overdue buckets by staff member.</div>
-      <a class="btn" href="/api/reports/staff-followup-scorecard/" target="_blank">Download CSV</a>
-      <a class="btn secondary" href="/api/reports/staff-followup-scorecard/?since_days=30" target="_blank">Last 30 days</a>
+      <a class="btn" id="followupCsv" href="/api/reports/staff-followup-scorecard/" target="_blank">Download CSV</a>
+      <a class="btn secondary" id="followupCsv30" href="/api/reports/staff-followup-scorecard/?since_days=30" target="_blank">Last 30 days</a>
     </div>
     <div class="card">
       <div class="title">Call-outs</div>
@@ -112,20 +247,59 @@ class ReportsHubView(LoginRequiredMixin, View):
   <script>
     const startEl = document.getElementById('startDate');
     const endEl = document.getElementById('endDate');
-    const withRange = (base) => {{
-      const start = encodeURIComponent(startEl.value || '');
-      const end = encodeURIComponent(endEl.value || '');
-      const sep = base.includes('?') ? '&' : '?';
-      return `${{base}}${{sep}}start_date=${{start}}&end_date=${{end}}`;
+    const programEl = document.getElementById('program');
+    const clientStatusEl = document.getElementById('clientStatus');
+    const workTypeEl = document.getElementById('workType');
+    const sinceDaysEl = document.getElementById('sinceDays');
+    const staffNameEl = document.getElementById('staffName');
+    const mineOnlyEl = document.getElementById('mineOnly');
+    const clientLookupEl = document.getElementById('clientLookup');
+
+    const buildUrl = (base, params) => {{
+      const url = new URL(base, window.location.origin);
+      Object.entries(params).forEach(([key, val]) => {{
+        if (val) url.searchParams.set(key, val);
+      }});
+      return `${{url.pathname}}${{url.search}}`;
     }};
+
     const applyLinks = () => {{
-      document.getElementById('clientOutcomesCsv').href = withRange('/api/reports/client-outcomes/');
-      document.getElementById('jobPlacementsCsv').href = withRange('/api/reports/job-placements/');
-      document.getElementById('workforceZip').href = withRange('/api/reports/workforce-inventory-package/');
-      document.getElementById('calloutsCsv').href = withRange('/api/reports/callouts/');
+      const common = {{
+        start_date: startEl.value || '',
+        end_date: endEl.value || ''
+      }};
+      const mine = mineOnlyEl.checked ? '1' : '';
+      document.getElementById('clientOutcomesCsv').href = buildUrl('/api/reports/client-outcomes/', {{
+        ...common,
+        program: programEl.value || '',
+        status: clientStatusEl.value || '',
+        case_manager: staffNameEl.value || '',
+        mine
+      }});
+      document.getElementById('jobPlacementsCsv').href = buildUrl('/api/reports/job-placements/', {{
+        ...common,
+        work_type: workTypeEl.value || '',
+        logged_by: staffNameEl.value || '',
+        mine
+      }});
+      document.getElementById('workforceZip').href = buildUrl('/api/reports/workforce-inventory-package/', common);
+      document.getElementById('calloutsCsv').href = buildUrl('/api/reports/callouts/', common);
+      document.getElementById('followupCsv').href = buildUrl('/api/reports/staff-followup-scorecard/', {{
+        since_days: sinceDaysEl.value || '90',
+        mine
+      }});
+      document.getElementById('followupCsv30').href = buildUrl('/api/reports/staff-followup-scorecard/', {{
+        since_days: '30',
+        mine
+      }});
+      document.getElementById('clientFileZip').href = buildUrl('/api/reports/client-file-package/', {{
+        client_lookup: clientLookupEl.value || ''
+      }});
     }};
-    startEl.addEventListener('change', applyLinks);
-    endEl.addEventListener('change', applyLinks);
+
+    [startEl, endEl, programEl, clientStatusEl, workTypeEl, sinceDaysEl, staffNameEl, mineOnlyEl, clientLookupEl]
+      .forEach((el) => el.addEventListener('change', applyLinks));
+    [staffNameEl, clientLookupEl].forEach((el) => el.addEventListener('input', applyLinks));
     applyLinks();
   </script>
 </body>
@@ -322,6 +496,159 @@ th {{ background: #f1f5f9; text-align: left; }}
         out.seek(0)
         response = HttpResponse(out.getvalue(), content_type='application/zip')
         response['Content-Disposition'] = f'attachment; filename="workforce_inventory_package_{date.today().isoformat()}.zip"'
+        return response
+
+
+class ClientFilePackageView(LoginRequiredMixin, View):
+    """
+    One-click package for a single client file:
+      - client_profile.csv
+      - case_notes_timeline.csv
+      - printable_client_profile.html
+    """
+
+    def get(self, request):
+        lookup = (request.GET.get('client_lookup') or request.GET.get('client_id') or '').strip()
+        client, error = _resolve_client_lookup(lookup)
+        if error:
+            return HttpResponse(f'Client lookup error: {error}', status=400)
+
+        notes = list(client.casenotes.all().order_by('created_at'))
+        narrative = _build_client_case_narrative(client, notes)
+
+        profile_io = io.StringIO()
+        pw = csv.writer(profile_io)
+        pw.writerow(['Field', 'Value'])
+        pw.writerow(['Client ID', client.id])
+        pw.writerow(['Client Name', client.full_name])
+        pw.writerow(['Phone', client.phone or ''])
+        pw.writerow(['Email', client.email or ''])
+        pw.writerow(['Case Manager', client.staff_name or ''])
+        pw.writerow(['Program', client.get_training_interest_display()])
+        pw.writerow(['Client Status', client.get_status_display()])
+        pw.writerow(['Language', client.get_language_display()])
+        pw.writerow(['Employment Status', client.get_employment_status_display()])
+        pw.writerow(['Program Start Date', client.program_start_date.isoformat() if client.program_start_date else ''])
+        pw.writerow(['Program Completed Date', client.program_completed_date.isoformat() if client.program_completed_date else ''])
+        pw.writerow(['Job Placed', 'Yes' if client.job_placed else 'No'])
+        pw.writerow(['Job Placement Date', client.job_placement_date.isoformat() if client.job_placement_date else ''])
+        pw.writerow(['Total Case Notes', len(notes)])
+        pw.writerow(['Generated At', datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+
+        notes_io = io.StringIO()
+        nw = csv.writer(notes_io)
+        nw.writerow([
+            'Date',
+            'Staff Member',
+            'Note Type',
+            'Case Note',
+            'Next Steps',
+            'Follow-up Date',
+            'Follow-up Status',
+        ])
+        for note in notes:
+            nw.writerow([
+                note.created_at.strftime('%Y-%m-%d'),
+                note.staff_member or '',
+                note.get_note_type_display(),
+                note.content or '',
+                note.next_steps or '',
+                note.follow_up_date.isoformat() if note.follow_up_date else '',
+                followup_stage(note.follow_up_date),
+            ])
+
+        timeline_items = ''.join(
+            f"""
+            <tr>
+              <td>{escape(note.created_at.strftime('%Y-%m-%d'))}</td>
+              <td>{escape(note.get_note_type_display())}</td>
+              <td>{escape(note.staff_member or '')}</td>
+              <td>{escape((note.content or '').strip() or '—')}</td>
+              <td>{escape((note.next_steps or '').strip() or '—')}</td>
+              <td>{escape(note.follow_up_date.isoformat() if note.follow_up_date else '—')}</td>
+            </tr>
+            """
+            for note in notes
+        )
+        if not timeline_items:
+            timeline_items = '<tr><td colspan="6">No case notes on file yet.</td></tr>'
+
+        html = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Client File Printable - {escape(client.full_name)}</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 26px; color: #0f172a; }}
+    h1, h2, h3 {{ margin-bottom: 8px; }}
+    .meta {{ color: #475569; margin-bottom: 16px; }}
+    .narrative {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 16px; line-height: 1.45; }}
+    .kv {{ display: grid; grid-template-columns: 220px 1fr; gap: 6px 10px; margin-bottom: 16px; }}
+    .key {{ color: #334155; font-weight: 700; }}
+    table {{ border-collapse: collapse; width: 100%; margin-top: 8px; }}
+    th, td {{ border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: top; font-size: 12px; }}
+    th {{ background: #f1f5f9; text-align: left; }}
+    @media print {{
+      @page {{ margin: 0.5in; }}
+    }}
+  </style>
+</head>
+<body>
+  <h1>Client File Printable</h1>
+  <div class="meta">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+
+  <h2>Client Information</h2>
+  <div class="kv">
+    <div class="key">Client ID</div><div>{client.id}</div>
+    <div class="key">Client Name</div><div>{escape(client.full_name)}</div>
+    <div class="key">Phone</div><div>{escape(client.phone or '—')}</div>
+    <div class="key">Email</div><div>{escape(client.email or '—')}</div>
+    <div class="key">Case Manager</div><div>{escape(client.staff_name or '—')}</div>
+    <div class="key">Program</div><div>{escape(client.get_training_interest_display())}</div>
+    <div class="key">Status</div><div>{escape(client.get_status_display())}</div>
+  </div>
+
+  <h2>Program Timeline + Narrative</h2>
+  <div class="narrative">{escape(narrative)}</div>
+  <div class="kv">
+    <div class="key">Program Start Date</div><div>{client.program_start_date.isoformat() if client.program_start_date else '—'}</div>
+    <div class="key">Program Completed Date</div><div>{client.program_completed_date.isoformat() if client.program_completed_date else '—'}</div>
+    <div class="key">Job Placement</div><div>{'Yes' if client.job_placed else 'No'}</div>
+    <div class="key">Job Placement Date</div><div>{client.job_placement_date.isoformat() if client.job_placement_date else '—'}</div>
+    <div class="key">Case Note Count</div><div>{len(notes)}</div>
+  </div>
+
+  <h2>Case Notes Timeline</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Staff</th>
+        <th>Case Note</th>
+        <th>Next Steps</th>
+        <th>Follow-up Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {timeline_items}
+    </tbody>
+  </table>
+</body>
+</html>"""
+
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('client_profile.csv', profile_io.getvalue())
+            zf.writestr('case_notes_timeline.csv', notes_io.getvalue())
+            zf.writestr('printable_client_profile.html', html)
+
+        out.seek(0)
+        response = HttpResponse(out.getvalue(), content_type='application/zip')
+        safe_name = _slug_for_filename(client.full_name)
+        response['Content-Disposition'] = (
+            f'attachment; filename="client_file_package_{client.id}_{safe_name}_{date.today().isoformat()}.zip"'
+        )
         return response
 
 

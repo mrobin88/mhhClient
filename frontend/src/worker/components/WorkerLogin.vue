@@ -1,19 +1,23 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-slate-100 px-4 py-10">
+  <div class="min-h-screen flex items-center justify-center bg-gradient-to-b from-teal-50 via-slate-50 to-slate-100 px-4 py-10">
     <div class="max-w-md w-full">
       <div class="text-center mb-8">
         <div
-          class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-teal-600 text-white mb-4 shadow-sm"
+          class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-teal-600 text-white mb-4 shadow-md"
         >
-          <BriefcaseIcon class="w-8 h-8" aria-hidden="true" />
+          <BriefcaseIcon class="w-9 h-9" aria-hidden="true" />
         </div>
-        <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Open shifts</h1>
+        <h1 class="text-3xl font-semibold text-slate-900 tracking-tight">PitStop Worker Portal</h1>
         <p class="text-sm text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
-          Sign in with the phone number on file to see shifts that need coverage and say if you can help.
+          Sign in with your phone and PIN to view open shifts, respond faster, and keep your work record current.
         </p>
       </div>
 
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-md p-6 sm:p-8">
+        <div class="mb-5 rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-900">
+          <p class="font-semibold mb-1">Why this helps you</p>
+          <p>Get open shifts quickly and keep your requests visible to supervisors.</p>
+        </div>
         <form @submit.prevent="handleLogin" class="space-y-5">
           <div>
             <label for="phone" class="flex items-center gap-2 text-sm font-medium text-slate-700 mb-2">
@@ -44,7 +48,7 @@
               type="password"
               inputmode="numeric"
               pattern="[0-9]*"
-              maxlength="6"
+              maxlength="4"
               placeholder="••••"
               required
               autocomplete="off"
