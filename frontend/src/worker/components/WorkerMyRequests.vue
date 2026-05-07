@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <p class="text-sm text-slate-600">
-      Here is what you asked to cover. Status updates when a supervisor has time to update the list.
+      This shows your PitStop coverage responses and whether staff selected you for the post.
     </p>
 
     <div v-if="loading" class="text-center py-16 text-slate-500">Loading…</div>
@@ -12,8 +12,8 @@
 
     <div v-else-if="items.length === 0" class="text-center py-14 px-4 rounded-2xl bg-white border border-slate-200">
       <ClipboardDocumentIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" aria-hidden="true" />
-      <p class="text-slate-600 font-medium">No requests yet.</p>
-      <p class="text-sm text-slate-500 mt-1">Use <strong>Shifts open</strong> to show interest.</p>
+      <p class="text-slate-600 font-medium">No responses yet.</p>
+      <p class="text-sm text-slate-500 mt-1">Use <strong>Coverage needed</strong> to show interest.</p>
     </div>
 
     <ul v-else class="space-y-3">

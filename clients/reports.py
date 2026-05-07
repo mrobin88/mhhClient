@@ -577,7 +577,7 @@ class ClientFilePackageView(LoginRequiredMixin, View):
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Client File Printable - {escape(client.full_name)}</title>
+  <title>{escape(client.full_name)} - Printable File</title>
   <style>
     body {{ font-family: Arial, sans-serif; margin: 26px; color: #0f172a; }}
     h1, h2, h3 {{ margin-bottom: 8px; }}
@@ -594,7 +594,7 @@ class ClientFilePackageView(LoginRequiredMixin, View):
   </style>
 </head>
 <body>
-  <h1>Client File Printable</h1>
+  <h1>{escape(client.full_name)}</h1>
   <div class="meta">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
 
   <h2>Client Information</h2>

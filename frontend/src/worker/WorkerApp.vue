@@ -6,7 +6,7 @@
       <header class="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-sm">
         <div class="max-w-lg mx-auto px-4 pt-4 pb-2 flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <h1 class="text-lg font-semibold text-slate-900 leading-tight">Open shifts</h1>
+            <h1 class="text-lg font-semibold text-slate-900 leading-tight">PitStop Coverage Board</h1>
             <p class="text-sm text-slate-500 truncate mt-0.5">{{ workerName }}</p>
           </div>
           <button
@@ -24,7 +24,7 @@
             :class="tab === 'open' ? tabActive : tabIdle"
           >
             <BriefcaseIcon class="w-5 h-5 mb-1" aria-hidden="true" />
-            Shifts open
+            Coverage needed
           </button>
           <button
             type="button"
@@ -32,12 +32,13 @@
             :class="tab === 'mine' ? tabActive : tabIdle"
           >
             <ClipboardDocumentListIcon class="w-5 h-5 mb-1" aria-hidden="true" />
-            My requests
+            My responses
           </button>
         </nav>
       </header>
 
       <main class="max-w-lg mx-auto px-4 py-5 pb-28">
+        <WorkerTimeClock class="mb-4" />
         <WorkerOpenShifts v-if="tab === 'open'" @interest-recorded="onInterestRecorded" />
         <WorkerMyRequests v-else :key="myRequestsKey" />
       </main>
@@ -52,6 +53,7 @@ import { workerFetch } from './api'
 import WorkerLogin from './components/WorkerLogin.vue'
 import WorkerOpenShifts from './components/WorkerOpenShifts.vue'
 import WorkerMyRequests from './components/WorkerMyRequests.vue'
+import WorkerTimeClock from './components/WorkerTimeClock.vue'
 
 const isAuthenticated = ref(false)
 const workerAccount = ref<Record<string, unknown> | null>(null)

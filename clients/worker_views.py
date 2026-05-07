@@ -1,7 +1,7 @@
 """
 Worker Portal API — open shifts + “I’m interested” (no scheduling, no call-out forms).
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 
 from django.utils import timezone
 from rest_framework import status
@@ -15,6 +15,7 @@ from .models_extensions import (
     WorkerSessionToken,
     OpenShift,
     ShiftCoverInterest,
+    WorkerTimePunch,
 )
 from .serializers import (
     WorkerLoginSerializer,
@@ -22,6 +23,7 @@ from .serializers import (
     OpenShiftSerializer,
     ShiftCoverInterestSerializer,
     ShiftCoverInterestStaffSerializer,
+    WorkerTimePunchSerializer,
 )
 
 class WorkerSession:
@@ -92,6 +94,55 @@ def _require_worker(request):
             status=status.HTTP_403_FORBIDDEN,
         )
     return account, None
+
+
+def _parse_client_timestamp(value):
+    if not value:
+        return None
+    dt = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt, timezone=dt_timezone.utc)
+    return dt
+
+
+def _parse_geo_payload(geo):
+    default = {
+        'status': WorkerTimePunch.GEO_STATUS_SKIPPED,
+        'error': '',
+        'latitude': None,
+        'longitude': None,
+        'accuracy': None,
+        'client_reported_at': None,
+    }
+    if not isinstance(geo, dict):
+        return default
+
+    status_value = str(geo.get('status') or WorkerTimePunch.GEO_STATUS_SKIPPED).strip().lower()
+    allowed = {choice[0] for choice in WorkerTimePunch.GEO_STATUS_CHOICES}
+    default['status'] = status_value if status_value in allowed else WorkerTimePunch.GEO_STATUS_ERROR
+    default['error'] = str(geo.get('error') or '')[:200]
+
+    try:
+        lat = geo.get('latitude')
+        lng = geo.get('longitude')
+        acc = geo.get('accuracy')
+        default['latitude'] = None if lat is None else float(lat)
+        default['longitude'] = None if lng is None else float(lng)
+        default['accuracy'] = None if acc is None else float(acc)
+    except (TypeError, ValueError):
+        default['status'] = WorkerTimePunch.GEO_STATUS_ERROR
+        if not default['error']:
+            default['error'] = 'Invalid geolocation payload'
+        default['latitude'] = None
+        default['longitude'] = None
+        default['accuracy'] = None
+
+    try:
+        default['client_reported_at'] = _parse_client_timestamp(geo.get('timestamp'))
+    except Exception:
+        default['client_reported_at'] = None
+
+    return default
 
 
 @api_view(['POST'])
@@ -223,6 +274,103 @@ def worker_shift_interests(request):
         'open_shift', 'open_shift__work_site'
     ).get(pk=interest.pk)
     return Response(ShiftCoverInterestSerializer(interest).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def worker_time_punch(request):
+    """Worker clock in/out with optional geolocation and server time context."""
+    account, err = _require_worker(request)
+    if err:
+        return err
+
+    if request.method == 'GET':
+        open_punch = (
+            WorkerTimePunch.objects.filter(worker_account=account, clock_out_at__isnull=True)
+            .order_by('-clock_in_at')
+            .first()
+        )
+        recent = WorkerTimePunch.objects.filter(worker_account=account).order_by('-clock_in_at')[:10]
+        return Response(
+            {
+                'server_time': timezone.now(),
+                'is_clocked_in': open_punch is not None,
+                'active_punch': WorkerTimePunchSerializer(open_punch).data if open_punch else None,
+                'recent_punches': WorkerTimePunchSerializer(recent, many=True).data,
+            }
+        )
+
+    action = str(request.data.get('action') or '').strip().lower()
+    if action not in {'clock_in', 'clock_out'}:
+        return Response(
+            {'action': ['Action must be "clock_in" or "clock_out".']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    geo = _parse_geo_payload(request.data.get('geolocation'))
+    now = timezone.now()
+
+    open_punch = (
+        WorkerTimePunch.objects.filter(worker_account=account, clock_out_at__isnull=True)
+        .order_by('-clock_in_at')
+        .first()
+    )
+
+    if action == 'clock_in':
+        if open_punch:
+            return Response(
+                {'error': 'You are already clocked in.', 'active_punch': WorkerTimePunchSerializer(open_punch).data},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        punch = WorkerTimePunch.objects.create(
+            worker_account=account,
+            clock_in_at=now,
+            clock_in_client_reported_at=geo['client_reported_at'],
+            clock_in_latitude=geo['latitude'],
+            clock_in_longitude=geo['longitude'],
+            clock_in_accuracy_meters=geo['accuracy'],
+            clock_in_geo_status=geo['status'],
+            clock_in_geo_error=geo['error'],
+        )
+        return Response(
+            {
+                'server_time': now,
+                'message': 'Clock-in recorded.',
+                'punch': WorkerTimePunchSerializer(punch).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    if not open_punch:
+        return Response({'error': 'No active clock-in found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    open_punch.clock_out_at = now
+    open_punch.clock_out_server_received_at = now
+    open_punch.clock_out_client_reported_at = geo['client_reported_at']
+    open_punch.clock_out_latitude = geo['latitude']
+    open_punch.clock_out_longitude = geo['longitude']
+    open_punch.clock_out_accuracy_meters = geo['accuracy']
+    open_punch.clock_out_geo_status = geo['status']
+    open_punch.clock_out_geo_error = geo['error']
+    open_punch.save(
+        update_fields=[
+            'clock_out_at',
+            'clock_out_server_received_at',
+            'clock_out_client_reported_at',
+            'clock_out_latitude',
+            'clock_out_longitude',
+            'clock_out_accuracy_meters',
+            'clock_out_geo_status',
+            'clock_out_geo_error',
+        ]
+    )
+    return Response(
+        {
+            'server_time': now,
+            'message': 'Clock-out recorded.',
+            'punch': WorkerTimePunchSerializer(open_punch).data,
+        }
+    )
 
 
 @api_view(['PATCH'])

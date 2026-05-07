@@ -21,6 +21,7 @@ from .models_extensions import (
     ServiceRequest,
     OpenShift,
     ShiftCoverInterest,
+    WorkerTimePunch,
 )
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 
@@ -1322,6 +1323,42 @@ class ShiftCoverInterestAdmin(admin.ModelAdmin):
     ]
     readonly_fields = ['created_at', 'updated_at']
     autocomplete_fields = ['worker_account', 'open_shift']
+
+    def worker_name(self, obj):
+        return obj.worker_account.client.full_name
+
+    worker_name.short_description = 'Worker'
+
+
+@admin.register(WorkerTimePunch)
+class WorkerTimePunchAdmin(admin.ModelAdmin):
+    list_display = ['worker_name', 'clock_in_at', 'clock_out_at', 'clock_in_geo_status', 'clock_out_geo_status']
+    list_filter = ['clock_in_geo_status', 'clock_out_geo_status', 'clock_in_at']
+    search_fields = [
+        'worker_account__client__first_name',
+        'worker_account__client__last_name',
+        'worker_account__phone',
+    ]
+    readonly_fields = [
+        'worker_account',
+        'clock_in_at',
+        'clock_out_at',
+        'clock_in_server_received_at',
+        'clock_out_server_received_at',
+        'clock_in_client_reported_at',
+        'clock_out_client_reported_at',
+        'clock_in_latitude',
+        'clock_in_longitude',
+        'clock_in_accuracy_meters',
+        'clock_out_latitude',
+        'clock_out_longitude',
+        'clock_out_accuracy_meters',
+        'clock_in_geo_status',
+        'clock_out_geo_status',
+        'clock_in_geo_error',
+        'clock_out_geo_error',
+    ]
+    autocomplete_fields = ['worker_account']
 
     def worker_name(self, obj):
         return obj.worker_account.client.full_name

@@ -20,40 +20,50 @@
         </div>
         <form @submit.prevent="handleLogin" class="space-y-5">
           <div>
-            <label for="phone" class="flex items-center gap-2 text-sm font-medium text-slate-700 mb-2">
-              <DevicePhoneMobileIcon class="w-5 h-5 text-teal-600" aria-hidden="true" />
-              Mobile number (digits only)
-            </label>
-            <input
-              id="phone"
-              v-model="phone"
-              type="tel"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              placeholder="4155551234"
-              required
-              autocomplete="tel"
-              class="w-full px-4 py-3.5 text-lg text-slate-900 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition"
-            />
+            <label for="phone" class="block text-sm font-medium text-slate-700 mb-2">Mobile number</label>
+            <div
+              class="relative rounded-xl border border-slate-300 bg-slate-50 focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
+            >
+              <DevicePhoneMobileIcon
+                class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
+                aria-hidden="true"
+              />
+              <input
+                id="phone"
+                v-model="phone"
+                type="tel"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                placeholder="4155551234"
+                required
+                autocomplete="tel"
+                class="w-full pl-11 pr-4 py-3 text-lg text-slate-900 bg-transparent rounded-xl outline-none"
+              />
+            </div>
           </div>
 
           <div>
-            <label for="pin" class="flex items-center gap-2 text-sm font-medium text-slate-700 mb-2">
-              <LockClosedIcon class="w-5 h-5 text-teal-600" aria-hidden="true" />
-              PIN (4 digits)
-            </label>
-            <input
-              id="pin"
-              v-model="pin"
-              type="password"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              maxlength="4"
-              placeholder="••••"
-              required
-              autocomplete="off"
-              class="w-full px-4 py-3.5 text-2xl tracking-[0.2em] text-center text-slate-900 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition"
-            />
+            <label for="pin" class="block text-sm font-medium text-slate-700 mb-2">PIN (4 digits)</label>
+            <div
+              class="relative rounded-xl border border-slate-300 bg-slate-50 focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
+            >
+              <LockClosedIcon
+                class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
+                aria-hidden="true"
+              />
+              <input
+                id="pin"
+                v-model="pin"
+                type="password"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="4"
+                placeholder="••••"
+                required
+                autocomplete="off"
+                class="w-full pl-11 pr-4 py-3 text-xl tracking-[0.14em] text-slate-900 bg-transparent rounded-xl outline-none"
+              />
+            </div>
             <button
               type="button"
               @click="useLast4()"

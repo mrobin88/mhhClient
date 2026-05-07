@@ -270,6 +270,74 @@ class ShiftCoverInterest(models.Model):
         return f"{self.worker_account.client.full_name} → {self.open_shift}"
 
 
+class WorkerTimePunch(models.Model):
+    """
+    Worker clock in/out records with optional geolocation verification.
+    """
+
+    GEO_STATUS_CAPTURED = 'captured'
+    GEO_STATUS_DENIED = 'denied'
+    GEO_STATUS_UNAVAILABLE = 'unavailable'
+    GEO_STATUS_TIMEOUT = 'timeout'
+    GEO_STATUS_ERROR = 'error'
+    GEO_STATUS_SKIPPED = 'skipped'
+
+    GEO_STATUS_CHOICES = [
+        (GEO_STATUS_CAPTURED, 'Location captured'),
+        (GEO_STATUS_DENIED, 'Location permission denied'),
+        (GEO_STATUS_UNAVAILABLE, 'Location unavailable'),
+        (GEO_STATUS_TIMEOUT, 'Location lookup timed out'),
+        (GEO_STATUS_ERROR, 'Location lookup failed'),
+        (GEO_STATUS_SKIPPED, 'Location not attempted'),
+    ]
+
+    worker_account = models.ForeignKey(
+        'WorkerAccount',
+        on_delete=models.CASCADE,
+        related_name='time_punches',
+    )
+    clock_in_at = models.DateTimeField()
+    clock_out_at = models.DateTimeField(null=True, blank=True)
+
+    # Server-anchored times (authoritative for verification/audits).
+    clock_in_server_received_at = models.DateTimeField(auto_now_add=True)
+    clock_out_server_received_at = models.DateTimeField(null=True, blank=True)
+    clock_in_client_reported_at = models.DateTimeField(null=True, blank=True)
+    clock_out_client_reported_at = models.DateTimeField(null=True, blank=True)
+
+    clock_in_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    clock_in_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    clock_in_accuracy_meters = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    clock_in_geo_status = models.CharField(
+        max_length=20,
+        choices=GEO_STATUS_CHOICES,
+        default=GEO_STATUS_SKIPPED,
+    )
+    clock_in_geo_error = models.CharField(max_length=200, blank=True)
+
+    clock_out_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    clock_out_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    clock_out_accuracy_meters = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    clock_out_geo_status = models.CharField(
+        max_length=20,
+        choices=GEO_STATUS_CHOICES,
+        default=GEO_STATUS_SKIPPED,
+    )
+    clock_out_geo_error = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['-clock_in_at']
+        verbose_name = 'Worker Time Punch'
+        verbose_name_plural = 'Worker Time Punches'
+        indexes = [
+            models.Index(fields=['worker_account', 'clock_out_at']),
+            models.Index(fields=['clock_in_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.worker_account.client.full_name} clock-in {self.clock_in_at}"
+
+
 class WorkerAccount(models.Model):
     """Authentication account for PitStop workers to access worker portal"""
     

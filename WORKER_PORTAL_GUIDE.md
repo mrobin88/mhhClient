@@ -1,3 +1,218 @@
+# Worker Portal Technical Guide
+
+## Purpose and System Boundary
+
+The Worker Portal exists to solve a specific operational problem: PitStop watch coverage has to be filled quickly by field workers who are not backend operators. The portal is therefore intentionally narrow.
+
+This application is **not** a staff admin surface and is **not** a replacement for Django Admin.
+
+- **Primary users of `/worker`**: PitStop coverage workers using phone + PIN.
+- **Primary users of backend/admin**: a small staff cohort responsible for posting shifts and making selection decisions.
+- **Design constraint**: workers should be able to complete their entire portal workflow without any dependency on admin knowledge, admin URLs, or staff-only tooling.
+
+If a requirement cannot be justified inside that worker workflow, it should not be added to the worker surface.
+
+---
+
+## Product Model
+
+The current Worker Portal is a coverage signaling system, not a full workforce management suite.
+
+### In scope
+
+- Worker authentication (phone + PIN)
+- Read open PitStop coverage posts
+- Submit interest for a posted open shift
+- Track outcome of submitted interest
+
+### Out of scope
+
+- Worker self-scheduling
+- Assignment editing
+- Payroll/timekeeping
+- Access to staff-only operational controls
+- Any requirement to access Django Admin
+
+---
+
+## Runtime Architecture
+
+### Frontend
+
+- Vue 3 + TypeScript app mounted at `/worker`
+- Core container: `frontend/src/worker/WorkerApp.vue`
+- Primary views:
+  - `WorkerLogin.vue`
+  - `WorkerOpenShifts.vue`
+  - `WorkerMyRequests.vue`
+
+### Backend
+
+- Django REST endpoints under `/api/worker/*`
+- Token-backed worker sessions stored in database table `WorkerSessionToken`
+- Resource models:
+  - `WorkerAccount`
+  - `OpenShift`
+  - `ShiftCoverInterest`
+
+### Authentication split
+
+- Worker endpoints (`/api/worker/*`) use worker token semantics.
+- Staff status updates for worker interests (`/api/staff/shift-interests/:id/`) use Django staff auth.
+
+This split is deliberate and should remain explicit to prevent privilege drift.
+
+---
+
+## Access Control Model
+
+The platform uses two separate trust domains:
+
+1. **Worker domain**
+   - Credential type: phone + PIN
+   - Session artifact: worker token
+   - Privileges: read open shifts, create/read own interest rows
+
+2. **Staff domain**
+   - Credential type: Django session (staff user)
+   - Privileges: update interest status, post/manage staffing data in staff interfaces
+
+Any endpoint mixing both credential models in the same action path should be treated as a security smell and refactored.
+
+---
+
+## UX Contract for Workers
+
+The worker UX is now intentionally framed around coverage:
+
+- Header and navigation language use **coverage board** semantics rather than generic admin terms.
+- Open-shift copy clarifies that workers are signaling availability, not self-assigning.
+- Response history view clarifies that status changes are staff-driven and visible asynchronously.
+
+This wording matters. Precision in labels reduces operational misunderstanding and decreases staff correction overhead.
+
+---
+
+## API Surface
+
+### Worker endpoints
+
+- `POST /api/worker/login/`
+- `POST /api/worker/logout/`
+- `GET /api/worker/profile/`
+- `GET /api/worker/open-shifts/`
+- `GET|POST /api/worker/shift-interests/`
+
+### Staff endpoint operating on worker records
+
+- `PATCH /api/staff/shift-interests/:id/`
+
+The staff endpoint is not intended for worker clients and should not be surfaced in worker UI.
+
+---
+
+## Data and Status Semantics
+
+### `OpenShift`
+
+Represents staff-published coverage demand for a specific site/date/time window.
+
+### `ShiftCoverInterest`
+
+Represents a worker declaration of availability for an open shift, with lifecycle states:
+
+- `pending`
+- `selected`
+- `not_selected`
+- `cancelled`
+
+Interpretation: this record is a staffing intent workflow artifact, not a legal schedule assignment.
+
+---
+
+## Operational Workflow
+
+### Worker-side workflow
+
+1. Authenticate in portal.
+2. Review currently open coverage posts.
+3. Submit interest for one or more posts.
+4. Return later to review status transitions.
+
+### Staff-side workflow
+
+1. Publish and maintain open coverage posts.
+2. Review worker interest queue.
+3. Mark responses as selected / not selected / cancelled.
+4. Communicate final staffing outcomes through normal operations channels.
+
+The worker portal purposely does not encode the entire staff communication process; it only tracks response state.
+
+---
+
+## Why Workers Must Not Depend on Admin
+
+Operationally, requiring workers to navigate admin creates:
+
+- Unnecessary cognitive load for frontline users
+- Security and permission leakage risk
+- Training burden disconnected from task reality
+- Fragile workflows when staff-only screens change
+
+Architecturally, this violates bounded-context design. Worker clients should consume worker endpoints only.
+
+---
+
+## Documentation Positioning
+
+This guide is technical and architecture-first. It is intended for maintainers, implementers, and operations leadership evaluating scope and correctness.
+
+For staff onboarding and adoption messaging, use:
+
+- `STAFF_TOOLS_ADOPTION_GUIDE.md`
+- `MANAGER_REPORTS_QUICK_GUIDE.md`
+- `CASE_NOTES_GUIDE.md`
+
+Keep this file focused on system boundary, data semantics, and implementation constraints.
+
+---
+
+## Current Implementation Notes
+
+Recent portal updates aligned the UI language and interaction model with the intended domain:
+
+- `WorkerApp.vue`
+  - Retitled primary surface to "PitStop Coverage Board"
+  - Renamed tabs to "Coverage needed" and "My responses"
+- `WorkerOpenShifts.vue`
+  - Clarified coverage-post semantics and staff confirmation requirement
+  - Updated empty state language
+- `WorkerMyRequests.vue`
+  - Clarified that this list is response/status history
+  - Updated empty state language for coverage context
+
+These are not cosmetic-only edits; they reduce domain ambiguity and reinforce role boundaries.
+
+---
+
+## Extension Rules
+
+When extending Worker Portal capabilities, enforce all rules below:
+
+1. A worker must never require admin access to complete a worker task.
+2. Worker endpoints should only return worker-relevant, least-privilege data.
+3. Any staff mutation path should remain in staff-authenticated endpoints.
+4. UI labels must encode actual business semantics (availability signal vs assignment confirmation).
+5. New features should be validated against the original purpose: filling PitStop coverage with minimal friction.
+
+If a proposed enhancement fails these tests, it belongs in staff tooling, not Worker Portal.
+
+---
+
+## Summary
+
+Worker Portal is a constrained, purpose-built frontline surface for PitStop coverage operations. The backend/admin remains a staff-only operational system. Maintaining this separation is central to usability, security, and long-term maintainability.
+
 # 🏢 Worker Portal System Guide
 
 ## Overview

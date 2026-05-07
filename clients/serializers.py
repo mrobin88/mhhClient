@@ -7,6 +7,7 @@ from .models_extensions import (
     WorkSite,
     OpenShift,
     ShiftCoverInterest,
+    WorkerTimePunch,
 )
 from .phone_utils import find_by_normalized_phone, phone_digits
 
@@ -257,6 +258,34 @@ class WorkAssignmentSerializer(serializers.ModelSerializer):
         model = WorkAssignment
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at', 'assigned_by']
+
+
+class WorkerTimePunchSerializer(serializers.ModelSerializer):
+    """Worker-facing clock in/out record."""
+
+    is_open = serializers.SerializerMethodField()
+    duration_minutes = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkerTimePunch
+        fields = [
+            'id',
+            'clock_in_at',
+            'clock_out_at',
+            'clock_in_server_received_at',
+            'clock_out_server_received_at',
+            'is_open',
+            'duration_minutes',
+        ]
+
+    def get_is_open(self, obj):
+        return obj.clock_out_at is None
+
+    def get_duration_minutes(self, obj):
+        if obj.clock_out_at is None:
+            return None
+        duration_seconds = (obj.clock_out_at - obj.clock_in_at).total_seconds()
+        return int(max(duration_seconds, 0) // 60)
 
 
 class ServiceRequestSerializer(serializers.ModelSerializer):

@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-4">
     <p class="text-sm text-slate-600 leading-relaxed">
-      These shifts need someone to cover. Tap <strong class="text-slate-800">I’m interested</strong> if you can help.
-      A supervisor may call or message you — it is not a guarantee until they confirm.
+      This board lists PitStop watch coverage that needs a worker. Tap <strong class="text-slate-800">I’m interested</strong>
+      to signal availability. Selection is still confirmed by staff scheduling.
     </p>
 
     <div v-if="loading" class="text-center py-16 text-slate-500 text-base">Loading…</div>
@@ -13,7 +13,7 @@
 
     <div v-else-if="shifts.length === 0" class="text-center py-14 px-4 rounded-2xl bg-white border border-slate-200">
       <InboxIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" aria-hidden="true" />
-      <p class="text-slate-600 font-medium">No open shifts right now.</p>
+      <p class="text-slate-600 font-medium">No coverage needs posted right now.</p>
       <p class="text-sm text-slate-500 mt-1">Check back later.</p>
     </div>
 

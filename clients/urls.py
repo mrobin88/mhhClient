@@ -26,6 +26,7 @@ from .worker_views import (
     worker_profile,
     worker_open_shifts,
     worker_shift_interests,
+    worker_time_punch,
     staff_shift_interest_update,
 )
 from .kiosk_views import KioskCheckInLookupView, KioskCheckInSubmitView, KioskDocumentUploadView
@@ -59,6 +60,7 @@ urlpatterns = [
     path('worker/profile/', worker_profile, name='worker-profile'),
     path('worker/open-shifts/', worker_open_shifts, name='worker-open-shifts'),
     path('worker/shift-interests/', worker_shift_interests, name='worker-shift-interests'),
+    path('worker/time-punch/', worker_time_punch, name='worker-time-punch'),
     path(
         'staff/shift-interests/<int:pk>/',
         staff_shift_interest_update,
