@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.worker-portal {
+  font-family: 'Inter', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+}
+
+.worker-portal .bg-slate-50 {
+  background-color: #eef2f7;
+}
+
+.worker-portal .border-slate-200 {
+  border-color: #cbd5e1;
+}
+
+.worker-portal .text-slate-500 {
+  color: #334155;
+}
+
+.worker-portal .text-slate-600 {
+  color: #1e293b;
+}
+
+.worker-portal .text-slate-700 {
+  color: #0f172a;
+}
+
+.worker-portal .text-slate-900 {
+  color: #020617;
+}
+
+.worker-portal .bg-teal-50 {
+  background-color: #e6fffb;
+}
+
+.worker-portal .hover\:bg-teal-50:hover {
+  background-color: #cffafe;
+}
+
+.worker-portal button:focus-visible,
+.worker-portal input:focus-visible,
+.worker-portal select:focus-visible,
+.worker-portal textarea:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 1px;
+}

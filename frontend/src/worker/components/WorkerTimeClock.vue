@@ -3,7 +3,7 @@
     <div class="flex items-start justify-between gap-3">
       <div>
         <h2 class="text-sm font-semibold text-slate-900">Shift clock</h2>
-        <p class="text-xs text-slate-500">
+        <p class="text-xs text-slate-700">
           Time entries are verified by the system clock on the server.
         </p>
       </div>
@@ -15,7 +15,7 @@
       </span>
     </div>
 
-    <p class="text-xs text-slate-500">
+    <p class="text-xs text-slate-700">
       Server time:
       <strong class="text-slate-700 font-semibold">{{ formatDateTime(serverTime) }}</strong>
     </p>

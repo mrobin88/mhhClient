@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-slate-600">
+    <p class="text-sm text-slate-700">
       This shows your PitStop coverage responses and whether staff selected you for the post.
     </p>
 
@@ -13,7 +13,7 @@
     <div v-else-if="items.length === 0" class="text-center py-14 px-4 rounded-2xl bg-white border border-slate-200">
       <ClipboardDocumentIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" aria-hidden="true" />
       <p class="text-slate-600 font-medium">No responses yet.</p>
-      <p class="text-sm text-slate-500 mt-1">Use <strong>Coverage needed</strong> to show interest.</p>
+      <p class="text-sm text-slate-600 mt-1">Use <strong>Coverage needed</strong> to show interest.</p>
     </div>
 
     <ul v-else class="space-y-3">
@@ -30,13 +30,13 @@
             {{ statusLabel(row.status) }}
           </span>
         </div>
-        <p class="text-sm text-slate-500 mb-2">
+        <p class="text-sm text-slate-700 mb-2">
           {{ row.open_shift?.location_display }} · {{ formatDate(row.open_shift?.shift_date) }}
           <span v-if="row.open_shift?.start_time">
             · {{ formatTime(row.open_shift.start_time) }} – {{ formatTime(row.open_shift.end_time) }}
           </span>
         </p>
-        <p class="text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-3">
+        <p class="text-sm text-slate-700 leading-relaxed border-t border-slate-100 pt-3">
           {{ row.message_for_worker }}
         </p>
       </li>

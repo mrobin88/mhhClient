@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-slate-600 leading-relaxed">
+    <p class="text-sm text-slate-700 leading-relaxed">
       This board lists PitStop watch coverage that needs a worker. Tap <strong class="text-slate-800">I’m interested</strong>
       to signal availability. Selection is still confirmed by staff scheduling.
     </p>
@@ -14,7 +14,7 @@
     <div v-else-if="shifts.length === 0" class="text-center py-14 px-4 rounded-2xl bg-white border border-slate-200">
       <InboxIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" aria-hidden="true" />
       <p class="text-slate-600 font-medium">No coverage needs posted right now.</p>
-      <p class="text-sm text-slate-500 mt-1">Check back later.</p>
+      <p class="text-sm text-slate-600 mt-1">Check back later.</p>
     </div>
 
     <ul v-else class="space-y-4">
@@ -28,7 +28,7 @@
             {{ shift.role_title }}
           </h2>
 
-          <div class="space-y-2 text-sm text-slate-600">
+          <div class="space-y-2 text-sm text-slate-700">
             <div class="flex gap-2 items-start">
               <MapPinIcon class="w-5 h-5 text-teal-600 shrink-0 mt-0.5" aria-hidden="true" />
               <span>{{ shift.location_display }}</span>
@@ -43,7 +43,7 @@
             </div>
           </div>
 
-          <p v-if="shift.notes" class="text-sm text-slate-500 border-t border-slate-100 pt-3">
+          <p v-if="shift.notes" class="text-sm text-slate-700 border-t border-slate-100 pt-3">
             {{ shift.notes }}
           </p>
 

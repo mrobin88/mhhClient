@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-b from-teal-50 via-slate-50 to-slate-100 px-4 py-10">
+  <div class="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-100 via-slate-50 to-white px-4 py-10">
     <div class="max-w-md w-full">
       <div class="text-center mb-8">
         <div
@@ -8,7 +8,7 @@
           <BriefcaseIcon class="w-9 h-9" aria-hidden="true" />
         </div>
         <h1 class="text-3xl font-semibold text-slate-900 tracking-tight">PitStop Worker Portal</h1>
-        <p class="text-sm text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
+        <p class="text-sm text-slate-700 mt-2 max-w-sm mx-auto leading-relaxed">
           Sign in with your phone and PIN to view open shifts, respond faster, and keep your work record current.
         </p>
       </div>
@@ -20,7 +20,7 @@
         </div>
         <form @submit.prevent="handleLogin" class="space-y-5">
           <div>
-            <label for="phone" class="block text-sm font-medium text-slate-700 mb-2">Mobile number</label>
+            <label for="phone" class="block text-sm font-semibold text-slate-800 mb-2">Mobile number</label>
             <div
               class="relative rounded-xl border border-slate-300 bg-slate-50 focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
             >
@@ -43,7 +43,7 @@
           </div>
 
           <div>
-            <label for="pin" class="block text-sm font-medium text-slate-700 mb-2">PIN (4 digits)</label>
+            <label for="pin" class="block text-sm font-semibold text-slate-800 mb-2">PIN (4 digits)</label>
             <div
               class="relative rounded-xl border border-slate-300 bg-slate-50 focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
             >
@@ -87,7 +87,7 @@
           </button>
         </form>
 
-        <p class="text-xs text-slate-400 text-center mt-6">
+        <p class="text-xs text-slate-600 text-center mt-6">
           PitStop workers only. Ask your supervisor if you need a PIN reset.
         </p>
       </div>

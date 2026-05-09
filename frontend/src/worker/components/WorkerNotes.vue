@@ -1,0 +1,149 @@
+<template>
+  <section class="space-y-4">
+    <p class="text-sm text-slate-700">
+      Send quick updates to staff about restroom checks, incidents, or supply needs.
+    </p>
+
+    <form @submit.prevent="submitNote" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+      <div>
+        <label for="note-type" class="block text-xs font-semibold text-slate-700 mb-1">Type</label>
+        <select
+          id="note-type"
+          v-model="noteType"
+          class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+        >
+          <option value="general">General update</option>
+          <option value="restroom_check">Restroom check update</option>
+          <option value="incident">Incident report</option>
+          <option value="supply">Supply request</option>
+        </select>
+      </div>
+      <div>
+        <label for="note-content" class="block text-xs font-semibold text-slate-700 mb-1">Note</label>
+        <textarea
+          id="note-content"
+          v-model="content"
+          rows="4"
+          maxlength="4000"
+          placeholder="Example: Restroom at Mission & 16th checked at 9:15am, all clean, low paper towels."
+          class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-y"
+        />
+      </div>
+      <button
+        type="submit"
+        :disabled="submitting"
+        class="w-full min-h-[46px] rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+      >
+        <span v-if="submitting">Sending note…</span>
+        <span v-else>Send note to staff</span>
+      </button>
+      <p v-if="error" class="text-xs text-red-700">{{ error }}</p>
+      <p v-if="success" class="text-xs text-emerald-700">{{ success }}</p>
+    </form>
+
+    <div class="space-y-3">
+      <h3 class="text-sm font-semibold text-slate-800">Recent notes</h3>
+      <div v-if="loading" class="text-sm text-slate-600 py-3">Loading…</div>
+      <div v-else-if="items.length === 0" class="text-sm text-slate-600 py-3">No notes yet.</div>
+      <ul v-else class="space-y-3">
+        <li v-for="item in items" :key="item.id" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-700">
+              {{ item.note_type_label }}
+            </span>
+            <span class="text-xs text-slate-600">{{ formatDateTime(item.created_at) }}</span>
+          </div>
+          <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ item.content }}</p>
+          <p v-if="item.staff_response" class="mt-3 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2">
+            Staff note: {{ item.staff_response }}
+          </p>
+        </li>
+      </ul>
+    </div>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { workerFetch } from '../api'
+
+interface WorkerNote {
+  id: number
+  note_type_label: string
+  content: string
+  staff_response: string
+  created_at: string
+}
+
+const loading = ref(true)
+const submitting = ref(false)
+const items = ref<WorkerNote[]>([])
+const noteType = ref('general')
+const content = ref('')
+const error = ref('')
+const success = ref('')
+
+function formatDateTime(value: string) {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    const resp = await workerFetch('/api/worker/notes/')
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok || !Array.isArray(body)) {
+      error.value = body?.error || 'Could not load notes.'
+      return
+    }
+    items.value = body as WorkerNote[]
+  } catch {
+    error.value = 'No connection. Try again.'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function submitNote() {
+  const trimmed = content.value.trim()
+  if (!trimmed) {
+    error.value = 'Please enter a note before sending.'
+    return
+  }
+
+  submitting.value = true
+  error.value = ''
+  success.value = ''
+  try {
+    const resp = await workerFetch('/api/worker/notes/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note_type: noteType.value, content: trimmed }),
+    })
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok || !body) {
+      error.value = body?.content?.[0] || body?.error || 'Could not send note.'
+      return
+    }
+    success.value = 'Note sent.'
+    content.value = ''
+    await load()
+  } catch {
+    error.value = 'No connection. Try again.'
+  } finally {
+    submitting.value = false
+  }
+}
+
+onMounted(() => {
+  load()
+})
+</script>

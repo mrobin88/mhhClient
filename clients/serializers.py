@@ -8,6 +8,8 @@ from .models_extensions import (
     OpenShift,
     ShiftCoverInterest,
     WorkerTimePunch,
+    WorkerPortalNote,
+    WorkerTimeOffRequest,
 )
 from .phone_utils import find_by_normalized_phone, phone_digits
 
@@ -274,6 +276,10 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
             'clock_out_at',
             'clock_in_server_received_at',
             'clock_out_server_received_at',
+            'clock_in_geo_basic_ok',
+            'clock_in_geo_basic_note',
+            'clock_out_geo_basic_ok',
+            'clock_out_geo_basic_note',
             'is_open',
             'duration_minutes',
         ]
@@ -304,5 +310,40 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
             'submitted_by', 'created_at', 'updated_at',
             'acknowledged_by', 'acknowledged_at', 'resolved_at'
         ]
+
+
+class WorkerPortalNoteSerializer(serializers.ModelSerializer):
+    note_type_label = serializers.CharField(source='get_note_type_display', read_only=True)
+
+    class Meta:
+        model = WorkerPortalNote
+        fields = [
+            'id',
+            'note_type',
+            'note_type_label',
+            'content',
+            'staff_response',
+            'is_read_by_staff',
+            'created_at',
+        ]
+        read_only_fields = ['staff_response', 'is_read_by_staff', 'created_at']
+
+
+class WorkerTimeOffRequestSerializer(serializers.ModelSerializer):
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = WorkerTimeOffRequest
+        fields = [
+            'id',
+            'start_date',
+            'end_date',
+            'reason',
+            'status',
+            'status_label',
+            'staff_note',
+            'created_at',
+        ]
+        read_only_fields = ['status', 'staff_note', 'created_at']
 
 

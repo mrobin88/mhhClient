@@ -3,6 +3,7 @@ Worker Portal API — open shifts + “I’m interested” (no scheduling, no ca
 """
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
@@ -16,6 +17,8 @@ from .models_extensions import (
     OpenShift,
     ShiftCoverInterest,
     WorkerTimePunch,
+    WorkerPortalNote,
+    WorkerTimeOffRequest,
 )
 from .serializers import (
     WorkerLoginSerializer,
@@ -24,6 +27,8 @@ from .serializers import (
     ShiftCoverInterestSerializer,
     ShiftCoverInterestStaffSerializer,
     WorkerTimePunchSerializer,
+    WorkerPortalNoteSerializer,
+    WorkerTimeOffRequestSerializer,
 )
 
 class WorkerSession:
@@ -143,6 +148,31 @@ def _parse_geo_payload(geo):
         default['client_reported_at'] = None
 
     return default
+
+
+def _basic_geo_validation(geo_payload):
+    """
+    Lightweight checks to flag obviously bad/suspicious location payloads.
+    """
+    status_value = geo_payload.get('status')
+    if status_value != WorkerTimePunch.GEO_STATUS_CAPTURED:
+        return False, f"No captured location ({status_value})"
+
+    lat = geo_payload.get('latitude')
+    lng = geo_payload.get('longitude')
+    acc = geo_payload.get('accuracy')
+
+    if lat is None or lng is None:
+        return False, 'Missing latitude/longitude'
+    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        return False, 'Latitude/longitude out of range'
+    if abs(lat) < 0.0001 and abs(lng) < 0.0001:
+        return False, 'Coordinate is near 0,0'
+    if acc is None:
+        return False, 'Missing GPS accuracy value'
+    if acc > 500:
+        return False, f'Low precision ({acc:.0f}m)'
+    return True, f'Captured with accuracy {acc:.0f}m'
 
 
 @api_view(['POST'])
@@ -308,6 +338,7 @@ def worker_time_punch(request):
         )
 
     geo = _parse_geo_payload(request.data.get('geolocation'))
+    geo_basic_ok, geo_basic_note = _basic_geo_validation(geo)
     now = timezone.now()
 
     open_punch = (
@@ -331,6 +362,8 @@ def worker_time_punch(request):
             clock_in_accuracy_meters=geo['accuracy'],
             clock_in_geo_status=geo['status'],
             clock_in_geo_error=geo['error'],
+            clock_in_geo_basic_ok=geo_basic_ok,
+            clock_in_geo_basic_note=geo_basic_note,
         )
         return Response(
             {
@@ -352,6 +385,8 @@ def worker_time_punch(request):
     open_punch.clock_out_accuracy_meters = geo['accuracy']
     open_punch.clock_out_geo_status = geo['status']
     open_punch.clock_out_geo_error = geo['error']
+    open_punch.clock_out_geo_basic_ok = geo_basic_ok
+    open_punch.clock_out_geo_basic_note = geo_basic_note
     open_punch.save(
         update_fields=[
             'clock_out_at',
@@ -362,6 +397,8 @@ def worker_time_punch(request):
             'clock_out_accuracy_meters',
             'clock_out_geo_status',
             'clock_out_geo_error',
+            'clock_out_geo_basic_ok',
+            'clock_out_geo_basic_note',
         ]
     )
     return Response(
@@ -371,6 +408,82 @@ def worker_time_punch(request):
             'punch': WorkerTimePunchSerializer(open_punch).data,
         }
     )
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def worker_notes(request):
+    """Worker notes timeline + submission."""
+    account, err = _require_worker(request)
+    if err:
+        return err
+
+    if request.method == 'GET':
+        notes = WorkerPortalNote.objects.filter(worker_account=account).order_by('-created_at')[:30]
+        return Response(WorkerPortalNoteSerializer(notes, many=True).data)
+
+    note_type = str(request.data.get('note_type') or WorkerPortalNote.TYPE_GENERAL).strip()
+    if note_type not in {x[0] for x in WorkerPortalNote.NOTE_TYPE_CHOICES}:
+        return Response({'note_type': ['Invalid note type.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    content = str(request.data.get('content') or '').strip()
+    if not content:
+        return Response({'content': ['Note text is required.']}, status=status.HTTP_400_BAD_REQUEST)
+    if len(content) > 4000:
+        return Response({'content': ['Note is too long.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    note = WorkerPortalNote.objects.create(
+        worker_account=account,
+        note_type=note_type,
+        content=content,
+    )
+    return Response(WorkerPortalNoteSerializer(note).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def worker_time_off_requests(request):
+    """Worker time-off requests timeline + submission."""
+    account, err = _require_worker(request)
+    if err:
+        return err
+
+    if request.method == 'GET':
+        rows = WorkerTimeOffRequest.objects.filter(worker_account=account).order_by('-created_at')[:30]
+        return Response(WorkerTimeOffRequestSerializer(rows, many=True).data)
+
+    start_date_raw = request.data.get('start_date')
+    end_date_raw = request.data.get('end_date')
+    reason = str(request.data.get('reason') or '').strip()
+    if not reason:
+        return Response({'reason': ['Reason is required.']}, status=status.HTTP_400_BAD_REQUEST)
+    if len(reason) > 4000:
+        return Response({'reason': ['Reason is too long.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        start_date = date.fromisoformat(str(start_date_raw))
+        end_date = date.fromisoformat(str(end_date_raw))
+    except Exception:
+        return Response(
+            {'start_date': ['Use YYYY-MM-DD dates.'], 'end_date': ['Use YYYY-MM-DD dates.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    req = WorkerTimeOffRequest(
+        worker_account=account,
+        start_date=start_date,
+        end_date=end_date,
+        reason=reason,
+    )
+    try:
+        req.full_clean()
+    except ValidationError:
+        return Response(
+            {'end_date': ['End date cannot be before start date.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    req.save()
+    return Response(WorkerTimeOffRequestSerializer(req).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(['PATCH'])

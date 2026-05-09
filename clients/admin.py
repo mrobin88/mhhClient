@@ -22,6 +22,8 @@ from .models_extensions import (
     OpenShift,
     ShiftCoverInterest,
     WorkerTimePunch,
+    WorkerPortalNote,
+    WorkerTimeOffRequest,
 )
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 
@@ -1332,8 +1334,22 @@ class ShiftCoverInterestAdmin(admin.ModelAdmin):
 
 @admin.register(WorkerTimePunch)
 class WorkerTimePunchAdmin(admin.ModelAdmin):
-    list_display = ['worker_name', 'clock_in_at', 'clock_out_at', 'clock_in_geo_status', 'clock_out_geo_status']
-    list_filter = ['clock_in_geo_status', 'clock_out_geo_status', 'clock_in_at']
+    list_display = [
+        'worker_name',
+        'clock_in_at',
+        'clock_out_at',
+        'clock_in_geo_status',
+        'clock_in_geo_basic_ok',
+        'clock_out_geo_status',
+        'clock_out_geo_basic_ok',
+    ]
+    list_filter = [
+        'clock_in_geo_status',
+        'clock_in_geo_basic_ok',
+        'clock_out_geo_status',
+        'clock_out_geo_basic_ok',
+        'clock_in_at',
+    ]
     search_fields = [
         'worker_account__client__first_name',
         'worker_account__client__last_name',
@@ -1357,7 +1373,51 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
         'clock_out_geo_status',
         'clock_in_geo_error',
         'clock_out_geo_error',
+        'clock_in_geo_basic_ok',
+        'clock_in_geo_basic_note',
+        'clock_out_geo_basic_ok',
+        'clock_out_geo_basic_note',
     ]
+    autocomplete_fields = ['worker_account']
+
+    def worker_name(self, obj):
+        return obj.worker_account.client.full_name
+
+    worker_name.short_description = 'Worker'
+
+
+@admin.register(WorkerPortalNote)
+class WorkerPortalNoteAdmin(admin.ModelAdmin):
+    list_display = ['worker_name', 'note_type', 'is_read_by_staff', 'created_at']
+    list_filter = ['note_type', 'is_read_by_staff', 'created_at']
+    search_fields = [
+        'worker_account__client__first_name',
+        'worker_account__client__last_name',
+        'worker_account__phone',
+        'content',
+        'staff_response',
+    ]
+    readonly_fields = ['created_at', 'updated_at']
+    autocomplete_fields = ['worker_account']
+
+    def worker_name(self, obj):
+        return obj.worker_account.client.full_name
+
+    worker_name.short_description = 'Worker'
+
+
+@admin.register(WorkerTimeOffRequest)
+class WorkerTimeOffRequestAdmin(admin.ModelAdmin):
+    list_display = ['worker_name', 'start_date', 'end_date', 'status', 'created_at']
+    list_filter = ['status', 'start_date', 'end_date', 'created_at']
+    search_fields = [
+        'worker_account__client__first_name',
+        'worker_account__client__last_name',
+        'worker_account__phone',
+        'reason',
+        'staff_note',
+    ]
+    readonly_fields = ['created_at', 'updated_at']
     autocomplete_fields = ['worker_account']
 
     def worker_name(self, obj):

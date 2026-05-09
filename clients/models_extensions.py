@@ -314,6 +314,11 @@ class WorkerTimePunch(models.Model):
         default=GEO_STATUS_SKIPPED,
     )
     clock_in_geo_error = models.CharField(max_length=200, blank=True)
+    clock_in_geo_basic_ok = models.BooleanField(
+        default=False,
+        help_text='Basic validation check for clock-in location payload.',
+    )
+    clock_in_geo_basic_note = models.CharField(max_length=200, blank=True)
 
     clock_out_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     clock_out_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
@@ -324,6 +329,11 @@ class WorkerTimePunch(models.Model):
         default=GEO_STATUS_SKIPPED,
     )
     clock_out_geo_error = models.CharField(max_length=200, blank=True)
+    clock_out_geo_basic_ok = models.BooleanField(
+        default=False,
+        help_text='Basic validation check for clock-out location payload.',
+    )
+    clock_out_geo_basic_note = models.CharField(max_length=200, blank=True)
 
     class Meta:
         ordering = ['-clock_in_at']
@@ -336,6 +346,94 @@ class WorkerTimePunch(models.Model):
 
     def __str__(self):
         return f"{self.worker_account.client.full_name} clock-in {self.clock_in_at}"
+
+
+class WorkerPortalNote(models.Model):
+    """Simple worker-submitted notes for supervisor visibility."""
+
+    TYPE_GENERAL = 'general'
+    TYPE_RESTROOM_CHECK = 'restroom_check'
+    TYPE_INCIDENT = 'incident'
+    TYPE_SUPPLY = 'supply'
+
+    NOTE_TYPE_CHOICES = [
+        (TYPE_GENERAL, 'General update'),
+        (TYPE_RESTROOM_CHECK, 'Restroom check update'),
+        (TYPE_INCIDENT, 'Incident report'),
+        (TYPE_SUPPLY, 'Supply request'),
+    ]
+
+    worker_account = models.ForeignKey(
+        'WorkerAccount',
+        on_delete=models.CASCADE,
+        related_name='portal_notes',
+    )
+    note_type = models.CharField(max_length=30, choices=NOTE_TYPE_CHOICES, default=TYPE_GENERAL)
+    content = models.TextField()
+    staff_response = models.TextField(blank=True)
+    is_read_by_staff = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Worker Portal Note'
+        verbose_name_plural = 'Worker Portal Notes'
+        indexes = [
+            models.Index(fields=['worker_account', 'created_at']),
+            models.Index(fields=['is_read_by_staff']),
+        ]
+
+    def __str__(self):
+        return f"{self.worker_account.client.full_name} note {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class WorkerTimeOffRequest(models.Model):
+    """Worker-submitted time-off requests."""
+
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_DENIED = 'denied'
+    STATUS_CANCELLED = 'cancelled'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending review'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_DENIED, 'Denied'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    worker_account = models.ForeignKey(
+        'WorkerAccount',
+        on_delete=models.CASCADE,
+        related_name='time_off_requests',
+    )
+    start_date = models.DateField()
+    end_date = models.DateField()
+    reason = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    staff_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Worker Time Off Request'
+        verbose_name_plural = 'Worker Time Off Requests'
+        indexes = [
+            models.Index(fields=['worker_account', 'status']),
+            models.Index(fields=['start_date', 'end_date']),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.worker_account.client.full_name} time off "
+            f"{self.start_date} to {self.end_date}"
+        )
+
+    def clean(self):
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError('End date cannot be before start date.')
 
 
 class WorkerAccount(models.Model):

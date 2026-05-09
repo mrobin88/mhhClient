@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+  <div class="worker-portal min-h-screen bg-slate-50 text-slate-900 antialiased">
     <WorkerLogin v-if="!isAuthenticated" @login-success="handleLoginSuccess" />
 
     <template v-else>
@@ -34,13 +34,31 @@
             <ClipboardDocumentListIcon class="w-5 h-5 mb-1" aria-hidden="true" />
             My responses
           </button>
+          <button
+            type="button"
+            @click="tab = 'notes'"
+            :class="tab === 'notes' ? tabActive : tabIdle"
+          >
+            <DocumentTextIcon class="w-5 h-5 mb-1" aria-hidden="true" />
+            Notes
+          </button>
+          <button
+            type="button"
+            @click="tab = 'timeOff'"
+            :class="tab === 'timeOff' ? tabActive : tabIdle"
+          >
+            <CalendarDaysIcon class="w-5 h-5 mb-1" aria-hidden="true" />
+            Time off
+          </button>
         </nav>
       </header>
 
       <main class="max-w-lg mx-auto px-4 py-5 pb-28">
         <WorkerTimeClock class="mb-4" />
         <WorkerOpenShifts v-if="tab === 'open'" @interest-recorded="onInterestRecorded" />
-        <WorkerMyRequests v-else :key="myRequestsKey" />
+        <WorkerMyRequests v-else-if="tab === 'mine'" :key="myRequestsKey" />
+        <WorkerNotes v-else-if="tab === 'notes'" />
+        <WorkerTimeOffRequests v-else />
       </main>
     </template>
   </div>
@@ -48,22 +66,29 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { BriefcaseIcon, ClipboardDocumentListIcon } from '@heroicons/vue/24/outline'
+import {
+  BriefcaseIcon,
+  ClipboardDocumentListIcon,
+  DocumentTextIcon,
+  CalendarDaysIcon,
+} from '@heroicons/vue/24/outline'
 import { workerFetch } from './api'
 import WorkerLogin from './components/WorkerLogin.vue'
 import WorkerOpenShifts from './components/WorkerOpenShifts.vue'
 import WorkerMyRequests from './components/WorkerMyRequests.vue'
 import WorkerTimeClock from './components/WorkerTimeClock.vue'
+import WorkerNotes from './components/WorkerNotes.vue'
+import WorkerTimeOffRequests from './components/WorkerTimeOffRequests.vue'
 
 const isAuthenticated = ref(false)
 const workerAccount = ref<Record<string, unknown> | null>(null)
-const tab = ref<'open' | 'mine'>('open')
+const tab = ref<'open' | 'mine' | 'notes' | 'timeOff'>('open')
 const myRequestsKey = ref(0)
 
 const tabActive =
-  'flex-1 flex flex-col items-center py-3 text-xs font-semibold text-teal-700 border-b-2 border-teal-600'
+  'flex-1 min-w-0 flex flex-col items-center py-3 text-xs font-semibold text-teal-800 border-b-2 border-teal-700'
 const tabIdle =
-  'flex-1 flex flex-col items-center py-3 text-xs font-semibold text-slate-500 border-b-2 border-transparent hover:text-slate-700'
+  'flex-1 min-w-0 flex flex-col items-center py-3 text-xs font-semibold text-slate-600 border-b-2 border-transparent hover:text-slate-900'
 
 const workerName = computed(() => {
   const n = workerAccount.value?.client_name
