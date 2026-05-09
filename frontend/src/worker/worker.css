@@ -12,8 +12,8 @@
 .worker-card {
   background: #ffffff;
   border: 1px solid #cbd5e1;
-  border-radius: 18px;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
 .worker-section-intro {
@@ -64,10 +64,10 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 50px;
+  min-height: 44px;
   border: 1px solid transparent;
-  border-radius: 14px;
-  font-size: 0.98rem;
+  border-radius: 12px;
+  font-size: 0.92rem;
   font-weight: 700;
   letter-spacing: 0.005em;
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease;
@@ -117,38 +117,6 @@
   padding: 0.7rem 0.85rem;
   font-size: 0.86rem;
   font-weight: 600;
-}
-
-.worker-portal .bg-slate-50 {
-  background-color: #eef2f7;
-}
-
-.worker-portal .border-slate-200 {
-  border-color: #cbd5e1;
-}
-
-.worker-portal .text-slate-500 {
-  color: #334155;
-}
-
-.worker-portal .text-slate-600 {
-  color: #1e293b;
-}
-
-.worker-portal .text-slate-700 {
-  color: #0f172a;
-}
-
-.worker-portal .text-slate-900 {
-  color: #020617;
-}
-
-.worker-portal .bg-teal-50 {
-  background-color: #e6fffb;
-}
-
-.worker-portal .hover\:bg-teal-50:hover {
-  background-color: #cffafe;
 }
 
 .worker-portal button:focus-visible,

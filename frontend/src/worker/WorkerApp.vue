@@ -17,29 +17,29 @@
             Sign out
           </button>
         </div>
-        <nav class="max-w-lg mx-auto grid grid-cols-4 gap-1 px-3 pb-3" aria-label="Main">
+        <nav class="max-w-lg mx-auto flex items-center gap-1 px-3 pb-2" aria-label="Main">
           <button
             type="button"
             @click="tab = 'open'"
             :class="tab === 'open' ? tabActive : tabIdle"
           >
-            <BriefcaseIcon class="w-5 h-5 mb-1" aria-hidden="true" />
-            Coverage needed
+            <BriefcaseIcon class="w-4 h-4" aria-hidden="true" />
+            Coverage
           </button>
           <button
             type="button"
             @click="tab = 'mine'"
             :class="tab === 'mine' ? tabActive : tabIdle"
           >
-            <ClipboardDocumentListIcon class="w-5 h-5 mb-1" aria-hidden="true" />
-            My responses
+            <ClipboardDocumentListIcon class="w-4 h-4" aria-hidden="true" />
+            Responses
           </button>
           <button
             type="button"
             @click="tab = 'notes'"
             :class="tab === 'notes' ? tabActive : tabIdle"
           >
-            <DocumentTextIcon class="w-5 h-5 mb-1" aria-hidden="true" />
+            <DocumentTextIcon class="w-4 h-4" aria-hidden="true" />
             Notes
           </button>
           <button
@@ -47,7 +47,7 @@
             @click="tab = 'timeOff'"
             :class="tab === 'timeOff' ? tabActive : tabIdle"
           >
-            <CalendarDaysIcon class="w-5 h-5 mb-1" aria-hidden="true" />
+            <CalendarDaysIcon class="w-4 h-4" aria-hidden="true" />
             Time off
           </button>
         </nav>
@@ -86,9 +86,9 @@ const tab = ref<'open' | 'mine' | 'notes' | 'timeOff'>('open')
 const myRequestsKey = ref(0)
 
 const tabActive =
-  'min-w-0 flex flex-col items-center justify-center gap-1 rounded-xl bg-teal-700 px-1.5 py-2 text-[11px] font-bold text-white shadow-sm'
+  'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-lg border border-teal-700 bg-teal-50 px-2 py-1.5 text-[11px] font-bold text-teal-900'
 const tabIdle =
-  'min-w-0 flex flex-col items-center justify-center gap-1 rounded-xl bg-slate-100 px-1.5 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-200 hover:text-slate-950'
+  'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-950'
 
 const workerName = computed(() => {
   const n = workerAccount.value?.client_name
