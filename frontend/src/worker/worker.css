@@ -5,6 +5,120 @@
   color: #0f172a;
 }
 
+.worker-portal * {
+  box-sizing: border-box;
+}
+
+.worker-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.worker-section-intro {
+  color: #1e293b;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.worker-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #0f172a;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.worker-field {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #94a3b8;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #020617;
+  font-size: 1rem;
+  line-height: 1.4;
+  padding: 0.7rem 0.85rem;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.worker-field::placeholder {
+  color: #64748b;
+}
+
+.worker-field:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
+}
+
+.worker-textarea {
+  min-height: 108px;
+  resize: none;
+}
+
+.worker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease;
+}
+
+.worker-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.worker-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.worker-btn-primary {
+  background: #0f766e;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.2);
+}
+
+.worker-btn-primary:hover:not(:disabled) {
+  background: #115e59;
+}
+
+.worker-btn-danger {
+  background: #be123c;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(190, 18, 60, 0.18);
+}
+
+.worker-btn-danger:hover:not(:disabled) {
+  background: #9f1239;
+}
+
+.worker-btn-secondary {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.worker-btn-secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.worker-status-note {
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
 .worker-portal .bg-slate-50 {
   background-color: #eef2f7;
 }

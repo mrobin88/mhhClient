@@ -1,34 +1,34 @@
 <template>
   <section class="space-y-4">
-    <p class="text-sm text-slate-700">
+    <p class="worker-section-intro">
       Request days off so supervisors can plan coverage.
     </p>
 
-    <form @submit.prevent="submitRequest" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+    <form @submit.prevent="submitRequest" class="worker-card p-4 space-y-4">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label for="start-date" class="block text-xs font-semibold text-slate-700 mb-1">Start date</label>
+          <label for="start-date" class="worker-label">Start date</label>
           <input
             id="start-date"
             v-model="startDate"
             type="date"
             required
-            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            class="worker-field"
           />
         </div>
         <div>
-          <label for="end-date" class="block text-xs font-semibold text-slate-700 mb-1">End date</label>
+          <label for="end-date" class="worker-label">End date</label>
           <input
             id="end-date"
             v-model="endDate"
             type="date"
             required
-            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            class="worker-field"
           />
         </div>
       </div>
       <div>
-        <label for="reason" class="block text-xs font-semibold text-slate-700 mb-1">Reason</label>
+        <label for="reason" class="worker-label">Reason</label>
         <textarea
           id="reason"
           v-model="reason"
@@ -36,19 +36,19 @@
           maxlength="4000"
           required
           placeholder="Example: Doctor appointment and family care."
-          class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-y"
+          class="worker-field worker-textarea"
         />
       </div>
       <button
         type="submit"
         :disabled="submitting"
-        class="w-full min-h-[46px] rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+        class="worker-btn worker-btn-primary"
       >
         <span v-if="submitting">Sending request…</span>
         <span v-else>Send time-off request</span>
       </button>
-      <p v-if="error" class="text-xs text-red-700">{{ error }}</p>
-      <p v-if="success" class="text-xs text-emerald-700">{{ success }}</p>
+      <p v-if="error" class="worker-status-note bg-red-50 text-red-800 border border-red-200">{{ error }}</p>
+      <p v-if="success" class="worker-status-note bg-emerald-50 text-emerald-800 border border-emerald-200">{{ success }}</p>
     </form>
 
     <div class="space-y-3">
@@ -56,7 +56,7 @@
       <div v-if="loading" class="text-sm text-slate-600 py-3">Loading…</div>
       <div v-else-if="items.length === 0" class="text-sm text-slate-600 py-3">No time-off requests yet.</div>
       <ul v-else class="space-y-3">
-        <li v-for="item in items" :key="item.id" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <li v-for="item in items" :key="item.id" class="worker-card p-4">
           <div class="flex items-center justify-between gap-2 mb-2">
             <span :class="statusClass(item.status)" class="text-xs font-semibold px-2 py-1 rounded-full">
               {{ item.status_label }}

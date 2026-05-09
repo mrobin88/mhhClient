@@ -1,5 +1,5 @@
 <template>
-  <section class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+  <section class="worker-card p-4 space-y-4">
     <div class="flex items-start justify-between gap-3">
       <div>
         <h2 class="text-sm font-semibold text-slate-900">Shift clock</h2>
@@ -24,15 +24,15 @@
       type="button"
       :disabled="busy"
       @click="submitPunch"
-      class="w-full min-h-[48px] rounded-xl text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:bg-slate-300"
-      :class="isClockedIn ? 'bg-rose-600 hover:bg-rose-700' : 'bg-teal-600 hover:bg-teal-700'"
+      class="worker-btn"
+      :class="isClockedIn ? 'worker-btn-danger' : 'worker-btn-primary'"
     >
       <span v-if="busy">{{ isClockedIn ? 'Clocking out…' : 'Clocking in…' }}</span>
       <span v-else>{{ isClockedIn ? 'Clock out' : 'Clock in' }}</span>
     </button>
 
-    <p v-if="message" class="text-xs text-slate-600">{{ message }}</p>
-    <p v-if="error" class="text-xs text-red-700">{{ error }}</p>
+    <p v-if="message" class="worker-status-note bg-slate-50 text-slate-800 border border-slate-200">{{ message }}</p>
+    <p v-if="error" class="worker-status-note bg-red-50 text-red-800 border border-red-200">{{ error }}</p>
   </section>
 </template>
 

@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-slate-700 leading-relaxed">
+    <p class="worker-section-intro">
       This board lists PitStop watch coverage that needs a worker. Tap <strong class="text-slate-800">I’m interested</strong>
       to signal availability. Selection is still confirmed by staff scheduling.
     </p>
@@ -11,7 +11,7 @@
       {{ error }}
     </div>
 
-    <div v-else-if="shifts.length === 0" class="text-center py-14 px-4 rounded-2xl bg-white border border-slate-200">
+    <div v-else-if="shifts.length === 0" class="worker-card text-center py-14 px-4">
       <InboxIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" aria-hidden="true" />
       <p class="text-slate-600 font-medium">No coverage needs posted right now.</p>
       <p class="text-sm text-slate-600 mt-1">Check back later.</p>
@@ -21,7 +21,7 @@
       <li
         v-for="shift in shifts"
         :key="shift.id"
-        class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+        class="worker-card overflow-hidden"
       >
         <div class="p-4 space-y-3">
           <h2 class="text-lg font-semibold text-slate-900 leading-snug">
@@ -51,7 +51,7 @@
             type="button"
             :disabled="submittingId === shift.id || requestedIds.has(shift.id)"
             @click="submitInterest(shift.id)"
-            class="w-full min-h-[52px] rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-base font-semibold shadow-sm transition-colors"
+            class="worker-btn worker-btn-primary"
           >
             <span v-if="submittingId === shift.id">Sending…</span>
             <span v-else-if="requestedIds.has(shift.id)">Interest sent</span>

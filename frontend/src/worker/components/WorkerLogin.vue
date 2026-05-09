@@ -13,7 +13,7 @@
         </p>
       </div>
 
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-md p-6 sm:p-8">
+      <div class="worker-card p-6 sm:p-8">
         <div class="mb-5 rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-900">
           <p class="font-semibold mb-1">Why this helps you</p>
           <p>Get open shifts quickly and keep your requests visible to supervisors.</p>
@@ -22,7 +22,7 @@
           <div>
             <label for="phone" class="block text-sm font-semibold text-slate-800 mb-2">Mobile number</label>
             <div
-              class="relative rounded-xl border border-slate-300 bg-slate-50 focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
+              class="relative rounded-xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
             >
               <DevicePhoneMobileIcon
                 class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
@@ -45,7 +45,7 @@
           <div>
             <label for="pin" class="block text-sm font-semibold text-slate-800 mb-2">PIN (4 digits)</label>
             <div
-              class="relative rounded-xl border border-slate-300 bg-slate-50 focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
+              class="relative rounded-xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
             >
               <LockClosedIcon
                 class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
@@ -67,7 +67,7 @@
             <button
               type="button"
               @click="useLast4()"
-              class="mt-2 w-full py-2.5 text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-xl border border-teal-100 transition"
+              class="worker-btn worker-btn-secondary mt-2 min-h-[44px] text-sm"
             >
               Use last 4 digits of my number as PIN
             </button>
@@ -80,7 +80,7 @@
           <button
             type="submit"
             :disabled="loading"
-            class="w-full min-h-[52px] rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 text-white text-base font-semibold shadow-sm transition-colors"
+            class="worker-btn worker-btn-primary"
           >
             <span v-if="loading">Signing in…</span>
             <span v-else>Sign in</span>

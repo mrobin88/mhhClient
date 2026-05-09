@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-slate-700">
+    <p class="worker-section-intro">
       This shows your PitStop coverage responses and whether staff selected you for the post.
     </p>
 
@@ -10,7 +10,7 @@
       {{ error }}
     </div>
 
-    <div v-else-if="items.length === 0" class="text-center py-14 px-4 rounded-2xl bg-white border border-slate-200">
+    <div v-else-if="items.length === 0" class="worker-card text-center py-14 px-4">
       <ClipboardDocumentIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" aria-hidden="true" />
       <p class="text-slate-600 font-medium">No responses yet.</p>
       <p class="text-sm text-slate-600 mt-1">Use <strong>Coverage needed</strong> to show interest.</p>
@@ -20,7 +20,7 @@
       <li
         v-for="row in items"
         :key="row.id"
-        class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm"
+        class="worker-card p-4"
       >
         <div class="flex items-start justify-between gap-2 mb-2">
           <h3 class="font-semibold text-slate-900 text-base leading-snug">

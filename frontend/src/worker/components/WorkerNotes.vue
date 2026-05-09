@@ -1,16 +1,16 @@
 <template>
   <section class="space-y-4">
-    <p class="text-sm text-slate-700">
+    <p class="worker-section-intro">
       Send quick updates to staff about restroom checks, incidents, or supply needs.
     </p>
 
-    <form @submit.prevent="submitNote" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+    <form @submit.prevent="submitNote" class="worker-card p-4 space-y-4">
       <div>
-        <label for="note-type" class="block text-xs font-semibold text-slate-700 mb-1">Type</label>
+        <label for="note-type" class="worker-label">Type</label>
         <select
           id="note-type"
           v-model="noteType"
-          class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+          class="worker-field"
         >
           <option value="general">General update</option>
           <option value="restroom_check">Restroom check update</option>
@@ -19,26 +19,26 @@
         </select>
       </div>
       <div>
-        <label for="note-content" class="block text-xs font-semibold text-slate-700 mb-1">Note</label>
+        <label for="note-content" class="worker-label">Note</label>
         <textarea
           id="note-content"
           v-model="content"
           rows="4"
           maxlength="4000"
           placeholder="Example: Restroom at Mission & 16th checked at 9:15am, all clean, low paper towels."
-          class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-y"
+          class="worker-field worker-textarea"
         />
       </div>
       <button
         type="submit"
         :disabled="submitting"
-        class="w-full min-h-[46px] rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+        class="worker-btn worker-btn-primary"
       >
         <span v-if="submitting">Sending note…</span>
         <span v-else>Send note to staff</span>
       </button>
-      <p v-if="error" class="text-xs text-red-700">{{ error }}</p>
-      <p v-if="success" class="text-xs text-emerald-700">{{ success }}</p>
+      <p v-if="error" class="worker-status-note bg-red-50 text-red-800 border border-red-200">{{ error }}</p>
+      <p v-if="success" class="worker-status-note bg-emerald-50 text-emerald-800 border border-emerald-200">{{ success }}</p>
     </form>
 
     <div class="space-y-3">
@@ -46,7 +46,7 @@
       <div v-if="loading" class="text-sm text-slate-600 py-3">Loading…</div>
       <div v-else-if="items.length === 0" class="text-sm text-slate-600 py-3">No notes yet.</div>
       <ul v-else class="space-y-3">
-        <li v-for="item in items" :key="item.id" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <li v-for="item in items" :key="item.id" class="worker-card p-4">
           <div class="flex items-center justify-between gap-2 mb-2">
             <span class="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-700">
               {{ item.note_type_label }}
