@@ -1,11 +1,9 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-100 via-slate-50 to-white px-4 py-10">
+  <div class="worker-login-shell">
     <div class="max-w-md w-full">
       <div class="text-center mb-8">
-        <div
-          class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-teal-600 text-white mb-4 shadow-md"
-        >
-          <BriefcaseIcon class="w-9 h-9" aria-hidden="true" />
+        <div class="worker-login-brand">
+          <BriefcaseIcon aria-hidden="true" />
         </div>
         <h1 class="text-3xl font-semibold text-slate-900 tracking-tight">PitStop Worker Portal</h1>
         <p class="text-sm text-slate-700 mt-2 max-w-sm mx-auto leading-relaxed">
@@ -21,11 +19,9 @@
         <form @submit.prevent="handleLogin" class="space-y-5">
           <div>
             <label for="phone" class="block text-sm font-semibold text-slate-800 mb-2">Mobile number</label>
-            <div
-              class="relative rounded-xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
-            >
+            <div class="worker-input-wrap">
               <DevicePhoneMobileIcon
-                class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
+                class="worker-input-icon"
                 aria-hidden="true"
               />
               <input
@@ -37,18 +33,16 @@
                 placeholder="4155551234"
                 required
                 autocomplete="tel"
-                class="w-full pl-11 pr-4 py-3 text-lg text-slate-900 bg-transparent rounded-xl outline-none"
+                class="worker-login-input"
               />
             </div>
           </div>
 
           <div>
             <label for="pin" class="block text-sm font-semibold text-slate-800 mb-2">PIN (4 digits)</label>
-            <div
-              class="relative rounded-xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500 transition"
-            >
+            <div class="worker-input-wrap">
               <LockClosedIcon
-                class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
+                class="worker-input-icon"
                 aria-hidden="true"
               />
               <input
@@ -61,7 +55,7 @@
                 placeholder="••••"
                 required
                 autocomplete="off"
-                class="w-full pl-11 pr-4 py-3 text-xl tracking-[0.14em] text-slate-900 bg-transparent rounded-xl outline-none"
+                class="worker-login-input tracking-[0.14em]"
               />
             </div>
             <button

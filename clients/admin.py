@@ -5,7 +5,7 @@ from django.utils.safestring import mark_safe
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.db.models import Count, Q
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 import csv
 import io
 import logging
@@ -26,6 +26,59 @@ from .models_extensions import (
     WorkerTimeOffRequest,
 )
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
+
+
+def _current_week_bounds():
+    today = timezone.localdate()
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=7)
+    start_dt = timezone.make_aware(datetime.combine(week_start, time.min))
+    end_dt = timezone.make_aware(datetime.combine(week_end, time.min))
+    return start_dt, end_dt
+
+
+def _format_hours(hours):
+    return f'{hours:.2f} hrs'
+
+
+def _punch_duration_hours(punch, start_dt=None, end_dt=None):
+    clock_in = punch.clock_in_at
+    clock_out = punch.clock_out_at or timezone.now()
+    if start_dt:
+        clock_in = max(clock_in, start_dt)
+    if end_dt:
+        clock_out = min(clock_out, end_dt)
+    seconds = max((clock_out - clock_in).total_seconds(), 0)
+    return seconds / 3600
+
+
+def _weekly_hours_for_worker(account):
+    if not account or not account.pk:
+        return 0
+    start_dt, end_dt = _current_week_bounds()
+    punches = WorkerTimePunch.objects.filter(
+        worker_account=account,
+        clock_in_at__lt=end_dt,
+    ).filter(Q(clock_out_at__isnull=True) | Q(clock_out_at__gte=start_dt))
+    return sum(_punch_duration_hours(punch, start_dt, end_dt) for punch in punches)
+
+
+class WorkAssignmentInline(admin.TabularInline):
+    """Schedule rows directly on the client profile."""
+
+    model = WorkAssignment
+    fk_name = 'client'
+    extra = 0
+    fields = [
+        'work_site',
+        'assignment_date',
+        'start_time',
+        'end_time',
+        'status',
+        'confirmed_by_client',
+    ]
+    ordering = ['-assignment_date', 'start_time']
+    autocomplete_fields = []
 
 
 class CaseNoteInline(admin.TabularInline):
@@ -348,9 +401,9 @@ class ClientAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'program_completed_date', 'job_placed', 'has_resume', 'case_notes_count', 'created_at']
     list_filter = ['status', 'training_interest', 'job_placed', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
     search_fields = ['first_name', 'last_name', 'phone', 'job_title', 'job_company']
-    readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn', 'resume_preview']
+    readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn', 'resume_preview', 'worker_portal_summary']
     date_hierarchy = 'created_at'
-    inlines = [DocumentInline, CaseNoteInline]  # Documents + case notes
+    inlines = [WorkAssignmentInline, DocumentInline, CaseNoteInline]  # Schedule, documents + case notes
     list_per_page = 25
     show_full_result_count = False
     
@@ -384,6 +437,8 @@ class ClientAdmin(admin.ModelAdmin):
         for inst in instances:
             if isinstance(inst, Document) and not inst.uploaded_by:
                 inst.uploaded_by = request.user.get_full_name() or request.user.username
+            if isinstance(inst, WorkAssignment) and not inst.assigned_by:
+                inst.assigned_by = request.user.get_full_name() or request.user.username or 'Admin'
             inst.save()
         formset.save_m2m()
     
@@ -447,6 +502,10 @@ class ClientAdmin(admin.ModelAdmin):
         ('Program Completion & Job Placement', {
             'fields': ('program_completed_date', 'job_placed', 'job_placement_date', 'job_title', 'job_company', 'job_hourly_wage')
         }),
+        ('Worker Portal + Schedule', {
+            'fields': ('worker_portal_summary',),
+            'description': 'Use the Work Assignments section below to schedule PitStop shifts for this worker.',
+        }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
@@ -509,6 +568,43 @@ class ClientAdmin(admin.ModelAdmin):
             return format_html('<a href="{}">{} notes</a>', url, count)
         return '0 notes'
     case_notes_count.short_description = 'Case Notes'
+
+    def worker_portal_summary(self, obj):
+        account = getattr(obj, 'worker_account', None)
+        if not account:
+            return format_html(
+                '<div style="padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px;">'
+                '<strong>No worker portal account yet.</strong><br>'
+                '<span>Use the list action "Create worker accounts" for PitStop workers.</span>'
+                '</div>'
+            )
+
+        hours = _weekly_hours_for_worker(account)
+        account_url = reverse('admin:clients_workeraccount_change', args=[account.pk])
+        punches_url = (
+            reverse('admin:clients_workertimepunch_changelist')
+            + f'?worker_account__id__exact={account.pk}'
+        )
+        assignments_url = (
+            reverse('admin:clients_workassignment_changelist')
+            + f'?client__id__exact={obj.pk}'
+        )
+        return format_html(
+            '<div style="padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; line-height: 1.5;">'
+            '<strong>Portal:</strong> {}<br>'
+            '<strong>This week:</strong> {}<br>'
+            '<a href="{}">Open worker account</a> · '
+            '<a href="{}">View punches</a> · '
+            '<a href="{}">View schedule</a>'
+            '</div>',
+            'On' if account.is_active else 'Off',
+            _format_hours(hours),
+            account_url,
+            punches_url,
+            assignments_url,
+        )
+
+    worker_portal_summary.short_description = 'Worker portal summary'
     
     def masked_ssn(self, obj):
         """Show masked SSN (only last 4 digits) for non-superusers"""
@@ -1048,13 +1144,47 @@ class JobPlacementAdmin(admin.ModelAdmin):
 # Worker Portal Admin Interfaces
 # ========================================
 
+class WorkerTimePunchInline(admin.TabularInline):
+    """Recent clock punches shown on the worker account profile."""
+
+    model = WorkerTimePunch
+    extra = 0
+    can_delete = False
+    fields = [
+        'clock_in_at',
+        'clock_out_at',
+        'duration_display',
+        'clock_in_geo_basic_ok',
+        'clock_out_geo_basic_ok',
+        'clock_in_geo_basic_note',
+        'clock_out_geo_basic_note',
+    ]
+    readonly_fields = fields
+    ordering = ['-clock_in_at']
+    max_num = 0
+    verbose_name = 'Clock punch'
+    verbose_name_plural = 'Clock punches (latest first)'
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def duration_display(self, obj):
+        if not obj or not obj.pk:
+            return '—'
+        suffix = ' (open)' if obj.clock_out_at is None else ''
+        return f'{_format_hours(_punch_duration_hours(obj))}{suffix}'
+
+    duration_display.short_description = 'Duration'
+
+
 @admin.register(WorkerAccount)
 class WorkerAccountAdmin(admin.ModelAdmin):
     """Admin interface for worker portal accounts — portal access is a single on/off switch."""
-    list_display = ['client', 'phone', 'portal_access_display', 'last_login', 'login_attempts', 'is_locked']
+    list_display = ['client', 'phone', 'portal_access_display', 'current_week_hours', 'last_login', 'login_attempts', 'is_locked']
     list_filter = ['is_active', 'created_at']
     search_fields = ['client__first_name', 'client__last_name', 'phone']
-    readonly_fields = ['pin_hash', 'last_login', 'login_attempts', 'locked_until', 'created_at']
+    readonly_fields = ['pin_hash', 'last_login', 'login_attempts', 'locked_until', 'created_at', 'current_week_hours', 'punch_links']
+    inlines = [WorkerTimePunchInline]
     
     fieldsets = (
         ('Worker Information', {
@@ -1064,6 +1194,10 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         ('Portal access', {
             'fields': ('is_active', 'last_login', 'login_attempts', 'locked_until'),
             'description': 'Uncheck “Portal access” to block login. PIN reset: use action “Reset PIN to last 4 digits of phone”.',
+        }),
+        ('Clock punches + weekly hours', {
+            'fields': ('current_week_hours', 'punch_links'),
+            'description': 'Clock punches are stored from the worker portal and shown below for review.',
         }),
         ('Account Management', {
             'fields': ('created_by', 'created_at', 'notes')
@@ -1082,6 +1216,30 @@ class WorkerAccountAdmin(admin.ModelAdmin):
             return format_html('<span style="color: green; font-weight: bold;">✓ On</span>')
         return format_html('<span style="color: #999;">Off</span>')
     portal_access_display.short_description = 'Portal'
+
+    def current_week_hours(self, obj):
+        return _format_hours(_weekly_hours_for_worker(obj))
+
+    current_week_hours.short_description = 'This week'
+
+    def punch_links(self, obj):
+        if not obj or not obj.pk:
+            return 'Save first to view punches.'
+        punches_url = (
+            reverse('admin:clients_workertimepunch_changelist')
+            + f'?worker_account__id__exact={obj.pk}'
+        )
+        schedule_url = (
+            reverse('admin:clients_workassignment_changelist')
+            + f'?client__id__exact={obj.client_id}'
+        )
+        return format_html(
+            '<a href="{}">View all clock punches</a> · <a href="{}">View schedule</a>',
+            punches_url,
+            schedule_url,
+        )
+
+    punch_links.short_description = 'Related records'
     
     def is_locked(self, obj):
         """Show if account is currently locked"""
@@ -1426,8 +1584,85 @@ class WorkerTimeOffRequestAdmin(admin.ModelAdmin):
     worker_name.short_description = 'Worker'
 
 
-# Register existing worker dispatch models if not already registered
-try:
-    admin.site.register(WorkAssignment)
-except admin.sites.AlreadyRegistered:
-    pass
+@admin.register(WorkAssignment)
+class WorkAssignmentAdmin(admin.ModelAdmin):
+    """Staff scheduling view for PitStop worker assignments."""
+
+    list_display = [
+        'client',
+        'work_site',
+        'assignment_date',
+        'time_range',
+        'status',
+        'confirmed_by_client',
+        'assigned_by',
+    ]
+    list_filter = ['status', 'assignment_date', 'work_site', 'confirmed_by_client']
+    search_fields = [
+        'client__first_name',
+        'client__last_name',
+        'work_site__name',
+        'assigned_by',
+    ]
+    date_hierarchy = 'assignment_date'
+    readonly_fields = ['created_at', 'updated_at']
+    actions = ['mark_confirmed', 'mark_in_progress', 'mark_completed']
+
+    fieldsets = (
+        ('Worker + Site', {
+            'fields': ('client', 'work_site'),
+        }),
+        ('Schedule', {
+            'fields': ('assignment_date', 'start_time', 'end_time', 'status', 'confirmed_by_client', 'confirmed_at'),
+        }),
+        ('Staff Notes', {
+            'fields': ('assigned_by', 'assignment_notes', 'performance_notes'),
+        }),
+        ('Call-out', {
+            'fields': ('called_out_at', 'callout_reason', 'replacement_found', 'replacement_client'),
+            'classes': ('collapse',),
+        }),
+        ('Completion', {
+            'fields': ('hours_worked',),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not (obj.assigned_by or '').strip():
+            obj.assigned_by = request.user.get_full_name() or request.user.username or 'Admin'
+        super().save_model(request, obj, form, change)
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if 'assigned_by' in form.base_fields:
+            form.base_fields['assigned_by'].required = False
+        return form
+
+    def time_range(self, obj):
+        if obj.start_time and obj.end_time:
+            return f'{obj.start_time.strftime("%I:%M %p")} - {obj.end_time.strftime("%I:%M %p")}'
+        return '—'
+
+    time_range.short_description = 'Time'
+
+    def mark_confirmed(self, request, queryset):
+        updated = queryset.update(status='confirmed', confirmed_by_client=True, confirmed_at=timezone.now())
+        self.message_user(request, f'{updated} assignment(s) marked confirmed.')
+
+    mark_confirmed.short_description = 'Mark selected assignments confirmed'
+
+    def mark_in_progress(self, request, queryset):
+        updated = queryset.update(status='in_progress')
+        self.message_user(request, f'{updated} assignment(s) marked in progress.')
+
+    mark_in_progress.short_description = 'Mark selected assignments in progress'
+
+    def mark_completed(self, request, queryset):
+        updated = queryset.update(status='completed')
+        self.message_user(request, f'{updated} assignment(s) marked completed.')
+
+    mark_completed.short_description = 'Mark selected assignments completed'
