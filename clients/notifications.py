@@ -276,19 +276,241 @@ def send_pitstop_application_alert(application):
     return {'sent': sent, 'total': len(recipients)}
 
 
+def _sms_client():
+    connection_string = getattr(settings, 'AZURE_COMMUNICATION_CONNECTION_STRING', '')
+    if not connection_string:
+        raise RuntimeError('AZURE_COMMUNICATION_CONNECTION_STRING is not configured')
+    try:
+        from azure.communication.sms import SmsClient
+    except ImportError as exc:
+        raise RuntimeError('azure-communication-sms is not installed') from exc
+    return SmsClient.from_connection_string(connection_string)
+
+
+def _sms_from_number():
+    from_number = getattr(settings, 'AZURE_COMMUNICATION_SMS_FROM', '')
+    if not from_number:
+        raise RuntimeError('AZURE_COMMUNICATION_SMS_FROM is not configured')
+    return from_number
+
+
+def _to_e164_us(phone):
+    from .phone_utils import phone_digits
+
+    digits = phone_digits(phone)
+    if len(digits) == 10:
+        return f'+1{digits}'
+    if len(digits) == 11 and digits.startswith('1'):
+        return f'+{digits}'
+    if str(phone or '').strip().startswith('+') and len(digits) >= 10:
+        return f'+{digits}'
+    return ''
+
+
+def send_text_message(client, body, purpose='general', checkpoint_days=None, dedupe_key=None):
+    """
+    Send and log one SMS via Azure Communication Services.
+    If dedupe_key already exists as sent/pending, return that row instead of sending again.
+    """
+    from django.utils import timezone
+    from .models_extensions import ClientTextMessage
+
+    if dedupe_key:
+        existing = ClientTextMessage.objects.filter(dedupe_key=dedupe_key).first()
+        if existing and existing.status in {
+            ClientTextMessage.STATUS_PENDING,
+            ClientTextMessage.STATUS_SENT,
+        }:
+            return existing, False
+
+    to_phone = _to_e164_us(client.phone)
+    from_phone = getattr(settings, 'AZURE_COMMUNICATION_SMS_FROM', '')
+    log_defaults = {
+        'client': client,
+        'direction': ClientTextMessage.DIRECTION_OUTBOUND,
+        'purpose': purpose,
+        'checkpoint_days': checkpoint_days,
+        'to_phone': to_phone,
+        'from_phone': from_phone,
+        'body': body,
+        'status': ClientTextMessage.STATUS_PENDING,
+    }
+    if dedupe_key:
+        log, _ = ClientTextMessage.objects.get_or_create(
+            dedupe_key=dedupe_key,
+            defaults=log_defaults,
+        )
+    else:
+        log = ClientTextMessage.objects.create(**log_defaults)
+
+    if log.status == ClientTextMessage.STATUS_FAILED:
+        log.to_phone = to_phone
+        log.from_phone = from_phone
+        log.body = body
+        log.status = ClientTextMessage.STATUS_PENDING
+        log.error_message = ''
+        log.save(
+            update_fields=[
+                'to_phone',
+                'from_phone',
+                'body',
+                'status',
+                'error_message',
+                'updated_at',
+            ]
+        )
+
+    if not to_phone:
+        log.status = ClientTextMessage.STATUS_FAILED
+        log.error_message = 'Client phone is not a valid SMS number'
+        log.save(update_fields=['status', 'error_message', 'updated_at'])
+        return log, True
+
+    if not getattr(settings, 'SMS_FOLLOWUP_ENABLED', False):
+        log.status = ClientTextMessage.STATUS_FAILED
+        log.error_message = 'SMS_FOLLOWUP_ENABLED is false'
+        log.save(update_fields=['status', 'error_message', 'updated_at'])
+        return log, True
+
+    try:
+        result = _sms_client().send(
+            from_=_sms_from_number(),
+            to=[to_phone],
+            message=body,
+            enable_delivery_report=True,
+        )[0]
+        log.provider_message_id = getattr(result, 'message_id', '') or ''
+        log.provider_response = {
+            'successful': getattr(result, 'successful', None),
+            'http_status_code': getattr(result, 'http_status_code', None),
+            'error_message': getattr(result, 'error_message', None),
+        }
+        if getattr(result, 'successful', False):
+            log.status = ClientTextMessage.STATUS_SENT
+            log.sent_at = timezone.now()
+            log.error_message = ''
+        else:
+            log.status = ClientTextMessage.STATUS_FAILED
+            log.error_message = getattr(result, 'error_message', '') or 'Azure SMS send failed'
+    except Exception as exc:
+        log.status = ClientTextMessage.STATUS_FAILED
+        log.error_message = str(exc)
+
+    log.save(
+        update_fields=[
+            'status',
+            'provider_message_id',
+            'provider_response',
+            'error_message',
+            'sent_at',
+            'updated_at',
+        ]
+    )
+    return log, True
+
+
+def progress_followup_body(client, checkpoint_days):
+    first_name = (client.first_name or client.full_name or 'there').strip()
+    return (
+        f'Hi {first_name}, this is Mission Hiring Hall checking in {checkpoint_days} days after your intake. '
+        'Please reply or call us to share your progress, make an appointment, or continue your work with us. '
+        'Mission Hiring Hall'
+    )
+
+
+def _progress_anchor_date(client):
+    start_field = getattr(settings, 'SMS_FOLLOWUP_START_FIELD', 'created_at')
+    anchor = getattr(client, start_field, None) or client.created_at
+    if hasattr(anchor, 'date'):
+        return anchor.date()
+    return anchor
+
+
+def send_due_progress_followups(today=None, dry_run=False):
+    """
+    Send progress follow-up SMS at configured checkpoint days after client intake/start.
+    Intended to run daily from Azure WebJob/Cron.
+    """
+    from datetime import date, timedelta
+    from .models import Client
+    from .models_extensions import ClientTextMessage
+
+    today = today or date.today()
+    checkpoints = getattr(settings, 'SMS_FOLLOWUP_CHECKPOINT_DAYS', [30, 60, 90, 120])
+    window_days = max(int(getattr(settings, 'SMS_FOLLOWUP_WINDOW_DAYS', 1)), 1)
+    start_field = getattr(settings, 'SMS_FOLLOWUP_START_FIELD', 'created_at')
+    needed_fields = {'id', 'first_name', 'last_name', 'phone', 'created_at'}
+    if start_field != 'created_at':
+        needed_fields.add(start_field)
+    clients = Client.objects.exclude(phone__isnull=True).exclude(phone='').only(*needed_fields)
+
+    due = []
+    for client in clients.iterator(chunk_size=500):
+        anchor = _progress_anchor_date(client)
+        if not anchor:
+            continue
+        age_days = (today - anchor).days
+        for checkpoint in checkpoints:
+            if checkpoint <= age_days < checkpoint + window_days:
+                dedupe_key = f'client:{client.pk}:progress-followup:{checkpoint}'
+                if ClientTextMessage.objects.filter(
+                    dedupe_key=dedupe_key,
+                    status__in=[
+                        ClientTextMessage.STATUS_PENDING,
+                        ClientTextMessage.STATUS_SENT,
+                    ],
+                ).exists():
+                    continue
+                due.append((client, checkpoint, dedupe_key))
+
+    if dry_run:
+        return {'due': due, 'sent': 0, 'failed': 0, 'skipped': 0, 'total_due': len(due)}
+
+    if not getattr(settings, 'SMS_FOLLOWUP_ENABLED', False):
+        return {'due': due, 'sent': 0, 'failed': 0, 'skipped': len(due), 'total_due': len(due)}
+
+    sent = 0
+    failed = 0
+    skipped = 0
+    for client, checkpoint, dedupe_key in due:
+        log, attempted = send_text_message(
+            client=client,
+            body=progress_followup_body(client, checkpoint),
+            purpose=ClientTextMessage.PURPOSE_PROGRESS_FOLLOWUP,
+            checkpoint_days=checkpoint,
+            dedupe_key=dedupe_key,
+        )
+        if not attempted:
+            skipped += 1
+        elif log.status == ClientTextMessage.STATUS_SENT:
+            sent += 1
+        else:
+            failed += 1
+
+    return {
+        'due': due,
+        'sent': sent,
+        'failed': failed,
+        'skipped': skipped,
+        'total_due': len(due),
+    }
+
+
 def send_open_shift_broadcast_emails(open_shift):
     """
-    Broadcast a newly opened shift to active worker accounts via email.
-    Uses existing org email infrastructure (no third-party SMS dependency).
+    Broadcast a newly opened shift to current PitStop workers by email or SMS.
     """
-    from .models_extensions import WorkerAccount
+    from .models_extensions import ClientTextMessage, WorkerAccount
 
     if not getattr(settings, 'OPEN_SHIFT_EMAIL_ALERTS_ENABLED', True):
         logger.info('Open shift alerts disabled by settings; skipping shift %s', open_shift.pk)
         return {'sent': 0, 'skipped': 0, 'total': 0}
 
     accounts = (
-        WorkerAccount.objects.filter(is_active=True)
+        WorkerAccount.objects.filter(
+            is_active=True,
+            worker_status=WorkerAccount.STATUS_ACTIVE,
+        )
         .select_related('client')
         .order_by('client__first_name', 'client__last_name')
     )
@@ -307,10 +529,6 @@ def send_open_shift_broadcast_emails(open_shift):
 
     for account in accounts:
         email = (account.client.email or '').strip()
-        if not email:
-            skipped += 1
-            continue
-
         worker_name = account.client.first_name or account.client.full_name
         subject = f"Open shift available: {open_shift.role_title} on {open_shift.shift_date.strftime('%b %d')}"
         notes_line = f"Notes: {open_shift.notes}\n" if open_shift.notes else ''
@@ -327,7 +545,22 @@ def send_open_shift_broadcast_emails(open_shift):
             f"Mission Hiring Hall\n"
         )
 
-        if _send(subject, plain, None, email):
+        if email and _send(subject, plain, None, email):
+            sent += 1
+            continue
+
+        sms_body = (
+            f"MHH PitStop open shift: {open_shift.role_title}, {date_label}, {time_label}, "
+            f"{location}. Reply or log in: {WORKER_PORTAL_URL}"
+        )
+        dedupe_key = f'open-shift:{open_shift.pk}:worker:{account.pk}:sms'
+        log, attempted = send_text_message(
+            client=account.client,
+            body=sms_body[:480],
+            purpose=ClientTextMessage.PURPOSE_ASSIGNMENT,
+            dedupe_key=dedupe_key,
+        )
+        if attempted and log.status == ClientTextMessage.STATUS_SENT:
             sent += 1
         else:
             skipped += 1

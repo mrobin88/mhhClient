@@ -23,3 +23,4 @@ python-dotenv==1.0.1
 # Azure Storage (latest stable)
 django-storages==1.14.2
 azure-storage-blob==12.22.0
+azure-communication-sms==1.1.0

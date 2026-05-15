@@ -1,6 +1,6 @@
 """
 Daily notification command - run via Azure WebJob or cron.
-Sends: overdue follow-up alerts to staff + tomorrow's schedule reminders to workers.
+Sends: overdue follow-up alerts to staff + tomorrow's schedule reminders to workers + SMS progress follow-ups.
 
 Usage:
     python manage.py send_daily_notifications
@@ -32,6 +32,11 @@ class Command(BaseCommand):
             action='store_true',
             help='Skip schedule reminders',
         )
+        parser.add_argument(
+            '--skip-sms-followups',
+            action='store_true',
+            help='Skip 30/60/90/120 day SMS progress follow-ups',
+        )
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
@@ -48,6 +53,11 @@ class Command(BaseCommand):
         if not options['skip_reminders']:
             self.stdout.write('\n--- Schedule Reminders (Tomorrow) ---')
             self._send_schedule_reminders(dry_run)
+
+        # 3. Client progress SMS follow-ups
+        if not options['skip_sms_followups']:
+            self.stdout.write('\n--- Progress SMS Follow-ups ---')
+            self._send_sms_followups(dry_run)
 
         self.stdout.write(self.style.SUCCESS('\nDone.'))
 
@@ -111,4 +121,22 @@ class Command(BaseCommand):
         self.stdout.write(
             f'Sent {result["sent"]} reminder(s), '
             f'{result["skipped"]} skipped (no email)'
+        )
+
+    def _send_sms_followups(self, dry_run):
+        from clients.notifications import send_due_progress_followups
+
+        result = send_due_progress_followups(dry_run=dry_run)
+        due = result.get('due', [])
+        self.stdout.write(f'Found {len(due)} due progress SMS follow-up(s)')
+
+        if dry_run:
+            for client, checkpoint, _dedupe_key in due[:10]:
+                self.stdout.write(f'  {client.full_name} - {client.phone} - {checkpoint} days')
+            return
+
+        self.stdout.write(
+            f'Sent {result["sent"]} SMS follow-up(s), '
+            f'{result["failed"]} failed, '
+            f'{result["skipped"]} skipped'
         )

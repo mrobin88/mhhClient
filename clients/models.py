@@ -490,4 +490,10 @@ class JobPlacement(models.Model):
 
 
 # Import extended models for worker dispatch system
-from .models_extensions import WorkSite, WorkAssignment, OpenShift, ShiftCoverInterest
+from .models_extensions import (
+    WorkSite,
+    WorkAssignment,
+    OpenShift,
+    ShiftCoverInterest,
+    WorkerShiftProof,
+)

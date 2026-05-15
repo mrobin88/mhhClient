@@ -197,12 +197,16 @@
 
               <div class="space-y-3">
                 <label class="block text-sm font-semibold text-slate-700">Date of Birth</label>
-                <input 
-                  v-model="form.dob" 
-                  type="date" 
+                <input
+                  v-model="form.dob"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="bday"
                   class="form-input"
+                  placeholder="MM/DD/YYYY"
+                  @blur="form.dob = normalizeDateInput(form.dob)"
                 />
-                <p class="text-xs text-slate-500">mm/dd/yyyy</p>
+                <p class="text-xs text-slate-500">Type MM/DD/YYYY so you do not have to scroll back through years.</p>
               </div>
 
               <div class="space-y-3">
@@ -533,7 +537,7 @@
               </div>
               <div>
                 <label class="form-label">Employment desired</label>
-                <div class="flex gap-4">
+                <div class="mobile-checkbox-row flex gap-4">
                   <label class="inline-flex items-center"><input type="checkbox" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
                   <label class="inline-flex items-center"><input type="checkbox" value="part_time" v-model="pitstop.employment_desired" class="mr-2"/> Part-time</label>
                   <label class="inline-flex items-center"><input type="checkbox" value="relief_list" v-model="pitstop.employment_desired" class="mr-2"/> Relief List</label>
@@ -549,17 +553,17 @@
                 <button
                   type="button"
                   @click="selectAllTimeSlots"
-                  class="px-4 py-2 text-sm font-medium text-mission-700 bg-mission-50 border border-mission-200 rounded-lg hover:bg-mission-100 hover:border-mission-300 transition-colors"
+                  class="open-availability-btn px-4 py-2 text-sm font-medium text-mission-700 bg-mission-50 border border-mission-200 rounded-lg hover:bg-mission-100 hover:border-mission-300 transition-colors"
                 >
                   ✓ Open Availability
                 </button>
               </div>
-              <div class="overflow-x-auto">
-                <div class="min-w-[640px] space-y-2">
-                  <div v-for="day in days" :key="day" class="bg-white p-2.5 rounded-lg border border-slate-200">
-                    <div class="grid grid-cols-[100px_1fr] gap-3 items-center">
+              <div class="schedule-grid-wrap">
+                <div class="schedule-days space-y-2">
+                  <div v-for="day in days" :key="day" class="schedule-day bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div class="schedule-day-grid grid grid-cols-[100px_1fr] gap-3 items-center">
                       <span class="text-sm font-semibold text-slate-700">{{ day }}</span>
-                      <div class="grid grid-cols-3 gap-2">
+                      <div class="schedule-slot-grid grid grid-cols-3 gap-2">
                         <button
                           v-for="shift in shifts"
                           :key="shift.value"
@@ -825,6 +829,32 @@ const getShiftLabel = (value) => {
   return labels[value] || value
 }
 
+const normalizeDateInput = (value) => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length !== 8) return raw
+
+  const month = digits.slice(0, 2)
+  const day = digits.slice(2, 4)
+  const year = digits.slice(4, 8)
+  const candidate = new Date(`${year}-${month}-${day}T12:00:00`)
+
+  if (
+    Number.isNaN(candidate.getTime()) ||
+    candidate.getFullYear() !== Number(year) ||
+    candidate.getMonth() + 1 !== Number(month) ||
+    candidate.getDate() !== Number(day)
+  ) {
+    return raw
+  }
+
+  return `${year}-${month}-${day}`
+}
+
 async function handleSubmit() {
   formAttempted.value = true
   error.value = ''
@@ -838,7 +868,8 @@ async function handleSubmit() {
     // Add form fields
     Object.keys(form.value).forEach(key => {
       if (form.value[key] !== '') {
-        formData.append(key, form.value[key])
+        const value = key === 'dob' ? normalizeDateInput(form.value[key]) : form.value[key]
+        formData.append(key, value)
       }
     })
     
@@ -985,6 +1016,7 @@ async function handleSubmit() {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .program-btn-inactive {
@@ -1104,6 +1136,181 @@ async function handleSubmit() {
   color: #0f766e;
   font-weight: 600;
   word-break: break-word;
+}
+
+textarea.form-input {
+  display: block;
+  min-height: 7rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.schedule-grid-wrap {
+  overflow-x: visible;
+}
+
+@media (max-width: 640px) {
+  .min-h-screen {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .mb-12 {
+    margin-bottom: 1.5rem;
+  }
+
+  .text-5xl {
+    font-size: 2rem;
+    line-height: 1.12;
+  }
+
+  .text-xl {
+    font-size: 1rem;
+    line-height: 1.45;
+  }
+
+  .form-card {
+    border-radius: 1rem;
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.16);
+  }
+
+  .form-header {
+    padding: 1.25rem;
+  }
+
+  .form-header h2 {
+    align-items: flex-start;
+    font-size: 1.35rem;
+    line-height: 1.2;
+  }
+
+  .form-header svg {
+    width: 1.75rem;
+    height: 1.75rem;
+    margin-right: 0.75rem;
+    flex: none;
+  }
+
+  .p-10 {
+    padding: 1rem;
+  }
+
+  .space-y-10 > * + * {
+    margin-top: 1.5rem;
+  }
+
+  .section-header {
+    align-items: flex-start;
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-header h3 {
+    font-size: 1.2rem;
+    line-height: 1.25;
+  }
+
+  .grid {
+    gap: 1rem;
+  }
+
+  .program-btn-compact {
+    width: 100%;
+    justify-content: flex-start;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.25;
+  }
+
+  .form-input,
+  .form-select {
+    min-height: 3rem;
+    font-size: 1rem;
+    padding: 0.85rem 0.95rem;
+  }
+
+  select.form-select {
+    line-height: 1.35;
+  }
+
+  textarea.form-input {
+    min-height: 8rem;
+  }
+
+  .mobile-checkbox-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .mobile-checkbox-row label {
+    min-height: 2.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.75rem;
+    background: #ffffff;
+  }
+
+  .open-availability-btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .schedule-grid-wrap {
+    overflow: visible;
+  }
+
+  .schedule-days {
+    min-width: 0;
+  }
+
+  .schedule-day {
+    padding: 0.75rem;
+  }
+
+  .schedule-day-grid {
+    display: block;
+  }
+
+  .schedule-day-grid > span {
+    display: block;
+    margin-bottom: 0.65rem;
+  }
+
+  .schedule-slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .time-slot-compact {
+    min-width: 0;
+    min-height: 3.15rem;
+    padding: 0.55rem 0.45rem;
+    overflow-wrap: anywhere;
+  }
+
+  .docs-well {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .docs-scroll {
+    display: grid;
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .doc-tile {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+
+  .submit-button {
+    width: 100%;
+    min-height: 3.25rem;
+    transform: none !important;
+  }
 }
 </style>
   

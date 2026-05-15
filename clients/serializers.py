@@ -8,6 +8,7 @@ from .models_extensions import (
     OpenShift,
     ShiftCoverInterest,
     WorkerTimePunch,
+    WorkerShiftProof,
     WorkerPortalNote,
     WorkerTimeOffRequest,
 )
@@ -161,10 +162,23 @@ class WorkerAccountSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.full_name', read_only=True)
     client_phone = serializers.CharField(source='client.phone', read_only=True)
     client_email = serializers.CharField(source='client.email', read_only=True)
+    worker_status_label = serializers.CharField(source='get_worker_status_display', read_only=True)
     
     class Meta:
         model = WorkerAccount
-        fields = ['id', 'client', 'client_name', 'client_phone', 'client_email', 'phone', 'is_active', 'last_login']
+        fields = [
+            'id',
+            'client',
+            'client_name',
+            'client_phone',
+            'client_email',
+            'phone',
+            'is_active',
+            'worker_status',
+            'worker_status_label',
+            'is_available',
+            'last_login',
+        ]
         read_only_fields = ['id', 'last_login']
 
 
@@ -255,11 +269,20 @@ class WorkAssignmentSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_today = serializers.ReadOnlyField()
     is_upcoming = serializers.ReadOnlyField()
+    location_display = serializers.SerializerMethodField()
     
     class Meta:
         model = WorkAssignment
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at', 'assigned_by']
+
+    def get_location_display(self, obj):
+        if not obj.work_site:
+            return 'Location to be confirmed'
+        parts = [obj.work_site.name]
+        if obj.work_site.address:
+            parts.append(obj.work_site.address)
+        return ' - '.join(parts)
 
 
 class WorkerTimePunchSerializer(serializers.ModelSerializer):
@@ -267,11 +290,14 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
 
     is_open = serializers.SerializerMethodField()
     duration_minutes = serializers.SerializerMethodField()
+    assignment_label = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkerTimePunch
         fields = [
             'id',
+            'assignment',
+            'assignment_label',
             'clock_in_at',
             'clock_out_at',
             'clock_in_server_received_at',
@@ -292,6 +318,47 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
             return None
         duration_seconds = (obj.clock_out_at - obj.clock_in_at).total_seconds()
         return int(max(duration_seconds, 0) // 60)
+
+    def get_assignment_label(self, obj):
+        assignment = getattr(obj, 'assignment', None)
+        if not assignment:
+            return ''
+        return f'{assignment.assignment_date} {assignment.start_time} - {assignment.work_site.name}'
+
+
+class WorkerShiftProofSerializer(serializers.ModelSerializer):
+    """Worker-facing proof-of-post submission."""
+
+    assignment_label = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkerShiftProof
+        fields = [
+            'id',
+            'assignment',
+            'assignment_label',
+            'photo_url',
+            'submitted_at',
+            'geo_status',
+            'geo_basic_ok',
+            'geo_basic_note',
+        ]
+        read_only_fields = fields
+
+    def get_assignment_label(self, obj):
+        assignment = getattr(obj, 'assignment', None)
+        if not assignment:
+            return ''
+        return f'{assignment.assignment_date} {assignment.start_time} - {assignment.work_site.name}'
+
+    def get_photo_url(self, obj):
+        if not obj.photo:
+            return ''
+        try:
+            return obj.photo.url
+        except Exception:
+            return ''
 
 
 class ServiceRequestSerializer(serializers.ModelSerializer):

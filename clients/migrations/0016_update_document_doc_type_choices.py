@@ -4,7 +4,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clients', '0015_merge_20260213_2138'),
+        ('clients', '0014_add_program_start_date'),
     ]
 
     operations = [

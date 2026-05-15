@@ -6,7 +6,7 @@
       <header class="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-sm">
         <div class="max-w-lg mx-auto px-4 pt-4 pb-3 flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <h1 class="text-lg font-semibold text-slate-900 leading-tight">PitStop Coverage Board</h1>
+            <h1 class="text-lg font-semibold text-slate-900 leading-tight">PitStop Worker Portal</h1>
             <p class="text-sm text-slate-500 truncate mt-0.5">{{ workerName }}</p>
           </div>
           <button
@@ -20,45 +20,26 @@
         <nav class="max-w-lg mx-auto flex items-center gap-1 px-3 pb-2" aria-label="Main">
           <button
             type="button"
-            @click="tab = 'open'"
-            :class="tab === 'open' ? tabActive : tabIdle"
+            @click="tab = 'assignments'"
+            :class="tab === 'assignments' ? tabActive : tabIdle"
           >
             <BriefcaseIcon class="w-4 h-4" aria-hidden="true" />
-            Coverage
+            Assignments
           </button>
           <button
             type="button"
-            @click="tab = 'mine'"
-            :class="tab === 'mine' ? tabActive : tabIdle"
+            @click="tab = 'profile'"
+            :class="tab === 'profile' ? tabActive : tabIdle"
           >
-            <ClipboardDocumentListIcon class="w-4 h-4" aria-hidden="true" />
-            Responses
-          </button>
-          <button
-            type="button"
-            @click="tab = 'notes'"
-            :class="tab === 'notes' ? tabActive : tabIdle"
-          >
-            <DocumentTextIcon class="w-4 h-4" aria-hidden="true" />
-            Notes
-          </button>
-          <button
-            type="button"
-            @click="tab = 'timeOff'"
-            :class="tab === 'timeOff' ? tabActive : tabIdle"
-          >
-            <CalendarDaysIcon class="w-4 h-4" aria-hidden="true" />
-            Time off
+            <UserCircleIcon class="w-4 h-4" aria-hidden="true" />
+            Profile
           </button>
         </nav>
       </header>
 
       <main class="max-w-lg mx-auto px-4 py-5 pb-28">
-        <WorkerTimeClock class="mb-4" />
-        <WorkerOpenShifts v-if="tab === 'open'" @interest-recorded="onInterestRecorded" />
-        <WorkerMyRequests v-else-if="tab === 'mine'" :key="myRequestsKey" />
-        <WorkerNotes v-else-if="tab === 'notes'" />
-        <WorkerTimeOffRequests v-else />
+        <WorkerAssignments v-if="tab === 'assignments'" />
+        <WorkerProfile v-else />
       </main>
     </template>
   </div>
@@ -68,22 +49,16 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import {
   BriefcaseIcon,
-  ClipboardDocumentListIcon,
-  DocumentTextIcon,
-  CalendarDaysIcon,
+  UserCircleIcon,
 } from '@heroicons/vue/24/outline'
 import { workerFetch } from './api'
 import WorkerLogin from './components/WorkerLogin.vue'
-import WorkerOpenShifts from './components/WorkerOpenShifts.vue'
-import WorkerMyRequests from './components/WorkerMyRequests.vue'
-import WorkerTimeClock from './components/WorkerTimeClock.vue'
-import WorkerNotes from './components/WorkerNotes.vue'
-import WorkerTimeOffRequests from './components/WorkerTimeOffRequests.vue'
+import WorkerAssignments from './components/WorkerAssignments.vue'
+import WorkerProfile from './components/WorkerProfile.vue'
 
 const isAuthenticated = ref(false)
 const workerAccount = ref<Record<string, unknown> | null>(null)
-const tab = ref<'open' | 'mine' | 'notes' | 'timeOff'>('open')
-const myRequestsKey = ref(0)
+const tab = ref<'assignments' | 'profile'>('assignments')
 
 const tabActive =
   'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-lg border border-teal-700 bg-teal-50 px-2 py-1.5 text-[11px] font-bold text-teal-900'
@@ -100,12 +75,7 @@ function handleLoginSuccess(data: { token: string; worker_account: Record<string
   workerAccount.value = data.worker_account
   localStorage.setItem('worker_token', data.token)
   localStorage.setItem('worker_account', JSON.stringify(data.worker_account))
-  tab.value = 'open'
-}
-
-function onInterestRecorded() {
-  myRequestsKey.value += 1
-  tab.value = 'mine'
+  tab.value = 'assignments'
 }
 
 function resetToLogin() {
@@ -113,7 +83,7 @@ function resetToLogin() {
   localStorage.removeItem('worker_account')
   isAuthenticated.value = false
   workerAccount.value = null
-  tab.value = 'open'
+  tab.value = 'assignments'
 }
 
 function logout() {

@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from django.db.models import Count, Q
+from django.db.models import Count
 from datetime import datetime, time, timedelta
 import csv
 import io
@@ -21,9 +21,10 @@ from .models_extensions import (
     ServiceRequest,
     OpenShift,
     ShiftCoverInterest,
-    WorkerTimePunch,
+    WorkerShiftProof,
     WorkerPortalNote,
     WorkerTimeOffRequest,
+    ClientTextMessage,
 )
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 
@@ -41,26 +42,45 @@ def _format_hours(hours):
     return f'{hours:.2f} hrs'
 
 
-def _punch_duration_hours(punch, start_dt=None, end_dt=None):
-    clock_in = punch.clock_in_at
-    clock_out = punch.clock_out_at or timezone.now()
-    if start_dt:
-        clock_in = max(clock_in, start_dt)
-    if end_dt:
-        clock_out = min(clock_out, end_dt)
-    seconds = max((clock_out - clock_in).total_seconds(), 0)
+def _assignment_duration_hours(assignment):
+    start_dt = datetime.combine(assignment.assignment_date, assignment.start_time)
+    end_dt = datetime.combine(assignment.assignment_date, assignment.end_time)
+    if end_dt <= start_dt:
+        end_dt += timedelta(days=1)
+    seconds = max((end_dt - start_dt).total_seconds(), 0)
     return seconds / 3600
 
 
 def _weekly_hours_for_worker(account):
     if not account or not account.pk:
         return 0
-    start_dt, end_dt = _current_week_bounds()
-    punches = WorkerTimePunch.objects.filter(
-        worker_account=account,
-        clock_in_at__lt=end_dt,
-    ).filter(Q(clock_out_at__isnull=True) | Q(clock_out_at__gte=start_dt))
-    return sum(_punch_duration_hours(punch, start_dt, end_dt) for punch in punches)
+    week_start, week_end = _current_week_bounds()
+    assignments = WorkAssignment.objects.filter(
+        client=account.client,
+        assignment_date__gte=week_start.date(),
+        assignment_date__lt=week_end.date(),
+    ).exclude(status__in=['cancelled', 'called_out'])
+    return sum(_assignment_duration_hours(assignment) for assignment in assignments)
+
+
+def _total_hours_for_worker(account):
+    if not account or not account.pk:
+        return 0
+    assignments = WorkAssignment.objects.filter(client=account.client).exclude(
+        status__in=['cancelled', 'called_out']
+    )
+    return sum(_assignment_duration_hours(assignment) for assignment in assignments)
+
+
+def _last_assignment_for_worker(account):
+    if not account or not account.pk:
+        return None
+    return (
+        WorkAssignment.objects.filter(client=account.client)
+        .select_related('work_site')
+        .order_by('-assignment_date', '-start_time')
+        .first()
+    )
 
 
 class WorkAssignmentInline(admin.TabularInline):
@@ -581,10 +601,6 @@ class ClientAdmin(admin.ModelAdmin):
 
         hours = _weekly_hours_for_worker(account)
         account_url = reverse('admin:clients_workeraccount_change', args=[account.pk])
-        punches_url = (
-            reverse('admin:clients_workertimepunch_changelist')
-            + f'?worker_account__id__exact={account.pk}'
-        )
         assignments_url = (
             reverse('admin:clients_workassignment_changelist')
             + f'?client__id__exact={obj.pk}'
@@ -592,15 +608,13 @@ class ClientAdmin(admin.ModelAdmin):
         return format_html(
             '<div style="padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; line-height: 1.5;">'
             '<strong>Portal:</strong> {}<br>'
-            '<strong>This week:</strong> {}<br>'
+            '<strong>Scheduled this week:</strong> {}<br>'
             '<a href="{}">Open worker account</a> · '
-            '<a href="{}">View punches</a> · '
             '<a href="{}">View schedule</a>'
             '</div>',
             'On' if account.is_active else 'Off',
             _format_hours(hours),
             account_url,
-            punches_url,
             assignments_url,
         )
 
@@ -690,6 +704,7 @@ class ClientAdmin(admin.ModelAdmin):
                     client=client,
                     phone=normalized_phone,
                     is_active=True,
+                    worker_status=WorkerAccount.STATUS_ACTIVE,
                     created_by=request.user.username,
                 )
                 account.set_pin(pin)
@@ -1144,63 +1159,118 @@ class JobPlacementAdmin(admin.ModelAdmin):
 # Worker Portal Admin Interfaces
 # ========================================
 
-class WorkerTimePunchInline(admin.TabularInline):
-    """Recent clock punches shown on the worker account profile."""
+class WorkerShiftProofInline(admin.TabularInline):
+    """Recent worker photo/location submissions shown on the roster profile."""
 
-    model = WorkerTimePunch
+    model = WorkerShiftProof
     extra = 0
     can_delete = False
     fields = [
-        'clock_in_at',
-        'clock_out_at',
-        'duration_display',
-        'clock_in_geo_basic_ok',
-        'clock_out_geo_basic_ok',
-        'clock_in_geo_basic_note',
-        'clock_out_geo_basic_note',
+        'assignment',
+        'submitted_at',
+        'photo_preview',
+        'geo_status',
+        'geo_basic_ok',
+        'geo_basic_note',
     ]
     readonly_fields = fields
-    ordering = ['-clock_in_at']
+    ordering = ['-submitted_at']
     max_num = 0
-    verbose_name = 'Clock punch'
-    verbose_name_plural = 'Clock punches (latest first)'
+    verbose_name = 'Photo/location check-in'
+    verbose_name_plural = 'Photo/location check-ins (latest first)'
 
     def has_add_permission(self, request, obj=None):
         return False
 
-    def duration_display(self, obj):
-        if not obj or not obj.pk:
+    def photo_preview(self, obj):
+        if not obj or not obj.photo:
             return '—'
-        suffix = ' (open)' if obj.clock_out_at is None else ''
-        return f'{_format_hours(_punch_duration_hours(obj))}{suffix}'
+        return format_html(
+            '<a href="{}" target="_blank"><img src="{}" style="max-height: 80px; border-radius: 6px;" /></a>',
+            obj.photo.url,
+            obj.photo.url,
+        )
 
-    duration_display.short_description = 'Duration'
+    photo_preview.short_description = 'Photo'
+
+
+class AssignmentShiftProofInline(admin.TabularInline):
+    """Photo/location submissions shown directly on an assignment."""
+
+    model = WorkerShiftProof
+    extra = 0
+    can_delete = False
+    fields = [
+        'worker_account',
+        'submitted_at',
+        'photo_preview',
+        'geo_status',
+        'geo_basic_ok',
+        'geo_basic_note',
+    ]
+    readonly_fields = fields
+    ordering = ['-submitted_at']
+    max_num = 0
+    verbose_name = 'Photo/location check-in'
+    verbose_name_plural = 'Photo/location check-ins'
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def photo_preview(self, obj):
+        if not obj or not obj.photo:
+            return '—'
+        return format_html(
+            '<a href="{}" target="_blank"><img src="{}" style="max-height: 80px; border-radius: 6px;" /></a>',
+            obj.photo.url,
+            obj.photo.url,
+        )
+
+    photo_preview.short_description = 'Photo'
 
 
 @admin.register(WorkerAccount)
 class WorkerAccountAdmin(admin.ModelAdmin):
-    """Admin interface for worker portal accounts — portal access is a single on/off switch."""
-    list_display = ['client', 'phone', 'portal_access_display', 'current_week_hours', 'last_login', 'login_attempts', 'is_locked']
-    list_filter = ['is_active', 'created_at']
+    """Primary PitStop roster: workers, portal access, availability, assignments, and scheduled hours."""
+    list_display = [
+        'client',
+        'phone',
+        'worker_status',
+        'portal_access_display',
+        'availability_display',
+        'weekly_hours_check',
+        'last_assignment_display',
+    ]
+    list_filter = ['worker_status', 'is_active', 'is_available', 'created_at']
     search_fields = ['client__first_name', 'client__last_name', 'phone']
-    readonly_fields = ['pin_hash', 'last_login', 'login_attempts', 'locked_until', 'created_at', 'current_week_hours', 'punch_links']
-    inlines = [WorkerTimePunchInline]
+    readonly_fields = [
+        'pin_hash',
+        'last_login',
+        'login_attempts',
+        'locked_until',
+        'created_at',
+        'weekly_hours_check',
+        'total_hours_display',
+        'last_assignment_display',
+        'related_records_links',
+    ]
+    inlines = [WorkerShiftProofInline]
     
     fieldsets = (
         ('Worker Information', {
-            'fields': ('client', 'phone'),
+            'fields': ('client', 'phone', 'worker_status', 'is_available'),
             'description': 'Phone is saved as digits only so workers can log in with their mobile keypad.',
         }),
         ('Portal access', {
             'fields': ('is_active', 'last_login', 'login_attempts', 'locked_until'),
             'description': 'Uncheck “Portal access” to block login. PIN reset: use action “Reset PIN to last 4 digits of phone”.',
         }),
-        ('Clock punches + weekly hours', {
-            'fields': ('current_week_hours', 'punch_links'),
-            'description': 'Clock punches are stored from the worker portal and shown below for review.',
+        ('Schedule + photo check-ins', {
+            'fields': ('weekly_hours_check', 'total_hours_display', 'last_assignment_display', 'related_records_links'),
+            'description': 'Hours are schedule-based. Supervisors review weekly totals and photo/location check-ins.',
         }),
         ('Account Management', {
-            'fields': ('created_by', 'created_at', 'notes')
+            'fields': ('created_by', 'created_at', 'notes', 'follow_up_notes')
         }),
         ('Security', {
             'fields': ('pin_hash',),
@@ -1209,7 +1279,17 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         }),
     )
     
-    actions = ['approve_accounts', 'deactivate_accounts', 'reset_pins', 'unlock_accounts']
+    actions = [
+        'mark_applicant',
+        'mark_active_worker',
+        'mark_inactive_worker',
+        'set_available',
+        'set_unavailable',
+        'approve_accounts',
+        'deactivate_accounts',
+        'reset_pins',
+        'unlock_accounts',
+    ]
 
     def portal_access_display(self, obj):
         if obj.is_active:
@@ -1217,16 +1297,52 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         return format_html('<span style="color: #999;">Off</span>')
     portal_access_display.short_description = 'Portal'
 
+    def availability_display(self, obj):
+        if obj.is_available:
+            return format_html('<span style="color: green; font-weight: bold;">Available</span>')
+        return format_html('<span style="color: #999;">Not available</span>')
+    availability_display.short_description = 'Availability'
+
     def current_week_hours(self, obj):
         return _format_hours(_weekly_hours_for_worker(obj))
 
-    current_week_hours.short_description = 'This week'
+    current_week_hours.short_description = 'Scheduled this week'
 
-    def punch_links(self, obj):
+    def weekly_hours_check(self, obj):
+        hours = _weekly_hours_for_worker(obj)
+        if hours > 40:
+            return format_html(
+                '<span style="color: #b91c1c; font-weight: bold;">{} - over 40 hrs</span>',
+                _format_hours(hours),
+            )
+        return format_html('<span style="color: #166534;">{}</span>', _format_hours(hours))
+
+    weekly_hours_check.short_description = 'Scheduled this week'
+
+    def total_hours_display(self, obj):
+        return _format_hours(_total_hours_for_worker(obj))
+
+    total_hours_display.short_description = 'Scheduled total'
+
+    def last_assignment_display(self, obj):
+        assignment = _last_assignment_for_worker(obj)
+        if not assignment:
+            return '—'
+        url = reverse('admin:clients_workassignment_change', args=[assignment.pk])
+        return format_html(
+            '<a href="{}">{} · {}</a>',
+            url,
+            assignment.assignment_date.strftime('%b %d, %Y'),
+            assignment.work_site.name,
+        )
+
+    last_assignment_display.short_description = 'Last assignment'
+
+    def related_records_links(self, obj):
         if not obj or not obj.pk:
-            return 'Save first to view punches.'
-        punches_url = (
-            reverse('admin:clients_workertimepunch_changelist')
+            return 'Save first to view related records.'
+        proofs_url = (
+            reverse('admin:clients_workershiftproof_changelist')
             + f'?worker_account__id__exact={obj.pk}'
         )
         schedule_url = (
@@ -1234,12 +1350,12 @@ class WorkerAccountAdmin(admin.ModelAdmin):
             + f'?client__id__exact={obj.client_id}'
         )
         return format_html(
-            '<a href="{}">View all clock punches</a> · <a href="{}">View schedule</a>',
-            punches_url,
+            '<a href="{}">View photo check-ins</a> · <a href="{}">View schedule</a>',
+            proofs_url,
             schedule_url,
         )
 
-    punch_links.short_description = 'Related records'
+    related_records_links.short_description = 'Related records'
     
     def is_locked(self, obj):
         """Show if account is currently locked"""
@@ -1247,6 +1363,31 @@ class WorkerAccountAdmin(admin.ModelAdmin):
             return format_html('<span style="color: red;">🔒 Locked</span>')
         return format_html('<span style="color: green;">✓ Active</span>')
     is_locked.short_description = 'Lock Status'
+
+    def mark_applicant(self, request, queryset):
+        updated = queryset.update(worker_status=WorkerAccount.STATUS_APPLICANT)
+        self.message_user(request, f'{updated} roster row(s) marked applicant.')
+    mark_applicant.short_description = 'Set status: Applicant'
+
+    def mark_active_worker(self, request, queryset):
+        updated = queryset.update(worker_status=WorkerAccount.STATUS_ACTIVE)
+        self.message_user(request, f'{updated} roster row(s) marked active worker.')
+    mark_active_worker.short_description = 'Set status: Active Worker'
+
+    def mark_inactive_worker(self, request, queryset):
+        updated = queryset.update(worker_status=WorkerAccount.STATUS_INACTIVE, is_available=False)
+        self.message_user(request, f'{updated} roster row(s) marked inactive.')
+    mark_inactive_worker.short_description = 'Set status: Inactive'
+
+    def set_available(self, request, queryset):
+        updated = queryset.update(is_available=True)
+        self.message_user(request, f'{updated} worker(s) marked available.')
+    set_available.short_description = 'Set availability: Available'
+
+    def set_unavailable(self, request, queryset):
+        updated = queryset.update(is_available=False)
+        self.message_user(request, f'{updated} worker(s) marked not available.')
+    set_unavailable.short_description = 'Set availability: Not available'
     
     def approve_accounts(self, request, queryset):
         """Turn portal on and send welcome emails (same as checking Portal access for each row)."""
@@ -1272,10 +1413,10 @@ class WorkerAccountAdmin(admin.ModelAdmin):
     approve_accounts.short_description = 'Enable portal + send welcome email (if inactive)'
     
     def deactivate_accounts(self, request, queryset):
-        """Bulk deactivate worker accounts"""
+        """Bulk disable worker portal logins."""
         updated = queryset.update(is_active=False)
-        self.message_user(request, f'{updated} account(s) deactivated.')
-    deactivate_accounts.short_description = 'Deactivate selected accounts'
+        self.message_user(request, f'Portal login disabled for {updated} account(s).')
+    deactivate_accounts.short_description = 'Disable portal login'
     
     def reset_pins(self, request, queryset):
         """Reset PINs to last four digits of the phone number (numeric)."""
@@ -1413,7 +1554,7 @@ class ShiftCoverInterestInline(admin.TabularInline):
 
 @admin.register(OpenShift)
 class OpenShiftAdmin(admin.ModelAdmin):
-    """Post shifts that need coverage; workers tap interest from the worker portal."""
+    """Post shifts that need coverage; active workers get email or SMS outreach."""
 
     list_display = [
         'role_title',
@@ -1449,7 +1590,7 @@ class OpenShiftAdmin(admin.ModelAdmin):
             'Staff',
             {
                 'fields': ('is_open', 'created_by'),
-                'description': 'Uncheck “Is open” when the shift is filled — pending worker interests move to “cancelled” automatically.',
+                'description': 'Saving an open shift notifies current active PitStop workers. Uncheck “Is open” when the shift is filled.',
             },
         ),
     )
@@ -1490,58 +1631,83 @@ class ShiftCoverInterestAdmin(admin.ModelAdmin):
     worker_name.short_description = 'Worker'
 
 
-@admin.register(WorkerTimePunch)
-class WorkerTimePunchAdmin(admin.ModelAdmin):
+@admin.register(WorkerShiftProof)
+class WorkerShiftProofAdmin(admin.ModelAdmin):
+    """Staff review of worker photo/location check-ins."""
+
     list_display = [
         'worker_name',
-        'clock_in_at',
-        'clock_out_at',
-        'clock_in_geo_status',
-        'clock_in_geo_basic_ok',
-        'clock_out_geo_status',
-        'clock_out_geo_basic_ok',
+        'assignment',
+        'submitted_at',
+        'geo_status',
+        'geo_basic_ok',
+        'photo_link',
     ]
-    list_filter = [
-        'clock_in_geo_status',
-        'clock_in_geo_basic_ok',
-        'clock_out_geo_status',
-        'clock_out_geo_basic_ok',
-        'clock_in_at',
-    ]
+    list_filter = ['assignment__assignment_date', 'geo_status', 'geo_basic_ok', 'submitted_at']
     search_fields = [
         'worker_account__client__first_name',
         'worker_account__client__last_name',
         'worker_account__phone',
+        'assignment__work_site__name',
+        'staff_note',
     ]
     readonly_fields = [
         'worker_account',
-        'clock_in_at',
-        'clock_out_at',
-        'clock_in_server_received_at',
-        'clock_out_server_received_at',
-        'clock_in_client_reported_at',
-        'clock_out_client_reported_at',
-        'clock_in_latitude',
-        'clock_in_longitude',
-        'clock_in_accuracy_meters',
-        'clock_out_latitude',
-        'clock_out_longitude',
-        'clock_out_accuracy_meters',
-        'clock_in_geo_status',
-        'clock_out_geo_status',
-        'clock_in_geo_error',
-        'clock_out_geo_error',
-        'clock_in_geo_basic_ok',
-        'clock_in_geo_basic_note',
-        'clock_out_geo_basic_ok',
-        'clock_out_geo_basic_note',
+        'assignment',
+        'photo_preview',
+        'submitted_at',
+        'client_reported_at',
+        'latitude',
+        'longitude',
+        'accuracy_meters',
+        'geo_status',
+        'geo_error',
+        'geo_basic_ok',
+        'geo_basic_note',
     ]
-    autocomplete_fields = ['worker_account']
+    fields = [
+        'worker_account',
+        'assignment',
+        'photo_preview',
+        'submitted_at',
+        'client_reported_at',
+        'latitude',
+        'longitude',
+        'accuracy_meters',
+        'geo_status',
+        'geo_basic_ok',
+        'geo_basic_note',
+        'geo_error',
+        'staff_note',
+    ]
+    autocomplete_fields = ['worker_account', 'assignment']
+    date_hierarchy = 'submitted_at'
+
+    def has_add_permission(self, request):
+        return False
 
     def worker_name(self, obj):
         return obj.worker_account.client.full_name
 
     worker_name.short_description = 'Worker'
+
+    def photo_link(self, obj):
+        if not obj.photo:
+            return '—'
+        return format_html('<a href="{}" target="_blank">Open photo</a>', obj.photo.url)
+
+    photo_link.short_description = 'Photo'
+
+    def photo_preview(self, obj):
+        if not obj.photo:
+            return '—'
+        return format_html(
+            '<a href="{}" target="_blank"><img src="{}" style="max-width: 420px; border-radius: 8px;" /></a>',
+            obj.photo.url,
+            obj.photo.url,
+        )
+
+    photo_preview.short_description = 'Photo'
 
 
 @admin.register(WorkerPortalNote)
@@ -1584,17 +1750,65 @@ class WorkerTimeOffRequestAdmin(admin.ModelAdmin):
     worker_name.short_description = 'Worker'
 
 
+@admin.register(ClientTextMessage)
+class ClientTextMessageAdmin(admin.ModelAdmin):
+    """Admin log for Azure SMS outreach and replies."""
+
+    list_display = [
+        'client',
+        'direction',
+        'purpose',
+        'checkpoint_days',
+        'to_phone',
+        'status',
+        'sent_at',
+        'created_at',
+    ]
+    list_filter = ['direction', 'purpose', 'status', 'checkpoint_days', 'created_at', 'sent_at']
+    search_fields = [
+        'client__first_name',
+        'client__last_name',
+        'client__phone',
+        'to_phone',
+        'from_phone',
+        'body',
+        'provider_message_id',
+    ]
+    readonly_fields = [
+        'client',
+        'direction',
+        'purpose',
+        'checkpoint_days',
+        'dedupe_key',
+        'to_phone',
+        'from_phone',
+        'body',
+        'status',
+        'provider_message_id',
+        'provider_response',
+        'error_message',
+        'sent_at',
+        'received_at',
+        'created_at',
+        'updated_at',
+    ]
+    date_hierarchy = 'created_at'
+
+
 @admin.register(WorkAssignment)
 class WorkAssignmentAdmin(admin.ModelAdmin):
     """Staff scheduling view for PitStop worker assignments."""
 
     list_display = [
         'client',
+        'worker_phone',
         'work_site',
         'assignment_date',
         'time_range',
         'status',
         'confirmed_by_client',
+        'scheduled_hours',
+        'photo_checkins',
         'assigned_by',
     ]
     list_filter = ['status', 'assignment_date', 'work_site', 'confirmed_by_client']
@@ -1605,7 +1819,8 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
         'assigned_by',
     ]
     date_hierarchy = 'assignment_date'
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at', 'photo_checkins', 'scheduled_hours']
+    inlines = [AssignmentShiftProofInline]
     actions = ['mark_confirmed', 'mark_in_progress', 'mark_completed']
 
     fieldsets = (
@@ -1613,7 +1828,11 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
             'fields': ('client', 'work_site'),
         }),
         ('Schedule', {
-            'fields': ('assignment_date', 'start_time', 'end_time', 'status', 'confirmed_by_client', 'confirmed_at'),
+            'fields': ('assignment_date', 'start_time', 'end_time', 'scheduled_hours', 'status', 'confirmed_by_client', 'confirmed_at'),
+        }),
+        ('Worker check-in', {
+            'fields': ('photo_checkins',),
+            'description': 'Workers submit photo/location proof only when a supervisor asks.',
         }),
         ('Staff Notes', {
             'fields': ('assigned_by', 'assignment_notes', 'performance_notes'),
@@ -1649,6 +1868,30 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
 
     time_range.short_description = 'Time'
 
+    def worker_phone(self, obj):
+        account = getattr(obj.client, 'worker_account', None)
+        return account.phone if account else obj.client.phone
+
+    worker_phone.short_description = 'Phone'
+
+    def scheduled_hours(self, obj):
+        if not obj or not obj.assignment_date or not obj.start_time or not obj.end_time:
+            return '—'
+        return _format_hours(_assignment_duration_hours(obj))
+
+    scheduled_hours.short_description = 'Scheduled hours'
+
+    def photo_checkins(self, obj):
+        if not obj or not obj.pk:
+            return 'Save first to view photo check-ins.'
+        count = obj.shift_proofs.count()
+        url = reverse('admin:clients_workershiftproof_changelist') + f'?assignment__id__exact={obj.pk}'
+        if not count:
+            return format_html('<a href="{}">No photo check-ins yet</a>', url)
+        return format_html('<a href="{}">{} photo/location check-in(s)</a>', url, count)
+
+    photo_checkins.short_description = 'Photo check-ins'
+
     def mark_confirmed(self, request, queryset):
         updated = queryset.update(status='confirmed', confirmed_by_client=True, confirmed_at=timezone.now())
         self.message_user(request, f'{updated} assignment(s) marked confirmed.')
@@ -1666,3 +1909,4 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
         self.message_user(request, f'{updated} assignment(s) marked completed.')
 
     mark_completed.short_description = 'Mark selected assignments completed'
+

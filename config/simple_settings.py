@@ -251,6 +251,18 @@ PITSTOP_APPLICATION_ALERT_EMAILS = os.getenv(
     'pitstop@missionhiringhall.org',
 )
 
+# Azure Communication Services SMS
+AZURE_COMMUNICATION_CONNECTION_STRING = os.getenv('AZURE_COMMUNICATION_CONNECTION_STRING', '')
+AZURE_COMMUNICATION_SMS_FROM = os.getenv('AZURE_COMMUNICATION_SMS_FROM', '')
+SMS_FOLLOWUP_ENABLED = os.getenv('SMS_FOLLOWUP_ENABLED', 'false').lower() == 'true'
+SMS_FOLLOWUP_CHECKPOINT_DAYS = [
+    int(day.strip())
+    for day in os.getenv('SMS_FOLLOWUP_CHECKPOINT_DAYS', '30,60,90,120').split(',')
+    if day.strip().isdigit()
+]
+SMS_FOLLOWUP_WINDOW_DAYS = int(os.getenv('SMS_FOLLOWUP_WINDOW_DAYS', '1'))
+SMS_FOLLOWUP_START_FIELD = os.getenv('SMS_FOLLOWUP_START_FIELD', 'created_at')
+
 # Admin base URL for email links
 ADMIN_BASE_URL = os.getenv('ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net')
 

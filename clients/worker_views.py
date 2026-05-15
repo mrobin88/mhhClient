@@ -1,22 +1,26 @@
 """
 Worker Portal API — open shifts + “I’m interested” (no scheduling, no call-out forms).
 """
+import json
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, parser_classes, permission_classes
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .models_extensions import (
     WorkerAccount,
     WorkerSessionToken,
+    WorkAssignment,
     OpenShift,
     ShiftCoverInterest,
     WorkerTimePunch,
+    WorkerShiftProof,
     WorkerPortalNote,
     WorkerTimeOffRequest,
 )
@@ -26,7 +30,8 @@ from .serializers import (
     OpenShiftSerializer,
     ShiftCoverInterestSerializer,
     ShiftCoverInterestStaffSerializer,
-    WorkerTimePunchSerializer,
+    WorkAssignmentSerializer,
+    WorkerShiftProofSerializer,
     WorkerPortalNoteSerializer,
     WorkerTimeOffRequestSerializer,
 )
@@ -119,6 +124,11 @@ def _parse_geo_payload(geo):
         'accuracy': None,
         'client_reported_at': None,
     }
+    if isinstance(geo, str):
+        try:
+            geo = json.loads(geo)
+        except json.JSONDecodeError:
+            geo = {'status': WorkerTimePunch.GEO_STATUS_ERROR, 'error': 'Invalid geolocation payload'}
     if not isinstance(geo, dict):
         return default
 
@@ -175,6 +185,31 @@ def _basic_geo_validation(geo_payload):
     return True, f'Captured with accuracy {acc:.0f}m'
 
 
+def _proof_assignment_for_worker(account, assignment_id):
+    if not assignment_id:
+        return None, Response(
+            {'assignment_id': ['Choose the assignment you are checking in for.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        assignment = WorkAssignment.objects.select_related('work_site', 'client').get(
+            pk=assignment_id,
+            client=account.client,
+        )
+    except (TypeError, ValueError, WorkAssignment.DoesNotExist):
+        return None, Response(
+            {'error': 'Assignment not found.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if assignment.status in {'cancelled', 'called_out'}:
+        return None, Response(
+            {'error': 'This assignment is not available for photo check-in.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return assignment, None
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def worker_login(request):
@@ -203,23 +238,110 @@ def worker_logout(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def worker_profile(request):
-    token = _worker_token(request)
-    session = WorkerSession.get_session(token)
-    if not session:
+    worker_account, err = _require_worker(request)
+    if err:
+        return err
+    return Response(WorkerAccountSerializer(worker_account).data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def worker_assignments(request):
+    """Upcoming/current assignments for the simplified worker portal."""
+    account, err = _require_worker(request)
+    if err:
+        return err
+
+    today = timezone.localdate()
+    assignments = (
+        WorkAssignment.objects.filter(
+            client=account.client,
+            assignment_date__gte=today - timedelta(days=1),
+        )
+        .exclude(status__in=['cancelled', 'called_out'])
+        .select_related('work_site', 'client')
+        .order_by('assignment_date', 'start_time')[:20]
+    )
+    latest_proofs = {}
+    proofs = (
+        WorkerShiftProof.objects.filter(worker_account=account, assignment__in=assignments)
+        .select_related('assignment', 'assignment__work_site')
+        .order_by('assignment_id', '-submitted_at')
+    )
+    for proof in proofs:
+        latest_proofs.setdefault(proof.assignment_id, proof)
+    payload = []
+    for assignment in assignments:
+        latest_proof = latest_proofs.get(assignment.id)
+        row = WorkAssignmentSerializer(assignment).data
+        row['can_submit_proof'] = assignment.status not in {'cancelled', 'called_out'}
+        row['latest_proof'] = WorkerShiftProofSerializer(latest_proof).data if latest_proof else None
+        row['proof_submitted'] = latest_proof is not None
+        payload.append(row)
+    return Response(payload)
+
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+@permission_classes([AllowAny])
+def worker_shift_proof(request):
+    """Save a worker photo check-in with browser location."""
+    account, err = _require_worker(request)
+    if err:
+        return err
+
+    assignment, assignment_err = _proof_assignment_for_worker(
+        account,
+        request.data.get('assignment_id'),
+    )
+    if assignment_err:
+        return assignment_err
+
+    photo = request.FILES.get('photo')
+    if not photo:
         return Response(
-            {'error': 'Invalid or expired session'},
-            status=status.HTTP_401_UNAUTHORIZED,
+            {'photo': ['Take or choose a photo before submitting.']},
+            status=status.HTTP_400_BAD_REQUEST,
         )
-    try:
-        worker_account = WorkerAccount.objects.select_related('client').get(
-            id=session['worker_account_id']
-        )
-        return Response(WorkerAccountSerializer(worker_account).data)
-    except WorkerAccount.DoesNotExist:
-        return Response(
-            {'error': 'Worker account not found'},
-            status=status.HTTP_404_NOT_FOUND,
-        )
+
+    geo = _parse_geo_payload(request.data.get('geolocation'))
+    geo_basic_ok, geo_basic_note = _basic_geo_validation(geo)
+    proof = WorkerShiftProof.objects.create(
+        worker_account=account,
+        assignment=assignment,
+        photo=photo,
+        client_reported_at=geo['client_reported_at'],
+        latitude=geo['latitude'],
+        longitude=geo['longitude'],
+        accuracy_meters=geo['accuracy'],
+        geo_status=geo['status'],
+        geo_error=geo['error'],
+        geo_basic_ok=geo_basic_ok,
+        geo_basic_note=geo_basic_note,
+    )
+    return Response(
+        {
+            'message': 'Photo and location sent to staff.',
+            'proof': WorkerShiftProofSerializer(proof).data,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([AllowAny])
+def worker_availability(request):
+    """Simple Available / Not Available toggle."""
+    account, err = _require_worker(request)
+    if err:
+        return err
+
+    if request.method == 'GET':
+        return Response({'is_available': account.is_available})
+
+    account.is_available = bool(request.data.get('is_available'))
+    account.save(update_fields=['is_available', 'is_approved'])
+    return Response({'is_available': account.is_available})
 
 
 @api_view(['GET'])
@@ -309,104 +431,14 @@ def worker_shift_interests(request):
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def worker_time_punch(request):
-    """Worker clock in/out with optional geolocation and server time context."""
+    """Legacy endpoint retained so old clients fail clearly instead of clocking workers."""
     account, err = _require_worker(request)
     if err:
         return err
 
-    if request.method == 'GET':
-        open_punch = (
-            WorkerTimePunch.objects.filter(worker_account=account, clock_out_at__isnull=True)
-            .order_by('-clock_in_at')
-            .first()
-        )
-        recent = WorkerTimePunch.objects.filter(worker_account=account).order_by('-clock_in_at')[:10]
-        return Response(
-            {
-                'server_time': timezone.now(),
-                'is_clocked_in': open_punch is not None,
-                'active_punch': WorkerTimePunchSerializer(open_punch).data if open_punch else None,
-                'recent_punches': WorkerTimePunchSerializer(recent, many=True).data,
-            }
-        )
-
-    action = str(request.data.get('action') or '').strip().lower()
-    if action not in {'clock_in', 'clock_out'}:
-        return Response(
-            {'action': ['Action must be "clock_in" or "clock_out".']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    geo = _parse_geo_payload(request.data.get('geolocation'))
-    geo_basic_ok, geo_basic_note = _basic_geo_validation(geo)
-    now = timezone.now()
-
-    open_punch = (
-        WorkerTimePunch.objects.filter(worker_account=account, clock_out_at__isnull=True)
-        .order_by('-clock_in_at')
-        .first()
-    )
-
-    if action == 'clock_in':
-        if open_punch:
-            return Response(
-                {'error': 'You are already clocked in.', 'active_punch': WorkerTimePunchSerializer(open_punch).data},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        punch = WorkerTimePunch.objects.create(
-            worker_account=account,
-            clock_in_at=now,
-            clock_in_client_reported_at=geo['client_reported_at'],
-            clock_in_latitude=geo['latitude'],
-            clock_in_longitude=geo['longitude'],
-            clock_in_accuracy_meters=geo['accuracy'],
-            clock_in_geo_status=geo['status'],
-            clock_in_geo_error=geo['error'],
-            clock_in_geo_basic_ok=geo_basic_ok,
-            clock_in_geo_basic_note=geo_basic_note,
-        )
-        return Response(
-            {
-                'server_time': now,
-                'message': 'Clock-in recorded.',
-                'punch': WorkerTimePunchSerializer(punch).data,
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-    if not open_punch:
-        return Response({'error': 'No active clock-in found.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    open_punch.clock_out_at = now
-    open_punch.clock_out_server_received_at = now
-    open_punch.clock_out_client_reported_at = geo['client_reported_at']
-    open_punch.clock_out_latitude = geo['latitude']
-    open_punch.clock_out_longitude = geo['longitude']
-    open_punch.clock_out_accuracy_meters = geo['accuracy']
-    open_punch.clock_out_geo_status = geo['status']
-    open_punch.clock_out_geo_error = geo['error']
-    open_punch.clock_out_geo_basic_ok = geo_basic_ok
-    open_punch.clock_out_geo_basic_note = geo_basic_note
-    open_punch.save(
-        update_fields=[
-            'clock_out_at',
-            'clock_out_server_received_at',
-            'clock_out_client_reported_at',
-            'clock_out_latitude',
-            'clock_out_longitude',
-            'clock_out_accuracy_meters',
-            'clock_out_geo_status',
-            'clock_out_geo_error',
-            'clock_out_geo_basic_ok',
-            'clock_out_geo_basic_note',
-        ]
-    )
     return Response(
-        {
-            'server_time': now,
-            'message': 'Clock-out recorded.',
-            'punch': WorkerTimePunchSerializer(open_punch).data,
-        }
+        {'error': 'Clock in/out has been replaced by photo check-in.'},
+        status=status.HTTP_410_GONE,
     )
 
 
