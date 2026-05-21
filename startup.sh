@@ -2,7 +2,7 @@
 # Optimized startup script for Azure App Service - Django backend
 # Fixes: Removes aggressive venv check that causes corruption loops
 
-set -e
+set -euo pipefail
 cd /home/site/wwwroot
 
 echo "=== Starting Django Application Startup ==="
@@ -70,25 +70,27 @@ echo "✓ Django verified."
 # ============================================================================
 
 export DJANGO_SETTINGS_MODULE=config.simple_settings
-export PYTHONPATH=/home/site/wwwroot:$PYTHONPATH
+export PYTHONPATH=/home/site/wwwroot:${PYTHONPATH:-}
 export PYTHONUNBUFFERED=1
 
 echo "Django settings: $DJANGO_SETTINGS_MODULE"
 
-# Run migrations (non-blocking)
+# Run migrations (fail-fast)
 echo "Running database migrations..."
-if $PYTHON manage.py migrate --noinput 2>&1 | tail -5; then
+if $PYTHON manage.py migrate --noinput; then
     echo "✓ Migrations completed."
 else
-    echo "⚠ Migration skipped (database may not be configured yet)."
+    echo "✗ Migration failed. Aborting startup."
+    exit 1
 fi
 
-# Collect static files (non-blocking)
+# Collect static files (fail-fast)
 echo "Collecting static files..."
-if $PYTHON manage.py collectstatic --noinput --clear 2>&1 | tail -3; then
+if $PYTHON manage.py collectstatic --noinput --clear; then
     echo "✓ Static files collected."
 else
-    echo "⚠ Collectstatic skipped."
+    echo "✗ Collectstatic failed. Aborting startup."
+    exit 1
 fi
 
 # ============================================================================
