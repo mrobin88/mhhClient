@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 
 from users.admin import StaffUserAdmin
 from users.models import StaffUser
@@ -69,6 +69,10 @@ class StaffUserAdminTests(TestCase):
         self.assertFalse(staff_user.is_active)
         self.assertTrue(self.request.user.is_active)
 
+    @override_settings(
+        AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake',
+        AZURE_COMMUNICATION_SMS_FROM='+15555550123',
+    )
     @patch('clients.notifications.send_phone_text_message')
     def test_text_staff_login_help_action_sends_sms_for_users_with_phone(self, send_sms_mock):
         send_sms_mock.return_value = (True, '+19255501234')

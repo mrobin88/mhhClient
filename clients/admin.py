@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
+from django.conf import settings
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.db.models import Count
@@ -748,10 +749,26 @@ class ClientAdmin(admin.ModelAdmin):
         from .notifications import send_text_message
         from .models_extensions import ClientTextMessage
 
+        if not getattr(settings, 'AZURE_COMMUNICATION_CONNECTION_STRING', ''):
+            self.message_user(
+                request,
+                'SMS not configured: missing AZURE_COMMUNICATION_CONNECTION_STRING in app settings.',
+                level=messages.ERROR,
+            )
+            return
+        if not getattr(settings, 'AZURE_COMMUNICATION_SMS_FROM', ''):
+            self.message_user(
+                request,
+                'SMS not configured: missing AZURE_COMMUNICATION_SMS_FROM in app settings.',
+                level=messages.ERROR,
+            )
+            return
+
         label_by_code = dict(Document.DOC_TYPE_CHOICES)
         sent = 0
         skipped = 0
         failed = 0
+        reason_counts = {}
 
         for client in queryset.prefetch_related('documents'):
             missing_codes = self._missing_doc_types_for_client(client)
@@ -772,6 +789,7 @@ class ClientAdmin(admin.ModelAdmin):
                 body=body[:480],
                 purpose=ClientTextMessage.PURPOSE_GENERAL,
                 dedupe_key=dedupe_key,
+                require_enabled_flag=False,
             )
             if not attempted:
                 skipped += 1
@@ -779,11 +797,17 @@ class ClientAdmin(admin.ModelAdmin):
                 sent += 1
             else:
                 failed += 1
+                reason = (log.error_message or 'Unknown send error')[:80]
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
 
         level = messages.SUCCESS if failed == 0 else messages.WARNING
+        reason_text = ''
+        if reason_counts:
+            top_reasons = ', '.join(f'{reason} ({count})' for reason, count in list(reason_counts.items())[:3])
+            reason_text = f' Top failures: {top_reasons}.'
         self.message_user(
             request,
-            f'Missing-document texts sent: {sent}. Skipped: {skipped}. Failed: {failed}.',
+            f'Missing-document texts sent: {sent}. Skipped: {skipped}. Failed: {failed}.{reason_text}',
             level=level,
         )
     

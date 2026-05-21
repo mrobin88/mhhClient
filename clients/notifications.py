@@ -1,6 +1,8 @@
 """
 Email notification system for case notes, worker onboarding, and schedule updates
 """
+import re
+
 from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
@@ -295,19 +297,24 @@ def _sms_from_number():
 
 
 def _to_e164_us(phone):
-    from .phone_utils import phone_digits
+    from .phone_utils import normalize_login_phone, phone_digits
 
-    digits = phone_digits(phone)
+    raw = str(phone or '').strip()
+    raw = re.sub(r'(?i)\s*(?:ext\.?|x|#)\s*\d+\s*$', '', raw)
+    digits = normalize_login_phone(raw)
     if len(digits) == 10:
         return f'+1{digits}'
     if len(digits) == 11 and digits.startswith('1'):
         return f'+{digits}'
-    if str(phone or '').strip().startswith('+') and len(digits) >= 10:
-        return f'+{digits}'
+    # Keep international-style +numbers if they are already entered that way.
+    if raw.startswith('+'):
+        raw_digits = phone_digits(raw)
+        if len(raw_digits) >= 10:
+            return f'+{raw_digits}'
     return ''
 
 
-def send_phone_text_message(phone, body):
+def send_phone_text_message(phone, body, require_enabled_flag=False):
     """
     Send SMS to a raw phone number (not tied to a Client row).
     Returns (success: bool, detail: str).
@@ -315,7 +322,7 @@ def send_phone_text_message(phone, body):
     to_phone = _to_e164_us(phone)
     if not to_phone:
         return False, 'Phone is not a valid SMS number'
-    if not getattr(settings, 'SMS_FOLLOWUP_ENABLED', False):
+    if require_enabled_flag and not getattr(settings, 'SMS_FOLLOWUP_ENABLED', False):
         return False, 'SMS_FOLLOWUP_ENABLED is false'
 
     try:
@@ -333,7 +340,14 @@ def send_phone_text_message(phone, body):
         return False, str(exc)
 
 
-def send_text_message(client, body, purpose='general', checkpoint_days=None, dedupe_key=None):
+def send_text_message(
+    client,
+    body,
+    purpose='general',
+    checkpoint_days=None,
+    dedupe_key=None,
+    require_enabled_flag=True,
+):
     """
     Send and log one SMS via Azure Communication Services.
     If dedupe_key already exists as sent/pending, return that row instead of sending again.
@@ -392,7 +406,7 @@ def send_text_message(client, body, purpose='general', checkpoint_days=None, ded
         log.save(update_fields=['status', 'error_message', 'updated_at'])
         return log, True
 
-    if not getattr(settings, 'SMS_FOLLOWUP_ENABLED', False):
+    if require_enabled_flag and not getattr(settings, 'SMS_FOLLOWUP_ENABLED', False):
         log.status = ClientTextMessage.STATUS_FAILED
         log.error_message = 'SMS_FOLLOWUP_ENABLED is false'
         log.save(update_fields=['status', 'error_message', 'updated_at'])

@@ -11,6 +11,7 @@ from rest_framework.test import APIClient
 from clients.admin import ClientAdmin
 from clients.models import Client
 from clients.models import Document
+from clients.notifications import _to_e164_us
 from clients.models_extensions import WorkerAccount, WorkerShiftProof, WorkAssignment, WorkSite, ClientTextMessage
 from clients.worker_views import WorkerSession
 
@@ -125,6 +126,10 @@ class ClientAdminTextMissingDocumentsTests(TestCase):
             gender='F',
         )
 
+    @override_settings(
+        AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake',
+        AZURE_COMMUNICATION_SMS_FROM='+15555550123',
+    )
     @patch('clients.notifications.send_text_message')
     def test_text_missing_documents_action_sends_sms_for_clients_with_missing_required_docs(self, send_text_mock):
         class Log:
@@ -152,3 +157,14 @@ class ClientAdminTextMissingDocumentsTests(TestCase):
         self.assertIn('Government ID', kwargs['body'])
         self.assertIn('Consent Form', kwargs['body'])
         self.assertNotIn('Intake Form', kwargs['body'])
+
+
+class SmsPhoneFormattingTests(TestCase):
+    def test_to_e164_us_formats_common_us_phone_inputs(self):
+        self.assertEqual(_to_e164_us('(925) 550-7522'), '+19255507522')
+        self.assertEqual(_to_e164_us('+1 (925) 550-7522'), '+19255507522')
+        self.assertEqual(_to_e164_us('925-550-7522 ext 14'), '+19255507522')
+        self.assertEqual(_to_e164_us('1-925-550-7522 x99'), '+19255507522')
+
+    def test_to_e164_us_rejects_invalid_short_values(self):
+        self.assertEqual(_to_e164_us('925-550'), '')

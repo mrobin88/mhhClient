@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib import messages
+from django.conf import settings
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from .models import StaffUser
@@ -72,9 +73,25 @@ class StaffUserAdmin(UserAdmin):
     def text_staff_login_help(self, request, queryset):
         from clients.notifications import send_phone_text_message
 
+        if not getattr(settings, 'AZURE_COMMUNICATION_CONNECTION_STRING', ''):
+            self.message_user(
+                request,
+                'SMS not configured: missing AZURE_COMMUNICATION_CONNECTION_STRING in app settings.',
+                level=messages.ERROR,
+            )
+            return
+        if not getattr(settings, 'AZURE_COMMUNICATION_SMS_FROM', ''):
+            self.message_user(
+                request,
+                'SMS not configured: missing AZURE_COMMUNICATION_SMS_FROM in app settings.',
+                level=messages.ERROR,
+            )
+            return
+
         sent = 0
         skipped = 0
         failed = 0
+        reason_counts = {}
 
         for user in queryset:
             phone = (user.phone or '').strip()
@@ -89,15 +106,20 @@ class StaffUserAdmin(UserAdmin):
                 f"Username: {username}\n"
                 "If you cannot log in, contact 9255507522 Matthew Robin."
             )
-            ok, _detail = send_phone_text_message(phone=phone, body=message_body[:480])
+            ok, detail = send_phone_text_message(phone=phone, body=message_body[:480])
             if ok:
                 sent += 1
             else:
                 failed += 1
+                reason_counts[detail] = reason_counts.get(detail, 0) + 1
 
         level = messages.SUCCESS if failed == 0 else messages.WARNING
+        reason_text = ''
+        if reason_counts:
+            top_reasons = ', '.join(f'{reason} ({count})' for reason, count in list(reason_counts.items())[:3])
+            reason_text = f' Top failures: {top_reasons}.'
         self.message_user(
             request,
-            f'Staff login texts sent: {sent}. Skipped (no phone): {skipped}. Failed: {failed}.',
+            f'Staff login texts sent: {sent}. Skipped (no phone): {skipped}. Failed: {failed}.{reason_text}',
             level=level,
         )
