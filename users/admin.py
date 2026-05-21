@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib import messages
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from .models import StaffUser
@@ -17,7 +18,7 @@ class StaffUserChangeForm(UserChangeForm):
 class StaffUserAdmin(UserAdmin):
     form = StaffUserChangeForm
     add_form = StaffUserCreationForm
-    actions = ('disable_staff_login',)
+    actions = ('disable_staff_login', 'text_staff_login_help')
     
     list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'nonprofit', 'is_active', 'is_staff', 'date_joined')
     list_filter = ('role', 'is_active', 'is_staff', 'is_superuser', 'nonprofit', 'date_joined')
@@ -66,3 +67,37 @@ class StaffUserAdmin(UserAdmin):
             message += ' Your own login was left active.'
 
         self.message_user(request, message)
+
+    @admin.action(description='Text login link and username to selected staff')
+    def text_staff_login_help(self, request, queryset):
+        from clients.notifications import send_phone_text_message
+
+        sent = 0
+        skipped = 0
+        failed = 0
+
+        for user in queryset:
+            phone = (user.phone or '').strip()
+            if not phone:
+                skipped += 1
+                continue
+
+            username = (user.username or '').strip() or 'your username'
+            message_body = (
+                "Mission Hiring Hall Admin login:\n"
+                "https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/admin/\n"
+                f"Username: {username}\n"
+                "If you cannot log in, contact 9255507522 Matthew Robin."
+            )
+            ok, _detail = send_phone_text_message(phone=phone, body=message_body[:480])
+            if ok:
+                sent += 1
+            else:
+                failed += 1
+
+        level = messages.SUCCESS if failed == 0 else messages.WARNING
+        self.message_user(
+            request,
+            f'Staff login texts sent: {sent}. Skipped (no phone): {skipped}. Failed: {failed}.',
+            level=level,
+        )

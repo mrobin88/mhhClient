@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import redirect
 from django.http import HttpResponse, JsonResponse
+from django.shortcuts import render
 
 def home_redirect(request):
     """Redirect to frontend application"""
@@ -11,20 +12,39 @@ def home_redirect(request):
     return redirect('https://your-frontend-domain.com')
 
 def api_info(request):
-    """Simple API info page"""
-    return HttpResponse("""
-    <h1>Client Services API</h1>
-    <p>Available endpoints:</p>
-    <ul>
-        <li><a href="/admin/">/admin/</a> - Django Admin</li>
-        <li><a href="/api/">/api/</a> - REST API</li>
-        <li><a href="/api/clients/">/api/clients/</a> - Client Management</li>
-        <li><a href="/api/pitstop-applications/">/api/pitstop-applications/</a> - Applications</li>
-        <li><a href="/health">/health</a> - Health Check</li>
-        <li><a href="/api/kiosk/check-in/lookup/">/api/kiosk/check-in/lookup/</a> - Kiosk lookup (POST JSON)</li>
-        <li><a href="/api/kiosk/check-in/submit/">/api/kiosk/check-in/submit/</a> - Kiosk check-in (POST JSON)</li>
-    </ul>
-    """)
+    """Styled home hub for admin, APIs, and reporting."""
+    return render(
+        request,
+        'home_hub.html',
+        {
+            'sections': [
+                {
+                    'title': 'Admin and Operations',
+                    'items': [
+                        {'name': 'Staff Admin', 'path': '/admin/', 'description': 'Manage clients, workers, staffing, and documents.'},
+                        {'name': 'Reports Hub', 'path': '/api/reports/', 'description': 'Download filtered CSV and ZIP exports.'},
+                        {'name': 'Health Check', 'path': '/health', 'description': 'Service heartbeat for platform monitoring.'},
+                    ],
+                },
+                {
+                    'title': 'Core APIs',
+                    'items': [
+                        {'name': 'API Root', 'path': '/api/', 'description': 'Browsable root for all API endpoints.'},
+                        {'name': 'Clients API', 'path': '/api/clients/', 'description': 'Client records and workflow data.'},
+                        {'name': 'PitStop Applications', 'path': '/api/pitstop-applications/', 'description': 'PitStop application intake endpoints.'},
+                    ],
+                },
+                {
+                    'title': 'Kiosk and Worker Flow',
+                    'items': [
+                        {'name': 'Kiosk Lookup (POST)', 'path': '/api/kiosk/check-in/lookup/', 'description': 'Lobby check-in lookup endpoint.'},
+                        {'name': 'Kiosk Submit (POST)', 'path': '/api/kiosk/check-in/submit/', 'description': 'Lobby check-in submission endpoint.'},
+                        {'name': 'Worker Login API (POST)', 'path': '/api/worker/login/', 'description': 'Worker portal session login endpoint.'},
+                    ],
+                },
+            ],
+        },
+    )
 
 def health_check(request):
     """

@@ -1,13 +1,17 @@
 import shutil
 import tempfile
 from datetime import date, time
+from unittest.mock import patch
 
+from django.contrib.admin.sites import AdminSite
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
+from clients.admin import ClientAdmin
 from clients.models import Client
-from clients.models_extensions import WorkerAccount, WorkerShiftProof, WorkAssignment, WorkSite
+from clients.models import Document
+from clients.models_extensions import WorkerAccount, WorkerShiftProof, WorkAssignment, WorkSite, ClientTextMessage
 from clients.worker_views import WorkerSession
 
 
@@ -107,3 +111,44 @@ class WorkerShiftProofTests(TestCase):
         response = self.api.post('/api/worker/time-punch/', {'action': 'clock_in'}, format='json')
 
         self.assertEqual(response.status_code, 410)
+
+
+class ClientAdminTextMissingDocumentsTests(TestCase):
+    def setUp(self):
+        self.site = AdminSite()
+        self.admin = ClientAdmin(Client, self.site)
+        self.client_record = Client.objects.create(
+            first_name='Missing',
+            last_name='Docs',
+            phone='4155552222',
+            email='missing@example.com',
+            gender='F',
+        )
+
+    @patch('clients.notifications.send_text_message')
+    def test_text_missing_documents_action_sends_sms_for_clients_with_missing_required_docs(self, send_text_mock):
+        class Log:
+            status = ClientTextMessage.STATUS_SENT
+
+        send_text_mock.return_value = (Log(), True)
+
+        # Only intake is present; resume/id/consent should still be requested.
+        Document.objects.create(
+            client=self.client_record,
+            title='Intake Form',
+            doc_type='intake',
+            file=SimpleUploadedFile('intake.pdf', b'pdf', content_type='application/pdf'),
+            uploaded_by='staff',
+        )
+
+        request = type('Req', (), {'user': None})()
+        with patch.object(self.admin, 'message_user'):
+            self.admin.text_missing_documents(request, Client.objects.filter(pk=self.client_record.pk))
+
+        send_text_mock.assert_called_once()
+        kwargs = send_text_mock.call_args.kwargs
+        self.assertEqual(kwargs['client'], self.client_record)
+        self.assertIn('Resume', kwargs['body'])
+        self.assertIn('Government ID', kwargs['body'])
+        self.assertIn('Consent Form', kwargs['body'])
+        self.assertNotIn('Intake Form', kwargs['body'])

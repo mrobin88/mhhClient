@@ -307,6 +307,32 @@ def _to_e164_us(phone):
     return ''
 
 
+def send_phone_text_message(phone, body):
+    """
+    Send SMS to a raw phone number (not tied to a Client row).
+    Returns (success: bool, detail: str).
+    """
+    to_phone = _to_e164_us(phone)
+    if not to_phone:
+        return False, 'Phone is not a valid SMS number'
+    if not getattr(settings, 'SMS_FOLLOWUP_ENABLED', False):
+        return False, 'SMS_FOLLOWUP_ENABLED is false'
+
+    try:
+        result = _sms_client().send(
+            from_=_sms_from_number(),
+            to=[to_phone],
+            message=body,
+            enable_delivery_report=True,
+        )[0]
+        if getattr(result, 'successful', False):
+            return True, to_phone
+        err = getattr(result, 'error_message', '') or 'Azure SMS send failed'
+        return False, err
+    except Exception as exc:
+        return False, str(exc)
+
+
 def send_text_message(client, body, purpose='general', checkpoint_days=None, dedupe_key=None):
     """
     Send and log one SMS via Azure Communication Services.

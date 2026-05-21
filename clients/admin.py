@@ -671,7 +671,19 @@ class ClientAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(case_notes_total=Count('casenotes'))
     
-    actions = ['mark_active', 'mark_completed', 'mark_job_placed', 'create_worker_accounts', 'export_to_csv', 'export_program_report', 'export_job_placement_report', 'export_client_profiles_pdf']
+    actions = [
+        'mark_active',
+        'mark_completed',
+        'mark_job_placed',
+        'create_worker_accounts',
+        'text_missing_documents',
+        'export_to_csv',
+        'export_program_report',
+        'export_job_placement_report',
+        'export_client_profiles_pdf',
+    ]
+
+    REQUIRED_DOC_TYPES_FOR_TEXT = ('resume', 'id', 'consent', 'intake')
     
     def create_worker_accounts(self, request, queryset):
         """Create worker portal accounts for selected PitStop clients"""
@@ -722,6 +734,58 @@ class ClientAdmin(admin.ModelAdmin):
             self.message_user(request, f'✗ Errors: {", ".join(errors)}', messages.ERROR)
     
     create_worker_accounts.short_description = "🏢 Create worker portal accounts (PIN = last 4 of phone)"
+
+    def _missing_doc_types_for_client(self, client):
+        present = set(
+            client.documents.exclude(file='').values_list('doc_type', flat=True)
+        )
+        if client.resume:
+            present.add('resume')
+        return [doc for doc in self.REQUIRED_DOC_TYPES_FOR_TEXT if doc not in present]
+
+    @admin.action(description='Text selected clients about missing documents')
+    def text_missing_documents(self, request, queryset):
+        from .notifications import send_text_message
+        from .models_extensions import ClientTextMessage
+
+        label_by_code = dict(Document.DOC_TYPE_CHOICES)
+        sent = 0
+        skipped = 0
+        failed = 0
+
+        for client in queryset.prefetch_related('documents'):
+            missing_codes = self._missing_doc_types_for_client(client)
+            if not missing_codes:
+                skipped += 1
+                continue
+            missing_labels = [label_by_code.get(code, code) for code in missing_codes]
+            docs_text = ', '.join(missing_labels)
+            first_name = (client.first_name or client.full_name or 'there').strip()
+            body = (
+                f"Hi {first_name}, Mission Hiring Hall reminder: "
+                f"we are still missing your documents: {docs_text}. "
+                "Please upload or bring them in as soon as possible. Thank you."
+            )
+            dedupe_key = f'client:{client.pk}:missing-docs:{"-".join(sorted(missing_codes))}'
+            log, attempted = send_text_message(
+                client=client,
+                body=body[:480],
+                purpose=ClientTextMessage.PURPOSE_GENERAL,
+                dedupe_key=dedupe_key,
+            )
+            if not attempted:
+                skipped += 1
+            elif log.status == ClientTextMessage.STATUS_SENT:
+                sent += 1
+            else:
+                failed += 1
+
+        level = messages.SUCCESS if failed == 0 else messages.WARNING
+        self.message_user(
+            request,
+            f'Missing-document texts sent: {sent}. Skipped: {skipped}. Failed: {failed}.',
+            level=level,
+        )
     
     def mark_active(self, request, queryset):
         updated = queryset.update(status='active')

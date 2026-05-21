@@ -68,3 +68,24 @@ class StaffUserAdminTests(TestCase):
         self.request.user.refresh_from_db()
         self.assertFalse(staff_user.is_active)
         self.assertTrue(self.request.user.is_active)
+
+    @patch('clients.notifications.send_phone_text_message')
+    def test_text_staff_login_help_action_sends_sms_for_users_with_phone(self, send_sms_mock):
+        send_sms_mock.return_value = (True, '+19255501234')
+        staff_user = StaffUser.objects.create_user(
+            username='caseworker',
+            password='testpass123',
+            role='case_manager',
+            phone='9255501234',
+        )
+
+        with patch.object(self.admin, 'message_user'):
+            self.admin.text_staff_login_help(
+                self.request,
+                StaffUser.objects.filter(pk=staff_user.pk),
+            )
+
+        send_sms_mock.assert_called_once()
+        kwargs = send_sms_mock.call_args.kwargs
+        self.assertEqual(kwargs['phone'], '9255501234')
+        self.assertIn('Username: caseworker', kwargs['body'])
