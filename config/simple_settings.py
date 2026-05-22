@@ -258,6 +258,7 @@ SMS_FOLLOWUP_ENABLED = os.getenv('SMS_FOLLOWUP_ENABLED', 'false').lower() == 'tr
 SMS_INTERNAL_ONLY = os.getenv('SMS_INTERNAL_ONLY', 'false').lower() == 'true'
 SMS_APPEND_COMPLIANCE_FOOTER = os.getenv('SMS_APPEND_COMPLIANCE_FOOTER', 'true').lower() == 'true'
 SMS_COMPLIANCE_FOOTER = os.getenv('SMS_COMPLIANCE_FOOTER', ' Reply STOP to opt out.')
+SMS_FORCE_EMAIL_BACKUP = os.getenv('SMS_FORCE_EMAIL_BACKUP', 'true').lower() == 'true'
 SMS_FOLLOWUP_CHECKPOINT_DAYS = [
     int(day.strip())
     for day in os.getenv('SMS_FOLLOWUP_CHECKPOINT_DAYS', '30,60,90,120').split(',')

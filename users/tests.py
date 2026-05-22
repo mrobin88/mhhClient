@@ -72,12 +72,16 @@ class StaffUserAdminTests(TestCase):
     @override_settings(
         AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake',
         AZURE_COMMUNICATION_SMS_FROM='+15555550123',
+        SMS_FORCE_EMAIL_BACKUP=True,
     )
     @patch('clients.notifications.send_phone_text_message')
-    def test_text_staff_login_help_action_sends_sms_for_users_with_phone(self, send_sms_mock):
+    @patch('users.admin.send_mail')
+    def test_text_staff_login_help_action_sends_sms_for_users_with_phone(self, send_mail_mock, send_sms_mock):
         send_sms_mock.return_value = (True, '+19255501234')
+        send_mail_mock.return_value = 1
         staff_user = StaffUser.objects.create_user(
             username='caseworker',
+            email='caseworker@example.com',
             password='testpass123',
             role='case_manager',
             phone='9255501234',
@@ -93,3 +97,4 @@ class StaffUserAdminTests(TestCase):
         kwargs = send_sms_mock.call_args.kwargs
         self.assertEqual(kwargs['phone'], '9255501234')
         self.assertIn('Username: caseworker', kwargs['body'])
+        send_mail_mock.assert_called_once()

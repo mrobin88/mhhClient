@@ -13,6 +13,7 @@ import logging
 import os
 from django.shortcuts import redirect
 from django.contrib import messages
+from django.core.mail import send_mail
 from django.utils import timezone
 from .models import Client, CaseNote, Document, PitStopApplication, JobPlacement
 from .models_extensions import (
@@ -768,6 +769,8 @@ class ClientAdmin(admin.ModelAdmin):
         sent = 0
         skipped = 0
         failed = 0
+        email_backup_sent = 0
+        email_backup_failed = 0
         reason_counts = {}
 
         for client in queryset.prefetch_related('documents'):
@@ -800,6 +803,23 @@ class ClientAdmin(admin.ModelAdmin):
                 reason = (log.error_message or 'Unknown send error')[:80]
                 reason_counts[reason] = reason_counts.get(reason, 0) + 1
 
+            if getattr(settings, 'SMS_FORCE_EMAIL_BACKUP', True):
+                email = (client.email or '').strip()
+                if email:
+                    try:
+                        send_mail(
+                            subject='Mission Hiring Hall: Missing documents reminder',
+                            message=body[:480],
+                            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@missionhiringhall.org'),
+                            recipient_list=[email],
+                            fail_silently=False,
+                        )
+                        email_backup_sent += 1
+                    except Exception as exc:
+                        email_backup_failed += 1
+                        reason = f'Email backup failed: {exc}'
+                        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
         level = messages.SUCCESS if failed == 0 else messages.WARNING
         reason_text = ''
         if reason_counts:
@@ -807,7 +827,10 @@ class ClientAdmin(admin.ModelAdmin):
             reason_text = f' Top failures: {top_reasons}.'
         self.message_user(
             request,
-            f'Missing-document texts sent: {sent}. Skipped: {skipped}. Failed: {failed}.{reason_text}',
+            (
+                f'Missing-document texts queued: {sent}. Skipped: {skipped}. Failed: {failed}. '
+                f'Email backup sent: {email_backup_sent}. Email backup failed: {email_backup_failed}.{reason_text}'
+            ),
             level=level,
         )
     

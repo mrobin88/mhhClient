@@ -129,13 +129,16 @@ class ClientAdminTextMissingDocumentsTests(TestCase):
     @override_settings(
         AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake',
         AZURE_COMMUNICATION_SMS_FROM='+15555550123',
+        SMS_FORCE_EMAIL_BACKUP=True,
     )
     @patch('clients.notifications.send_text_message')
-    def test_text_missing_documents_action_sends_sms_for_clients_with_missing_required_docs(self, send_text_mock):
+    @patch('clients.admin.send_mail')
+    def test_text_missing_documents_action_sends_sms_for_clients_with_missing_required_docs(self, send_mail_mock, send_text_mock):
         class Log:
             status = ClientTextMessage.STATUS_SENT
 
         send_text_mock.return_value = (Log(), True)
+        send_mail_mock.return_value = 1
 
         # Only intake is present; resume/id/consent should still be requested.
         Document.objects.create(
@@ -157,6 +160,7 @@ class ClientAdminTextMissingDocumentsTests(TestCase):
         self.assertIn('Government ID', kwargs['body'])
         self.assertIn('Consent Form', kwargs['body'])
         self.assertNotIn('Intake Form', kwargs['body'])
+        send_mail_mock.assert_called_once()
 
 
 class SmsPhoneFormattingTests(TestCase):

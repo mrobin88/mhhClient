@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib import messages
 from django.conf import settings
+from django.core.mail import send_mail
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from .models import StaffUser
@@ -91,6 +92,8 @@ class StaffUserAdmin(UserAdmin):
         sent = 0
         skipped = 0
         failed = 0
+        email_backup_sent = 0
+        email_backup_failed = 0
         reason_counts = {}
 
         for user in queryset:
@@ -113,6 +116,25 @@ class StaffUserAdmin(UserAdmin):
                 failed += 1
                 reason_counts[detail] = reason_counts.get(detail, 0) + 1
 
+            # Carrier delivery can still fail after a 202 acceptance; email backup keeps
+            # internal login instructions reachable.
+            if getattr(settings, 'SMS_FORCE_EMAIL_BACKUP', True):
+                email = (user.email or '').strip()
+                if email:
+                    try:
+                        send_mail(
+                            subject='Mission Hiring Hall Admin Login Help',
+                            message=message_body,
+                            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@missionhiringhall.org'),
+                            recipient_list=[email],
+                            fail_silently=False,
+                        )
+                        email_backup_sent += 1
+                    except Exception as exc:
+                        email_backup_failed += 1
+                        reason = f'Email backup failed: {exc}'
+                        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
         level = messages.SUCCESS if failed == 0 else messages.WARNING
         reason_text = ''
         if reason_counts:
@@ -120,6 +142,9 @@ class StaffUserAdmin(UserAdmin):
             reason_text = f' Top failures: {top_reasons}.'
         self.message_user(
             request,
-            f'Staff login texts sent: {sent}. Skipped (no phone): {skipped}. Failed: {failed}.{reason_text}',
+            (
+                f'Staff login texts queued: {sent}. Skipped (no phone): {skipped}. Failed: {failed}. '
+                f'Email backup sent: {email_backup_sent}. Email backup failed: {email_backup_failed}.{reason_text}'
+            ),
             level=level,
         )
