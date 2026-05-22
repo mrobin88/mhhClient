@@ -19,6 +19,20 @@ class WorkSite(models.Model):
     site_type = models.CharField(max_length=20, choices=SITE_TYPE_CHOICES, default='pitstop')
     address = models.CharField(max_length=300)
     neighborhood = models.CharField(max_length=100, blank=True)
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text='GPS latitude for clock-in/out geofence validation.',
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text='GPS longitude for clock-in/out geofence validation.',
+    )
     
     # Site details
     supervisor_name = models.CharField(max_length=100, blank=True)
@@ -304,6 +318,14 @@ class WorkerTimePunch(models.Model):
         related_name='time_punches',
         help_text='Work assignment this punch belongs to. New punches should always set this.',
     )
+    work_site = models.ForeignKey(
+        WorkSite,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='time_punches',
+        help_text='PitStop location selected for this clock in/out.',
+    )
     clock_in_at = models.DateTimeField()
     clock_out_at = models.DateTimeField(null=True, blank=True)
 
@@ -350,6 +372,7 @@ class WorkerTimePunch(models.Model):
         indexes = [
             models.Index(fields=['worker_account', 'clock_out_at']),
             models.Index(fields=['assignment', 'clock_out_at']),
+            models.Index(fields=['work_site', 'clock_out_at']),
             models.Index(fields=['clock_in_at']),
         ]
 

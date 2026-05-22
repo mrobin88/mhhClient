@@ -20,6 +20,7 @@ from .models_extensions import (
     WorkSite,
     WorkAssignment,
     WorkerAccount,
+    WorkerTimePunch,
     ServiceRequest,
     OpenShift,
     ShiftCoverInterest,
@@ -53,36 +54,36 @@ def _assignment_duration_hours(assignment):
     return seconds / 3600
 
 
+def _punch_duration_hours(punch):
+    if not punch.clock_in_at or not punch.clock_out_at:
+        return 0
+    seconds = max((punch.clock_out_at - punch.clock_in_at).total_seconds(), 0)
+    return seconds / 3600
+
+
 def _weekly_hours_for_worker(account):
     if not account or not account.pk:
         return 0
     week_start, week_end = _current_week_bounds()
-    assignments = WorkAssignment.objects.filter(
-        client=account.client,
-        assignment_date__gte=week_start.date(),
-        assignment_date__lt=week_end.date(),
-    ).exclude(status__in=['cancelled', 'called_out'])
-    return sum(_assignment_duration_hours(assignment) for assignment in assignments)
+    punches = WorkerTimePunch.objects.filter(
+        worker_account=account,
+        clock_in_at__gte=week_start,
+        clock_in_at__lt=week_end,
+    ).exclude(clock_out_at__isnull=True)
+    return sum(_punch_duration_hours(punch) for punch in punches)
 
 
 def _total_hours_for_worker(account):
     if not account or not account.pk:
         return 0
-    assignments = WorkAssignment.objects.filter(client=account.client).exclude(
-        status__in=['cancelled', 'called_out']
-    )
-    return sum(_assignment_duration_hours(assignment) for assignment in assignments)
+    punches = WorkerTimePunch.objects.filter(worker_account=account).exclude(clock_out_at__isnull=True)
+    return sum(_punch_duration_hours(punch) for punch in punches)
 
 
 def _last_assignment_for_worker(account):
     if not account or not account.pk:
         return None
-    return (
-        WorkAssignment.objects.filter(client=account.client)
-        .select_related('work_site')
-        .order_by('-assignment_date', '-start_time')
-        .first()
-    )
+    return WorkerTimePunch.objects.filter(worker_account=account).select_related('work_site').order_by('-clock_in_at').first()
 
 
 class WorkAssignmentInline(admin.TabularInline):
@@ -1342,7 +1343,7 @@ class AssignmentShiftProofInline(admin.TabularInline):
 
 @admin.register(WorkerAccount)
 class WorkerAccountAdmin(admin.ModelAdmin):
-    """Primary PitStop roster: workers, portal access, availability, assignments, and scheduled hours."""
+    """Primary PitStop roster focused on clock in/out tracking."""
     list_display = [
         'client',
         'phone',
@@ -1350,7 +1351,7 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         'portal_access_display',
         'availability_display',
         'weekly_hours_check',
-        'last_assignment_display',
+        'last_punch_display',
     ]
     list_filter = ['worker_status', 'is_active', 'is_available', 'created_at']
     search_fields = ['client__first_name', 'client__last_name', 'phone']
@@ -1362,10 +1363,10 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         'created_at',
         'weekly_hours_check',
         'total_hours_display',
-        'last_assignment_display',
+        'last_punch_display',
         'related_records_links',
     ]
-    inlines = [WorkerShiftProofInline]
+    inlines = []
     
     fieldsets = (
         ('Worker Information', {
@@ -1376,9 +1377,9 @@ class WorkerAccountAdmin(admin.ModelAdmin):
             'fields': ('is_active', 'last_login', 'login_attempts', 'locked_until'),
             'description': 'Uncheck “Portal access” to block login. PIN reset: use action “Reset PIN to last 4 digits of phone”.',
         }),
-        ('Schedule + photo check-ins', {
-            'fields': ('weekly_hours_check', 'total_hours_display', 'last_assignment_display', 'related_records_links'),
-            'description': 'Hours are schedule-based. Supervisors review weekly totals and photo/location check-ins.',
+        ('Hours + clock logs', {
+            'fields': ('weekly_hours_check', 'total_hours_display', 'last_punch_display', 'related_records_links'),
+            'description': 'Clock-in/out hours are geolocation validated against PitStop work sites.',
         }),
         ('Account Management', {
             'fields': ('created_by', 'created_at', 'notes', 'follow_up_notes')
@@ -1417,7 +1418,7 @@ class WorkerAccountAdmin(admin.ModelAdmin):
     def current_week_hours(self, obj):
         return _format_hours(_weekly_hours_for_worker(obj))
 
-    current_week_hours.short_description = 'Scheduled this week'
+    current_week_hours.short_description = 'Clocked this week'
 
     def weekly_hours_check(self, obj):
         hours = _weekly_hours_for_worker(obj)
@@ -1428,42 +1429,38 @@ class WorkerAccountAdmin(admin.ModelAdmin):
             )
         return format_html('<span style="color: #166534;">{}</span>', _format_hours(hours))
 
-    weekly_hours_check.short_description = 'Scheduled this week'
+    weekly_hours_check.short_description = 'Clocked this week'
 
     def total_hours_display(self, obj):
         return _format_hours(_total_hours_for_worker(obj))
 
-    total_hours_display.short_description = 'Scheduled total'
+    total_hours_display.short_description = 'Clocked total'
 
-    def last_assignment_display(self, obj):
-        assignment = _last_assignment_for_worker(obj)
-        if not assignment:
+    def last_punch_display(self, obj):
+        punch = _last_assignment_for_worker(obj)
+        if not punch:
             return '—'
-        url = reverse('admin:clients_workassignment_change', args=[assignment.pk])
+        url = reverse('admin:clients_workertimepunch_change', args=[punch.pk])
+        site_name = punch.work_site.name if punch.work_site else 'Site not set'
         return format_html(
             '<a href="{}">{} · {}</a>',
             url,
-            assignment.assignment_date.strftime('%b %d, %Y'),
-            assignment.work_site.name,
+            punch.clock_in_at.strftime('%b %d, %Y %I:%M %p'),
+            site_name,
         )
 
-    last_assignment_display.short_description = 'Last assignment'
+    last_punch_display.short_description = 'Last punch'
 
     def related_records_links(self, obj):
         if not obj or not obj.pk:
             return 'Save first to view related records.'
-        proofs_url = (
-            reverse('admin:clients_workershiftproof_changelist')
+        punches_url = (
+            reverse('admin:clients_workertimepunch_changelist')
             + f'?worker_account__id__exact={obj.pk}'
         )
-        schedule_url = (
-            reverse('admin:clients_workassignment_changelist')
-            + f'?client__id__exact={obj.client_id}'
-        )
         return format_html(
-            '<a href="{}">View photo check-ins</a> · <a href="{}">View schedule</a>',
-            proofs_url,
-            schedule_url,
+            '<a href="{}">View clock punches</a>',
+            punches_url,
         )
 
     related_records_links.short_description = 'Related records'
@@ -1650,7 +1647,7 @@ class ServiceRequestAdmin(admin.ModelAdmin):
 class WorkSiteAdmin(admin.ModelAdmin):
     """Must register before OpenShiftAdmin so autocomplete_fields → work_site passes admin.E040."""
 
-    list_display = ['name', 'neighborhood', 'site_type', 'is_active', 'max_workers_per_shift']
+    list_display = ['name', 'neighborhood', 'site_type', 'latitude', 'longitude', 'is_active']
     list_filter = ['is_active', 'site_type', 'neighborhood']
     search_fields = ['name', 'address', 'neighborhood', 'supervisor_name', 'supervisor_email']
 
@@ -1906,6 +1903,35 @@ class ClientTextMessageAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
 
 
+@admin.register(WorkerTimePunch)
+class WorkerTimePunchAdmin(admin.ModelAdmin):
+    """Clock in/out log with geofence validation details."""
+
+    list_display = [
+        'worker_account',
+        'work_site',
+        'clock_in_at',
+        'clock_out_at',
+        'clock_in_geo_basic_ok',
+        'clock_out_geo_basic_ok',
+    ]
+    list_filter = ['work_site', 'clock_in_geo_status', 'clock_out_geo_status', 'clock_in_at']
+    search_fields = [
+        'worker_account__client__first_name',
+        'worker_account__client__last_name',
+        'worker_account__phone',
+        'work_site__name',
+    ]
+    readonly_fields = [field.name for field in WorkerTimePunch._meta.fields]
+    date_hierarchy = 'clock_in_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(WorkAssignment)
 class WorkAssignmentAdmin(admin.ModelAdmin):
     """Staff scheduling view for PitStop worker assignments."""
@@ -2020,4 +2046,20 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
         self.message_user(request, f'{updated} assignment(s) marked completed.')
 
     mark_completed.short_description = 'Mark selected assignments completed'
+
+
+# Iceboxed modules — hidden from admin to keep iPad clock workflow lean.
+for _model in (
+    OpenShift,
+    ServiceRequest,
+    ShiftCoverInterest,
+    WorkAssignment,
+    WorkerPortalNote,
+    WorkerShiftProof,
+    WorkerTimeOffRequest,
+):
+    try:
+        admin.site.unregister(_model)
+    except admin.sites.NotRegistered:
+        pass
 

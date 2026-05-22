@@ -1,10 +1,11 @@
 """
-Worker Portal API — open shifts + “I’m interested” (no scheduling, no call-out forms).
+Worker Portal API — focused on worker clock in/out with geolocation.
 """
 import json
-from datetime import date, datetime, timedelta, timezone as dt_timezone
+import math
+from datetime import datetime, timedelta, timezone as dt_timezone
 
-from django.core.exceptions import ValidationError
+from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
@@ -16,24 +17,14 @@ from rest_framework.response import Response
 from .models_extensions import (
     WorkerAccount,
     WorkerSessionToken,
-    WorkAssignment,
-    OpenShift,
-    ShiftCoverInterest,
+    WorkSite,
     WorkerTimePunch,
-    WorkerShiftProof,
-    WorkerPortalNote,
-    WorkerTimeOffRequest,
 )
 from .serializers import (
     WorkerLoginSerializer,
     WorkerAccountSerializer,
-    OpenShiftSerializer,
-    ShiftCoverInterestSerializer,
-    ShiftCoverInterestStaffSerializer,
-    WorkAssignmentSerializer,
-    WorkerShiftProofSerializer,
-    WorkerPortalNoteSerializer,
-    WorkerTimeOffRequestSerializer,
+    WorkSiteSerializer,
+    WorkerTimePunchSerializer,
 )
 
 class WorkerSession:
@@ -185,29 +176,51 @@ def _basic_geo_validation(geo_payload):
     return True, f'Captured with accuracy {acc:.0f}m'
 
 
-def _proof_assignment_for_worker(account, assignment_id):
-    if not assignment_id:
+def _distance_meters(lat1, lon1, lat2, lon2):
+    radius = 6371000.0
+    lat1_r, lon1_r = math.radians(lat1), math.radians(lon1)
+    lat2_r, lon2_r = math.radians(lat2), math.radians(lon2)
+    d_lat = lat2_r - lat1_r
+    d_lon = lon2_r - lon1_r
+    a = math.sin(d_lat / 2) ** 2 + math.cos(lat1_r) * math.cos(lat2_r) * math.sin(d_lon / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(a))
+
+
+def _site_geo_validation(site, geo_payload):
+    if not site:
+        return False, 'Select a PitStop location first', None
+    if site.latitude is None or site.longitude is None:
+        return False, 'Site geolocation is not configured. Ask staff to set site coordinates.', None
+    if geo_payload.get('status') != WorkerTimePunch.GEO_STATUS_CAPTURED:
+        return False, f'No captured location ({geo_payload.get("status")})', None
+    if geo_payload.get('latitude') is None or geo_payload.get('longitude') is None:
+        return False, 'Missing worker location coordinates', None
+    distance = _distance_meters(
+        float(geo_payload['latitude']),
+        float(geo_payload['longitude']),
+        float(site.latitude),
+        float(site.longitude),
+    )
+    max_distance = int(getattr(settings, 'WORKER_CLOCK_GEOFENCE_METERS', 250))
+    if distance > max_distance:
+        return False, f'Outside site geofence ({distance:.0f}m > {max_distance}m)', distance
+    return True, f'Within geofence ({distance:.0f}m)', distance
+
+
+def _punch_work_site(work_site_id):
+    if not work_site_id:
         return None, Response(
-            {'assignment_id': ['Choose the assignment you are checking in for.']},
+            {'work_site_id': ['Choose your PitStop location.']},
             status=status.HTTP_400_BAD_REQUEST,
         )
     try:
-        assignment = WorkAssignment.objects.select_related('work_site', 'client').get(
-            pk=assignment_id,
-            client=account.client,
-        )
-    except (TypeError, ValueError, WorkAssignment.DoesNotExist):
+        site = WorkSite.objects.get(pk=work_site_id, is_active=True)
+    except (TypeError, ValueError, WorkSite.DoesNotExist):
         return None, Response(
-            {'error': 'Assignment not found.'},
+            {'error': 'PitStop location not found.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
-    if assignment.status in {'cancelled', 'called_out'}:
-        return None, Response(
-            {'error': 'This assignment is not available for photo check-in.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return assignment, None
+    return site, None
 
 
 @api_view(['POST'])
@@ -247,84 +260,35 @@ def worker_profile(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def worker_assignments(request):
-    """Upcoming/current assignments for the simplified worker portal."""
-    account, err = _require_worker(request)
+    return Response(
+        {'error': 'Assignments are disabled. Use /api/worker/work-sites/ and /api/worker/time-punch/.'},
+        status=status.HTTP_410_GONE,
+    )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def worker_work_sites(request):
+    """Active PitStop sites used by iPads for clock in/out geolocation validation."""
+    _, err = _require_worker(request)
     if err:
         return err
-
-    today = timezone.localdate()
-    assignments = (
-        WorkAssignment.objects.filter(
-            client=account.client,
-            assignment_date__gte=today - timedelta(days=1),
-        )
-        .exclude(status__in=['cancelled', 'called_out'])
-        .select_related('work_site', 'client')
-        .order_by('assignment_date', 'start_time')[:20]
-    )
-    latest_proofs = {}
-    proofs = (
-        WorkerShiftProof.objects.filter(worker_account=account, assignment__in=assignments)
-        .select_related('assignment', 'assignment__work_site')
-        .order_by('assignment_id', '-submitted_at')
-    )
-    for proof in proofs:
-        latest_proofs.setdefault(proof.assignment_id, proof)
-    payload = []
-    for assignment in assignments:
-        latest_proof = latest_proofs.get(assignment.id)
-        row = WorkAssignmentSerializer(assignment).data
-        row['can_submit_proof'] = assignment.status not in {'cancelled', 'called_out'}
-        row['latest_proof'] = WorkerShiftProofSerializer(latest_proof).data if latest_proof else None
-        row['proof_submitted'] = latest_proof is not None
-        payload.append(row)
-    return Response(payload)
+    sites = WorkSite.objects.filter(is_active=True, site_type='pitstop').order_by('name')
+    return Response(WorkSiteSerializer(sites, many=True).data)
 
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
 @permission_classes([AllowAny])
 def worker_shift_proof(request):
-    """Save a worker photo check-in with browser location."""
+    """Deprecated endpoint retained for old clients."""
     account, err = _require_worker(request)
     if err:
         return err
 
-    assignment, assignment_err = _proof_assignment_for_worker(
-        account,
-        request.data.get('assignment_id'),
-    )
-    if assignment_err:
-        return assignment_err
-
-    photo = request.FILES.get('photo')
-    if not photo:
-        return Response(
-            {'photo': ['Take or choose a photo before submitting.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    geo = _parse_geo_payload(request.data.get('geolocation'))
-    geo_basic_ok, geo_basic_note = _basic_geo_validation(geo)
-    proof = WorkerShiftProof.objects.create(
-        worker_account=account,
-        assignment=assignment,
-        photo=photo,
-        client_reported_at=geo['client_reported_at'],
-        latitude=geo['latitude'],
-        longitude=geo['longitude'],
-        accuracy_meters=geo['accuracy'],
-        geo_status=geo['status'],
-        geo_error=geo['error'],
-        geo_basic_ok=geo_basic_ok,
-        geo_basic_note=geo_basic_note,
-    )
     return Response(
-        {
-            'message': 'Photo and location sent to staff.',
-            'proof': WorkerShiftProofSerializer(proof).data,
-        },
-        status=status.HTTP_201_CREATED,
+        {'error': 'Photo check-in is disabled. Use clock in/out with location.'},
+        status=status.HTTP_410_GONE,
     )
 
 
@@ -347,207 +311,156 @@ def worker_availability(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def worker_open_shifts(request):
-    """List shifts that still need coverage (staff posts these)."""
-    _, err = _require_worker(request)
-    if err:
-        return err
-
-    today = date.today()
-    shifts = (
-        OpenShift.objects.filter(is_open=True, shift_date__gte=today)
-        .select_related('work_site')
-        .order_by('shift_date', 'start_time')
-    )
-    return Response(OpenShiftSerializer(shifts, many=True).data)
-
-
-@api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
-def worker_shift_interests(request):
-    """GET: this worker’s interests. POST: express interest in an open shift."""
-    account, err = _require_worker(request)
-    if err:
-        return err
-
-    if request.method == 'GET':
-        qs = (
-            ShiftCoverInterest.objects.filter(worker_account=account)
-            .select_related('open_shift', 'open_shift__work_site')
-            .order_by('-created_at')
-        )
-        return Response(ShiftCoverInterestSerializer(qs, many=True).data)
-
-    open_shift_id = request.data.get('open_shift_id')
-    if open_shift_id is None:
-        return Response(
-            {'open_shift_id': ['This field is required.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    try:
-        open_shift_id = int(open_shift_id)
-    except (TypeError, ValueError):
-        return Response(
-            {'open_shift_id': ['Invalid id.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    today = date.today()
-    try:
-        shift = OpenShift.objects.get(
-            pk=open_shift_id,
-            is_open=True,
-            shift_date__gte=today,
-        )
-    except OpenShift.DoesNotExist:
-        return Response(
-            {'error': 'That shift is not available anymore.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    existing = ShiftCoverInterest.objects.filter(
-        worker_account=account,
-        open_shift=shift,
-    ).first()
-    if existing:
-        return Response(
-            {
-                'error': 'You already let us know for this shift.',
-                'interest': ShiftCoverInterestSerializer(existing).data,
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    interest = ShiftCoverInterest.objects.create(
-        worker_account=account,
-        open_shift=shift,
-        status=ShiftCoverInterest.STATUS_PENDING,
-    )
-    interest = ShiftCoverInterest.objects.select_related(
-        'open_shift', 'open_shift__work_site'
-    ).get(pk=interest.pk)
-    return Response(ShiftCoverInterestSerializer(interest).data, status=status.HTTP_201_CREATED)
-
-
-@api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
-def worker_time_punch(request):
-    """Legacy endpoint retained so old clients fail clearly instead of clocking workers."""
-    account, err = _require_worker(request)
-    if err:
-        return err
-
     return Response(
-        {'error': 'Clock in/out has been replaced by photo check-in.'},
+        {'error': 'Open shifts are disabled for the iPad clock flow.'},
         status=status.HTTP_410_GONE,
     )
 
 
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
-def worker_notes(request):
-    """Worker notes timeline + submission."""
+def worker_shift_interests(request):
+    return Response(
+        {'error': 'Shift interests are disabled for the iPad clock flow.'},
+        status=status.HTTP_410_GONE,
+    )
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def worker_time_punch(request):
+    """Worker clock in/out with geolocation validated against selected PitStop site."""
     account, err = _require_worker(request)
     if err:
         return err
 
     if request.method == 'GET':
-        notes = WorkerPortalNote.objects.filter(worker_account=account).order_by('-created_at')[:30]
-        return Response(WorkerPortalNoteSerializer(notes, many=True).data)
+        punches = (
+            WorkerTimePunch.objects.filter(worker_account=account)
+            .select_related('work_site', 'assignment', 'assignment__work_site')
+            .order_by('-clock_in_at')[:25]
+        )
+        open_punch = next((p for p in punches if p.clock_out_at is None), None)
+        return Response(
+            {
+                'active_punch': WorkerTimePunchSerializer(open_punch).data if open_punch else None,
+                'punches': WorkerTimePunchSerializer(punches, many=True).data,
+            }
+        )
 
-    note_type = str(request.data.get('note_type') or WorkerPortalNote.TYPE_GENERAL).strip()
-    if note_type not in {x[0] for x in WorkerPortalNote.NOTE_TYPE_CHOICES}:
-        return Response({'note_type': ['Invalid note type.']}, status=status.HTTP_400_BAD_REQUEST)
+    action = str(request.data.get('action') or '').strip().lower()
+    if action not in {'clock_in', 'clock_out'}:
+        return Response(
+            {'action': ['Use "clock_in" or "clock_out".']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    content = str(request.data.get('content') or '').strip()
-    if not content:
-        return Response({'content': ['Note text is required.']}, status=status.HTTP_400_BAD_REQUEST)
-    if len(content) > 4000:
-        return Response({'content': ['Note is too long.']}, status=status.HTTP_400_BAD_REQUEST)
+    site, site_err = _punch_work_site(request.data.get('work_site_id'))
+    if site_err:
+        return site_err
 
-    note = WorkerPortalNote.objects.create(
-        worker_account=account,
-        note_type=note_type,
-        content=content,
+    geo = _parse_geo_payload(request.data.get('geolocation'))
+    geo_basic_ok, geo_basic_note, _geo_distance = _site_geo_validation(site, geo)
+    now = timezone.now()
+
+    open_punch = (
+        WorkerTimePunch.objects.filter(worker_account=account, clock_out_at__isnull=True)
+        .select_related('work_site', 'assignment', 'assignment__work_site')
+        .order_by('-clock_in_at')
+        .first()
     )
-    return Response(WorkerPortalNoteSerializer(note).data, status=status.HTTP_201_CREATED)
+
+    if action == 'clock_in':
+        if open_punch:
+            return Response(
+                {
+                    'error': 'You are already clocked in. Clock out first.',
+                    'active_punch': WorkerTimePunchSerializer(open_punch).data,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        punch = WorkerTimePunch.objects.create(
+            worker_account=account,
+            work_site=site,
+            clock_in_at=now,
+            clock_in_client_reported_at=geo['client_reported_at'],
+            clock_in_latitude=geo['latitude'],
+            clock_in_longitude=geo['longitude'],
+            clock_in_accuracy_meters=geo['accuracy'],
+            clock_in_geo_status=geo['status'],
+            clock_in_geo_error=geo['error'],
+            clock_in_geo_basic_ok=geo_basic_ok,
+            clock_in_geo_basic_note=geo_basic_note,
+        )
+        return Response(
+            {
+                'message': f'Clocked in at {site.name}.',
+                'punch': WorkerTimePunchSerializer(punch).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    if not open_punch:
+        return Response(
+            {'error': 'No active clock-in found.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    open_punch.clock_out_at = now
+    open_punch.clock_out_server_received_at = now
+    open_punch.clock_out_client_reported_at = geo['client_reported_at']
+    open_punch.clock_out_latitude = geo['latitude']
+    open_punch.clock_out_longitude = geo['longitude']
+    open_punch.clock_out_accuracy_meters = geo['accuracy']
+    open_punch.clock_out_geo_status = geo['status']
+    open_punch.clock_out_geo_error = geo['error']
+    open_punch.clock_out_geo_basic_ok = geo_basic_ok
+    open_punch.clock_out_geo_basic_note = geo_basic_note
+    open_punch.save(
+        update_fields=[
+            'clock_out_at',
+            'clock_out_server_received_at',
+            'clock_out_client_reported_at',
+            'clock_out_latitude',
+            'clock_out_longitude',
+            'clock_out_accuracy_meters',
+            'clock_out_geo_status',
+            'clock_out_geo_error',
+            'clock_out_geo_basic_ok',
+            'clock_out_geo_basic_note',
+        ]
+    )
+    return Response(
+        {
+            'message': f'Clocked out from {open_punch.work_site.name if open_punch.work_site else "site"}.',
+            'punch': WorkerTimePunchSerializer(open_punch).data,
+        }
+    )
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def worker_notes(request):
+    return Response(
+        {'error': 'Worker notes are disabled for the iPad clock flow.'},
+        status=status.HTTP_410_GONE,
+    )
 
 
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def worker_time_off_requests(request):
-    """Worker time-off requests timeline + submission."""
-    account, err = _require_worker(request)
-    if err:
-        return err
-
-    if request.method == 'GET':
-        rows = WorkerTimeOffRequest.objects.filter(worker_account=account).order_by('-created_at')[:30]
-        return Response(WorkerTimeOffRequestSerializer(rows, many=True).data)
-
-    start_date_raw = request.data.get('start_date')
-    end_date_raw = request.data.get('end_date')
-    reason = str(request.data.get('reason') or '').strip()
-    if not reason:
-        return Response({'reason': ['Reason is required.']}, status=status.HTTP_400_BAD_REQUEST)
-    if len(reason) > 4000:
-        return Response({'reason': ['Reason is too long.']}, status=status.HTTP_400_BAD_REQUEST)
-
-    try:
-        start_date = date.fromisoformat(str(start_date_raw))
-        end_date = date.fromisoformat(str(end_date_raw))
-    except Exception:
-        return Response(
-            {'start_date': ['Use YYYY-MM-DD dates.'], 'end_date': ['Use YYYY-MM-DD dates.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    req = WorkerTimeOffRequest(
-        worker_account=account,
-        start_date=start_date,
-        end_date=end_date,
-        reason=reason,
+    return Response(
+        {'error': 'Time-off requests are disabled for the iPad clock flow.'},
+        status=status.HTTP_410_GONE,
     )
-    try:
-        req.full_clean()
-    except ValidationError:
-        return Response(
-            {'end_date': ['End date cannot be before start date.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    req.save()
-    return Response(WorkerTimeOffRequestSerializer(req).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(['PATCH'])
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_shift_interest_update(request, pk):
-    """
-    Staff/supervisor: set status (selected / not_selected / pending / cancelled).
-    Uses Django session login (admin user).
-    """
-    if not request.user.is_staff:
-        return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
-
-    try:
-        interest = ShiftCoverInterest.objects.select_related(
-            'open_shift', 'worker_account__client'
-        ).get(pk=pk)
-    except ShiftCoverInterest.DoesNotExist:
-        return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-
-    serializer = ShiftCoverInterestStaffSerializer(
-        interest,
-        data=request.data,
-        partial=True,
+    return Response(
+        {'error': 'Shift interest workflows are disabled.'},
+        status=status.HTTP_410_GONE,
     )
-    if serializer.is_valid():
-        serializer.save()
-        return Response(
-            ShiftCoverInterestSerializer(
-                ShiftCoverInterest.objects.select_related(
-                    'open_shift', 'open_shift__work_site'
-                ).get(pk=interest.pk)
-            ).data
-        )
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

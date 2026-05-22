@@ -187,7 +187,15 @@ class WorkSiteSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = WorkSite
-        fields = '__all__'
+        fields = [
+            'id',
+            'name',
+            'address',
+            'neighborhood',
+            'latitude',
+            'longitude',
+            'is_active',
+        ]
         read_only_fields = ['created_at', 'updated_at']
 
 
@@ -291,6 +299,7 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
     is_open = serializers.SerializerMethodField()
     duration_minutes = serializers.SerializerMethodField()
     assignment_label = serializers.SerializerMethodField()
+    work_site_name = serializers.CharField(source='work_site.name', read_only=True)
 
     class Meta:
         model = WorkerTimePunch
@@ -298,6 +307,8 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
             'id',
             'assignment',
             'assignment_label',
+            'work_site',
+            'work_site_name',
             'clock_in_at',
             'clock_out_at',
             'clock_in_server_received_at',
@@ -321,9 +332,12 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
 
     def get_assignment_label(self, obj):
         assignment = getattr(obj, 'assignment', None)
-        if not assignment:
-            return ''
-        return f'{assignment.assignment_date} {assignment.start_time} - {assignment.work_site.name}'
+        if assignment:
+            site_name = assignment.work_site.name if getattr(assignment, 'work_site', None) else 'Work site'
+            return f'{assignment.assignment_date} {assignment.start_time} - {site_name}'
+        if obj.work_site:
+            return obj.work_site.name
+        return ''
 
 
 class WorkerShiftProofSerializer(serializers.ModelSerializer):

@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <p class="worker-section-intro">
-      Your PitStop assignments. When a supervisor asks, take one photo at your post and send your location.
+      Select your PitStop location and clock in/out with geolocation.
     </p>
 
     <div v-if="loading" class="text-center py-16 text-slate-500 text-base">Loading...</div>
@@ -10,71 +10,45 @@
       {{ error }}
     </div>
 
-    <div v-else-if="assignments.length === 0" class="worker-card text-center py-14 px-4">
+    <div v-else-if="sites.length === 0" class="worker-card text-center py-14 px-4">
       <InboxIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" aria-hidden="true" />
-      <p class="text-slate-600 font-medium">No assignments posted.</p>
-      <p class="text-sm text-slate-600 mt-1">Staff will text or call when work is assigned.</p>
+      <p class="text-slate-600 font-medium">No active PitStop locations.</p>
+      <p class="text-sm text-slate-600 mt-1">Ask staff to enable at least one work site.</p>
     </div>
 
-    <ul v-else class="space-y-4">
-      <li v-for="assignment in assignments" :key="assignment.id" class="worker-card overflow-hidden">
-        <div class="p-4 space-y-3">
-          <div class="flex items-start justify-between gap-2">
-            <h2 class="text-lg font-semibold text-slate-900 leading-snug">
-              {{ assignment.work_site_name || 'PitStop assignment' }}
-            </h2>
-            <span class="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-              {{ assignment.status_display || assignment.status }}
-            </span>
-          </div>
+    <section v-else class="worker-card p-4 space-y-4">
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold text-slate-800" for="work-site">PitStop location</label>
+        <select
+          id="work-site"
+          v-model="selectedSiteId"
+          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
+          <option :value="null" disabled>Select location</option>
+          <option v-for="site in sites" :key="site.id" :value="site.id">
+            {{ site.name }} - {{ site.address }}
+          </option>
+        </select>
+      </div>
 
-          <div class="space-y-2 text-sm text-slate-700">
-            <div class="flex gap-2 items-start">
-              <MapPinIcon class="w-5 h-5 text-teal-600 shrink-0 mt-0.5" aria-hidden="true" />
-              <span>{{ assignment.location_display }}</span>
-            </div>
-            <div class="flex gap-2 items-center">
-              <CalendarDaysIcon class="w-5 h-5 text-teal-600 shrink-0" aria-hidden="true" />
-              <span>{{ formatDate(assignment.assignment_date) }}</span>
-            </div>
-            <div class="flex gap-2 items-center">
-              <ClockIcon class="w-5 h-5 text-teal-600 shrink-0" aria-hidden="true" />
-              <span>{{ formatTime(assignment.start_time) }} - {{ formatTime(assignment.end_time) }}</span>
-            </div>
-          </div>
+      <div class="worker-status-note bg-slate-50 text-slate-700 border border-slate-200">
+        <ClockIcon class="w-5 h-5 inline-block mr-1 align-text-bottom" aria-hidden="true" />
+        {{ activePunch ? `Clocked in at ${activePunch.work_site_name} ${formatDateTime(activePunch.clock_in_at)}` : 'Currently clocked out.' }}
+      </div>
 
-          <p v-if="assignment.assignment_notes" class="text-sm text-slate-700 border-t border-slate-100 pt-3">
-            {{ assignment.assignment_notes }}
-          </p>
-
-          <div v-if="assignment.latest_proof" class="worker-status-note bg-emerald-50 text-emerald-900 border border-emerald-100">
-            <CheckCircleIcon class="w-5 h-5 inline-block mr-1 align-text-bottom" aria-hidden="true" />
-            Photo sent {{ formatDateTime(assignment.latest_proof.submitted_at) }}.
-          </div>
-
-          <label
-            class="worker-btn worker-btn-primary cursor-pointer"
-            :class="{ 'opacity-60 pointer-events-none': busyId === assignment.id || !assignment.can_submit_proof }"
-          >
-            <CameraIcon class="w-5 h-5" aria-hidden="true" />
-            <span v-if="busyId === assignment.id">Sending...</span>
-            <span v-else>Take photo and send location</span>
-            <input
-              class="sr-only"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              :disabled="busyId === assignment.id || !assignment.can_submit_proof"
-              @change="submitProof(assignment, $event)"
-            />
-          </label>
-
-          <p class="worker-status-note bg-slate-50 text-slate-700 border border-slate-200">
-            This does not clock you in or out. Your supervisor still confirms hours.
-          </p>
-        </div>
-      </li>
-    </ul>
+      <button
+        type="button"
+        class="worker-btn"
+        :class="activePunch ? 'worker-btn-secondary' : 'worker-btn-primary'"
+        :disabled="busy || (!activePunch && !selectedSiteId)"
+        @click="submitPunch()"
+      >
+        <StopCircleIcon v-if="activePunch" class="w-5 h-5" aria-hidden="true" />
+        <PlayCircleIcon v-else class="w-5 h-5" aria-hidden="true" />
+        <span v-if="busy">Sending...</span>
+        <span v-else>{{ activePunch ? 'Clock out with location' : 'Clock in with location' }}</span>
+      </button>
+    </section>
 
     <p v-if="message" class="worker-status-note bg-slate-50 text-slate-800 border border-slate-200">{{ message }}</p>
   </div>
@@ -83,34 +57,19 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import {
-  CalendarDaysIcon,
-  CameraIcon,
-  CheckCircleIcon,
   ClockIcon,
   InboxIcon,
-  MapPinIcon,
+  PlayCircleIcon,
+  StopCircleIcon,
 } from '@heroicons/vue/24/outline'
 import { workerFetch } from '../api'
 
 type GeoStatus = 'captured' | 'denied' | 'unavailable' | 'timeout' | 'error' | 'skipped'
 
-interface WorkerAssignment {
+interface WorkSite {
   id: number
-  work_site_name?: string
-  location_display: string
-  assignment_date: string
-  start_time: string
-  end_time: string
-  status: string
-  status_display?: string
-  assignment_notes?: string
-  can_submit_proof: boolean
-  latest_proof?: {
-    id: number
-    submitted_at: string
-    geo_basic_ok?: boolean
-    geo_basic_note?: string
-  } | null
+  name: string
+  address: string
 }
 
 interface GeoPayload {
@@ -122,30 +81,20 @@ interface GeoPayload {
   timestamp?: string
 }
 
-const assignments = ref<WorkerAssignment[]>([])
+interface ActivePunch {
+  id: number
+  work_site: number | null
+  work_site_name?: string
+  clock_in_at: string
+}
+
+const sites = ref<WorkSite[]>([])
+const selectedSiteId = ref<number | null>(null)
+const activePunch = ref<ActivePunch | null>(null)
 const loading = ref(true)
-const busyId = ref<number | null>(null)
+const busy = ref(false)
 const error = ref('')
 const message = ref('')
-
-function formatDate(iso: string) {
-  if (!iso) return ''
-  const d = new Date(iso + 'T12:00:00')
-  return d.toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-function formatTime(t: string) {
-  if (!t) return ''
-  const [h, m] = t.split(':').map(Number)
-  const d = new Date()
-  d.setHours(h, m || 0, 0, 0)
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-}
 
 function formatDateTime(iso: string) {
   if (!iso) return ''
@@ -194,17 +143,27 @@ function captureGeolocation(): Promise<GeoPayload> {
   })
 }
 
-async function loadAssignments() {
+async function loadClockContext() {
   loading.value = true
   error.value = ''
   try {
-    const resp = await workerFetch('/api/worker/assignments/')
-    const body = await resp.json().catch(() => null)
-    if (!resp.ok || !body) {
-      error.value = body?.error || 'Could not load assignments.'
+    const [sitesResp, punchResp] = await Promise.all([
+      workerFetch('/api/worker/work-sites/'),
+      workerFetch('/api/worker/time-punch/'),
+    ])
+    const sitesBody = await sitesResp.json().catch(() => null)
+    const punchBody = await punchResp.json().catch(() => null)
+    if (!sitesResp.ok || !sitesBody || !punchResp.ok || !punchBody) {
+      error.value = sitesBody?.error || punchBody?.error || 'Could not load clock data.'
       return
     }
-    assignments.value = body
+    sites.value = sitesBody
+    activePunch.value = punchBody.active_punch
+    if (activePunch.value?.work_site) {
+      selectedSiteId.value = activePunch.value.work_site
+    } else if (!selectedSiteId.value && sites.value.length > 0) {
+      selectedSiteId.value = sites.value[0].id
+    }
   } catch {
     error.value = 'No connection. Try again.'
   } finally {
@@ -212,41 +171,41 @@ async function loadAssignments() {
   }
 }
 
-async function submitProof(assignment: WorkerAssignment, event: Event) {
-  const input = event.target as HTMLInputElement
-  const photo = input.files?.[0]
-  if (!photo) return
-
-  busyId.value = assignment.id
+async function submitPunch() {
+  if (!activePunch.value && !selectedSiteId.value) {
+    error.value = 'Select a PitStop location first.'
+    return
+  }
+  busy.value = true
   error.value = ''
   message.value = ''
   try {
     const geolocation = await captureGeolocation()
-    const form = new FormData()
-    form.append('assignment_id', String(assignment.id))
-    form.append('photo', photo)
-    form.append('geolocation', JSON.stringify(geolocation))
-
-    const resp = await workerFetch('/api/worker/shift-proof/', {
+    const action = activePunch.value ? 'clock_out' : 'clock_in'
+    const resp = await workerFetch('/api/worker/time-punch/', {
       method: 'POST',
-      body: form,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action,
+        work_site_id: selectedSiteId.value,
+        geolocation,
+      }),
     })
     const body = await resp.json().catch(() => null)
     if (!resp.ok || !body) {
-      error.value = body?.error || body?.photo?.[0] || 'Could not send photo.'
+      error.value = body?.error || body?.action?.[0] || 'Could not submit clock action.'
       return
     }
-    message.value = body.message || 'Photo and location sent.'
-    await loadAssignments()
+    message.value = body.message || 'Clock update saved.'
+    await loadClockContext()
   } catch {
     error.value = 'No connection. Try again.'
   } finally {
-    busyId.value = null
-    input.value = ''
+    busy.value = false
   }
 }
 
 onMounted(() => {
-  loadAssignments()
+  loadClockContext()
 })
 </script>

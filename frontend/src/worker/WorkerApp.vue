@@ -24,7 +24,7 @@
             :class="tab === 'assignments' ? tabActive : tabIdle"
           >
             <BriefcaseIcon class="w-4 h-4" aria-hidden="true" />
-            Assignments
+            Clock
           </button>
           <button
             type="button"

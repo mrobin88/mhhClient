@@ -6,13 +6,14 @@ from unittest.mock import patch
 from django.contrib.admin.sites import AdminSite
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from clients.admin import ClientAdmin
 from clients.models import Client
 from clients.models import Document
 from clients.notifications import _to_e164_us, _compose_sms_body, send_phone_text_message
-from clients.models_extensions import WorkerAccount, WorkerShiftProof, WorkAssignment, WorkSite, ClientTextMessage
+from clients.models_extensions import WorkerAccount, WorkerTimePunch, WorkSite, ClientTextMessage
 from clients.worker_views import WorkerSession
 
 
@@ -20,7 +21,7 @@ TEST_MEDIA_ROOT = tempfile.mkdtemp()
 
 
 @override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
-class WorkerShiftProofTests(TestCase):
+class WorkerTimePunchTests(TestCase):
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
@@ -47,71 +48,88 @@ class WorkerShiftProofTests(TestCase):
         self.site = WorkSite.objects.create(
             name='Mission Pit Stop',
             address='123 Mission St',
+            latitude=37.7749,
+            longitude=-122.4194,
             typical_start_time=time(8, 0),
             typical_end_time=time(16, 0),
-        )
-        self.assignment = WorkAssignment.objects.create(
-            client=self.client_record,
-            work_site=self.site,
-            assignment_date=date.today(),
-            start_time=time(8, 0),
-            end_time=time(16, 0),
-            status='confirmed',
-            assigned_by='Admin',
         )
         token = WorkerSession.create_session(self.worker)
         self.api.credentials(HTTP_AUTHORIZATION=f'Token {token}')
 
-    def test_worker_can_submit_photo_and_location_proof(self):
-        photo = SimpleUploadedFile(
-            'proof.jpg',
-            b'fake image bytes',
-            content_type='image/jpeg',
-        )
+    def test_worker_can_list_active_work_sites(self):
+        response = self.api.get('/api/worker/work-sites/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['id'], self.site.id)
 
+    def test_worker_can_clock_in_with_geolocation(self):
         response = self.api.post(
-            '/api/worker/shift-proof/',
+            '/api/worker/time-punch/',
             {
-                'assignment_id': self.assignment.pk,
-                'photo': photo,
+                'action': 'clock_in',
+                'work_site_id': self.site.pk,
                 'geolocation': (
                     '{"status":"captured","latitude":37.7749,'
                     '"longitude":-122.4194,"accuracy":25,'
                     '"timestamp":"2026-05-13T20:00:00Z"}'
                 ),
             },
-            format='multipart',
+            format='json',
         )
 
         self.assertEqual(response.status_code, 201)
-        proof = WorkerShiftProof.objects.get()
-        self.assertEqual(proof.worker_account, self.worker)
-        self.assertEqual(proof.assignment, self.assignment)
-        self.assertTrue(proof.photo.name)
-        self.assertEqual(proof.geo_status, 'captured')
-        self.assertTrue(proof.geo_basic_ok)
+        punch = WorkerTimePunch.objects.get()
+        self.assertEqual(punch.worker_account, self.worker)
+        self.assertEqual(punch.work_site, self.site)
+        self.assertEqual(punch.clock_in_geo_status, 'captured')
+        self.assertTrue(punch.clock_in_geo_basic_ok)
+        self.assertIsNone(punch.clock_out_at)
 
-    def test_worker_assignments_include_latest_photo_proof(self):
-        WorkerShiftProof.objects.create(
+    def test_worker_clock_context_includes_active_punch(self):
+        WorkerTimePunch.objects.create(
             worker_account=self.worker,
-            assignment=self.assignment,
-            photo=SimpleUploadedFile('proof.jpg', b'fake image bytes', content_type='image/jpeg'),
-            geo_status='captured',
-            geo_basic_ok=True,
-            geo_basic_note='Captured with accuracy 25m',
+            work_site=self.site,
+            clock_in_at=timezone.now(),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+            clock_in_geo_basic_note='Captured with accuracy 25m',
         )
 
-        response = self.api.get('/api/worker/assignments/')
+        response = self.api.get('/api/worker/time-punch/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 1)
-        self.assertTrue(response.data[0]['proof_submitted'])
-        self.assertIsNotNone(response.data[0]['latest_proof'])
+        self.assertIsNotNone(response.data['active_punch'])
+        self.assertEqual(len(response.data['punches']), 1)
 
-    def test_legacy_time_punch_endpoint_is_gone(self):
-        response = self.api.post('/api/worker/time-punch/', {'action': 'clock_in'}, format='json')
+    def test_worker_can_clock_out(self):
+        punch = WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=timezone.now(),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+            clock_in_geo_basic_note='Captured with accuracy 25m',
+        )
 
-        self.assertEqual(response.status_code, 410)
+        response = self.api.post(
+            '/api/worker/time-punch/',
+            {
+                'action': 'clock_out',
+                'work_site_id': self.site.pk,
+                'geolocation': (
+                    '{"status":"captured","latitude":37.7749,'
+                    '"longitude":-122.4194,"accuracy":25,'
+                    '"timestamp":"2026-05-13T20:30:00Z"}'
+                ),
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        punch.refresh_from_db()
+        self.assertIsNotNone(punch.clock_out_at)
+        self.assertEqual(punch.clock_out_geo_status, 'captured')
+        self.assertTrue(punch.clock_out_geo_basic_ok)
 
 
 class ClientAdminTextMissingDocumentsTests(TestCase):

@@ -24,15 +24,8 @@ from .worker_views import (
     worker_login,
     worker_logout,
     worker_profile,
-    worker_assignments,
-    worker_availability,
-    worker_open_shifts,
-    worker_shift_interests,
-    worker_shift_proof,
+    worker_work_sites,
     worker_time_punch,
-    worker_notes,
-    worker_time_off_requests,
-    staff_shift_interest_update,
 )
 from .kiosk_views import KioskCheckInLookupView, KioskCheckInSubmitView, KioskDocumentUploadView
 
@@ -63,19 +56,8 @@ urlpatterns = [
     path('worker/login/', worker_login, name='worker-login'),
     path('worker/logout/', worker_logout, name='worker-logout'),
     path('worker/profile/', worker_profile, name='worker-profile'),
-    path('worker/assignments/', worker_assignments, name='worker-assignments'),
-    path('worker/availability/', worker_availability, name='worker-availability'),
-    path('worker/open-shifts/', worker_open_shifts, name='worker-open-shifts'),
-    path('worker/shift-interests/', worker_shift_interests, name='worker-shift-interests'),
-    path('worker/shift-proof/', worker_shift_proof, name='worker-shift-proof'),
+    path('worker/work-sites/', worker_work_sites, name='worker-work-sites'),
     path('worker/time-punch/', worker_time_punch, name='worker-time-punch'),
-    path('worker/notes/', worker_notes, name='worker-notes'),
-    path('worker/time-off-requests/', worker_time_off_requests, name='worker-time-off-requests'),
-    path(
-        'staff/shift-interests/<int:pk>/',
-        staff_shift_interest_update,
-        name='staff-shift-interest-update',
-    ),
     # Lobby kiosk: self check-in case note (static web app -> API)
     path('kiosk/check-in/lookup/', KioskCheckInLookupView.as_view(), name='kiosk-check-in-lookup'),
     path('kiosk/check-in/submit/', KioskCheckInSubmitView.as_view(), name='kiosk-check-in-submit'),
