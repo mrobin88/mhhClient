@@ -1,6 +1,7 @@
 import csv
 import io
 from datetime import datetime
+from pathlib import Path
 
 from django.http import HttpResponse, JsonResponse, Http404
 from django.shortcuts import get_object_or_404
@@ -32,6 +33,33 @@ from .storage import generate_document_sas_url
 import logging
 
 from django.utils import timezone
+
+
+MAX_RESUME_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_SUPPORTING_DOC_UPLOAD_BYTES = 8 * 1024 * 1024
+ALLOWED_RESUME_EXTENSIONS = {'.pdf', '.doc', '.docx', '.txt'}
+ALLOWED_SUPPORTING_DOC_EXTENSIONS = {
+    '.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'
+}
+
+
+def _validate_uploaded_file(upload, *, allowed_extensions, max_bytes, label):
+    if not upload:
+        return None
+
+    name = (getattr(upload, 'name', '') or '').strip()
+    ext = Path(name).suffix.lower()
+    size = int(getattr(upload, 'size', 0) or 0)
+
+    if ext not in allowed_extensions:
+        return f'{label} has an unsupported file type.'
+    if size <= 0:
+        return f'{label} appears to be empty.'
+    if size > max_bytes:
+        mb = max_bytes // (1024 * 1024)
+        return f'{label} is too large (max {mb}MB).'
+    return None
+
 
 class ClientViewSet(viewsets.ModelViewSet):
     """
@@ -80,9 +108,41 @@ class ClientViewSet(viewsets.ModelViewSet):
             if key in data:
                 data.pop(key)
 
+        resume_error = _validate_uploaded_file(
+            request.FILES.get('resume'),
+            allowed_extensions=ALLOWED_RESUME_EXTENSIONS,
+            max_bytes=MAX_RESUME_UPLOAD_BYTES,
+            label='Resume',
+        )
+        if resume_error:
+            return Response({'detail': resume_error}, status=status.HTTP_400_BAD_REQUEST)
+
+        for key, label in (
+            ('doc_sf_residency', 'Proof of SF Residency'),
+            ('doc_hs_diploma', 'High School Diploma / GED'),
+            ('doc_id', 'Government ID'),
+            ('doc_photo_release', 'Photo Release Form'),
+            ('doc_other', 'Additional document'),
+        ):
+            doc_error = _validate_uploaded_file(
+                request.FILES.get(key),
+                allowed_extensions=ALLOWED_SUPPORTING_DOC_EXTENSIONS,
+                max_bytes=MAX_SUPPORTING_DOC_UPLOAD_BYTES,
+                label=label,
+            )
+            if doc_error:
+                return Response({'detail': doc_error}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        try:
+            self.perform_create(serializer)
+        except Exception as exc:
+            logging.getLogger('clients').exception('Client create upload save failed: %s', exc)
+            return Response(
+                {'detail': 'Upload failed while saving files. Please retry with smaller files or a different format.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 

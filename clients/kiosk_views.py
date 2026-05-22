@@ -3,6 +3,8 @@ Public kiosk endpoints: lookup client by phone, submit a self check-in case note
 
 The static web app cannot write to PostgreSQL directly; it calls these APIs over HTTPS.
 """
+from pathlib import Path
+
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -16,6 +18,8 @@ from .throttles import KioskLookupThrottle, KioskSubmitThrottle, KioskUploadThro
 
 KIOSK_NOTE_AUTHOR = 'Self check-in (kiosk)'
 KIOSK_DOC_UPLOADER = 'Self upload (kiosk)'
+KIOSK_ID_DOC_MAX_BYTES = 10 * 1024 * 1024
+KIOSK_ID_ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.pdf'}
 
 
 def _resolve_client_for_kiosk(phone_raw, client_id):
@@ -122,18 +126,21 @@ class KioskDocumentUploadView(APIView):
         upload = request.FILES.get('file')
         if not upload:
             return Response({'detail': 'Select a file to upload.'}, status=status.HTTP_400_BAD_REQUEST)
-        max_upload_bytes = 15 * 1024 * 1024  # 15MB safe kiosk limit
-        if getattr(upload, 'size', 0) > max_upload_bytes:
-            return Response({'detail': 'File is too large. Max size is 15MB.'}, status=status.HTTP_400_BAD_REQUEST)
+        if getattr(upload, 'size', 0) > KIOSK_ID_DOC_MAX_BYTES:
+            return Response({'detail': 'File is too large. Max size is 10MB.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        doc_type = (request.data.get('doc_type') or 'other').strip()
-        valid_doc_types = {v for v, _ in Document.DOC_TYPE_CHOICES}
-        if doc_type not in valid_doc_types:
-            return Response({'detail': 'Invalid document type.'}, status=status.HTTP_400_BAD_REQUEST)
+        ext = Path(getattr(upload, 'name', '') or '').suffix.lower()
+        if ext not in KIOSK_ID_ALLOWED_EXTENSIONS:
+            return Response(
+                {'detail': 'Only image files or PDF are allowed for Government Photo ID.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        doc_type = 'id'
 
         title = (request.data.get('title') or '').strip()
         if not title:
-            title = dict(Document.DOC_TYPE_CHOICES).get(doc_type, 'Uploaded Document')
+            title = 'Government Photo ID'
 
         notes = (request.data.get('notes') or '').strip() or None
 
@@ -144,22 +151,34 @@ class KioskDocumentUploadView(APIView):
         except Exception:
             pass
 
-        doc = Document.objects.create(
-            client=client,
-            title=title[:255],
-            doc_type=doc_type,
-            file=upload,
-            uploaded_by=KIOSK_DOC_UPLOADER,
-            notes=notes,
-        )
+        existing = Document.objects.filter(client=client, doc_type=doc_type).order_by('-created_at').first()
+        if existing:
+            existing.title = title[:255]
+            existing.file = upload
+            existing.uploaded_by = KIOSK_DOC_UPLOADER
+            existing.notes = notes
+            existing.save()
+            doc = existing
+            created = False
+        else:
+            doc = Document.objects.create(
+                client=client,
+                title=title[:255],
+                doc_type=doc_type,
+                file=upload,
+                uploaded_by=KIOSK_DOC_UPLOADER,
+                notes=notes,
+            )
+            created = True
 
         return Response(
             {
                 'ok': True,
+                'created': created,
                 'document_id': doc.pk,
                 'title': doc.title,
                 'doc_type': doc.doc_type,
                 'created_at': doc.created_at,
             },
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )

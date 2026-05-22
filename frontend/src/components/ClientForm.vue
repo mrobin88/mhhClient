@@ -736,6 +736,10 @@ const success = ref(false)
 const isSubmitting = ref(false)
 const formAttempted = ref(false)
 
+const MAX_TOTAL_UPLOAD_BYTES = 20 * 1024 * 1024 // 20MB total across resume + optional docs
+const MAX_DOC_IMAGE_DIMENSION = 1600
+const MAX_DOC_IMAGE_BYTES = 2 * 1024 * 1024
+
 const handleFileUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
@@ -760,26 +764,96 @@ const handleFileUpload = (event) => {
   }
 }
 
-const handleDocUpload = (event, key) => {
+const fileNameWithExtension = (originalName, extension) => {
+  const idx = originalName.lastIndexOf('.')
+  if (idx <= 0) return `${originalName}${extension}`
+  return `${originalName.slice(0, idx)}${extension}`
+}
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+
+const loadImageFromDataUrl = (dataUrl) =>
+  new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('Failed to load image'))
+    img.src = dataUrl
+  })
+
+const compressImageFile = async (file) => {
+  const dataUrl = await readFileAsDataUrl(file)
+  const image = await loadImageFromDataUrl(dataUrl)
+
+  const width = image.width || 1
+  const height = image.height || 1
+  const scale = Math.min(1, MAX_DOC_IMAGE_DIMENSION / Math.max(width, height))
+  const targetWidth = Math.max(1, Math.round(width * scale))
+  const targetHeight = Math.max(1, Math.round(height * scale))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = targetWidth
+  canvas.height = targetHeight
+  const context = canvas.getContext('2d')
+  if (!context) return file
+  context.drawImage(image, 0, 0, targetWidth, targetHeight)
+
+  let quality = 0.82
+  let bestBlob = null
+
+  // Use JPEG for camera/photo uploads to reduce payload size.
+  for (let i = 0; i < 4; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+    if (!blob) break
+    bestBlob = blob
+    if (blob.size <= MAX_DOC_IMAGE_BYTES) break
+    quality -= 0.12
+  }
+
+  if (!bestBlob || bestBlob.size >= file.size) return file
+  return new File([bestBlob], fileNameWithExtension(file.name, '.jpg'), {
+    type: 'image/jpeg',
+    lastModified: Date.now(),
+  })
+}
+
+const handleDocUpload = async (event, key) => {
   const file = event.target.files[0]
   if (!file) return
 
+  let processedFile = file
+
+  if ((file.type || '').startsWith('image/')) {
+    try {
+      processedFile = await compressImageFile(file)
+    } catch (compressionError) {
+      console.warn('Image compression skipped:', compressionError)
+      processedFile = file
+    }
+  }
+
   // Max 8MB for supporting docs
-  if (file.size > 8 * 1024 * 1024) {
+  if (processedFile.size > 8 * 1024 * 1024) {
     error.value = 'Document file size must be less than 8MB'
     event.target.value = ''
     return
   }
 
-  const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png']
-  const ext = '.' + file.name.split('.').pop().toLowerCase()
+  const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif']
+  const ext = '.' + processedFile.name.split('.').pop().toLowerCase()
   if (!allowedExtensions.includes(ext)) {
     error.value = 'Please upload PDF, Word, image, or text files'
     event.target.value = ''
     return
   }
 
-  docFiles.value[key] = file
+  docFiles.value[key] = processedFile
   error.value = ''
 }
 
@@ -855,6 +929,40 @@ const normalizeDateInput = (value) => {
   return `${year}-${month}-${day}`
 }
 
+const getResponseErrorMessage = (response) => {
+  const status = response?.status
+  const data = response?.data
+
+  if (status === 413) {
+    return 'Upload is too large. Please use smaller files and try again.'
+  }
+  if (status === 429) {
+    return 'Too many attempts. Please wait a minute and try again.'
+  }
+
+  if (typeof data?.detail === 'string' && data.detail.trim()) {
+    return data.detail
+  }
+  if (typeof data?.message === 'string' && data.message.trim()) {
+    return data.message
+  }
+  if (data && typeof data === 'object') {
+    const firstEntry = Object.entries(data).find(([, value]) => {
+      if (Array.isArray(value)) return value.length > 0
+      return typeof value === 'string' && value.trim()
+    })
+    if (firstEntry) {
+      const [field, value] = firstEntry
+      if (Array.isArray(value)) {
+        return `${field}: ${String(value[0])}`
+      }
+      return `${field}: ${String(value)}`
+    }
+  }
+
+  return 'Unable to submit application. Please check your information and try again.'
+}
+
 async function handleSubmit() {
   formAttempted.value = true
   error.value = ''
@@ -862,6 +970,21 @@ async function handleSubmit() {
   isSubmitting.value = true
 
   try {
+    const selectedFiles = [
+      resumeFile.value,
+      docFiles.value.sf_residency,
+      docFiles.value.hs_diploma,
+      docFiles.value.id,
+      docFiles.value.photo_release,
+      docFiles.value.other,
+    ].filter(Boolean)
+
+    const totalBytes = selectedFiles.reduce((sum, file) => sum + (file?.size || 0), 0)
+    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
+      error.value = 'Total upload size is too large (max 20MB combined). Please remove one file or upload smaller files.'
+      return
+    }
+
     // Create FormData for file upload
     const formData = new FormData()
     
@@ -984,16 +1107,16 @@ async function handleSubmit() {
       fileInputs.forEach((el) => {
         try { el.value = '' } catch (_) {}
       })
+    } else {
+      error.value = getResponseErrorMessage(response)
     }
   } catch (err) {
     // Network or CORS-layer errors (no response)
     console.error('[Submit] Error', err)
-    if (err.response?.status === 400) {
-      error.value = 'Please check all required fields and try again.'
-    } else if (err.response?.status === 409) {
+    if (err.response?.status === 409) {
       error.value = 'A client with this information already exists. Please contact us directly.'
     } else {
-      error.value = 'Unable to submit application. Please try again or contact us at info@missionhiringhall.org'
+      error.value = getResponseErrorMessage(err.response) || 'Unable to submit application. Please try again or contact us at info@missionhiringhall.org'
     }
   } finally {
     isSubmitting.value = false
@@ -1149,7 +1272,7 @@ textarea.form-input {
   overflow-x: visible;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .min-h-screen {
     padding-top: 1.5rem;
     padding-bottom: 1.5rem;
@@ -1192,7 +1315,7 @@ textarea.form-input {
   }
 
   .p-10 {
-    padding: 1rem;
+    padding: 1.1rem;
   }
 
   .space-y-10 > * + * {

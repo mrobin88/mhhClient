@@ -206,22 +206,9 @@
 
               <template v-else-if="step === 'upload'">
                 <p class="text-center text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
-                  Upload document
+                  Upload Government Photo ID
                 </p>
                 <div class="space-y-4">
-                  <div>
-                    <label for="docType" class="block text-sm font-semibold text-slate-700 mb-2">Document type</label>
-                    <select
-                      id="docType"
-                      v-model="uploadDocType"
-                      class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-800"
-                    >
-                      <option v-for="opt in docTypeOptions" :key="opt.value" :value="opt.value">
-                        {{ opt.label }}
-                      </option>
-                    </select>
-                  </div>
-
                   <div>
                     <label for="docTitle" class="block text-sm font-semibold text-slate-700 mb-2">Document title</label>
                     <input
@@ -238,10 +225,11 @@
                     <input
                       id="docFile"
                       type="file"
+                      accept="image/*,.pdf"
                       class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-700 bg-white"
                       @change="onFileChange"
                     />
-                    <p class="mt-2 text-xs text-slate-500">Accepted by device: PDF, image, Word, or related file types.</p>
+                    <p class="mt-2 text-xs text-slate-500">Accepted by device: photo/image or PDF.</p>
                   </div>
 
                   <div>
@@ -346,24 +334,10 @@ const message = ref('')
 const messageKind = ref<'err' | 'ok'>('err')
 const savedAt = ref('')
 
-const uploadDocType = ref('other')
 const uploadTitle = ref('')
 const uploadNotes = ref('')
 const uploadFile = ref<File | null>(null)
 const uploadedCount = ref(0)
-
-const docTypeOptions = [
-  { value: 'resume', label: 'Resume' },
-  { value: 'sf_residency', label: 'Proof of SF Residency' },
-  { value: 'hs_diploma', label: 'High School Diploma / GED' },
-  { value: 'id', label: 'Government ID' },
-  { value: 'photo_release', label: 'Photo Release Form' },
-  { value: 'intake', label: 'Intake Form' },
-  { value: 'consent', label: 'Consent Form' },
-  { value: 'certificate', label: 'Certificate / Credential' },
-  { value: 'reference', label: 'Reference Letter' },
-  { value: 'other', label: 'Other' },
-]
 
 const API_LOOKUP = getApiUrl('/api/kiosk/check-in/lookup/')
 const API_SUBMIT = getApiUrl('/api/kiosk/check-in/submit/')
@@ -465,9 +439,8 @@ async function submitCheckIn() {
         ? data.case_note.formatted_timestamp
         : new Date().toLocaleString()
     step.value = 'uploadPrompt'
-    uploadTitle.value = ''
+    uploadTitle.value = 'Government Photo ID'
     uploadNotes.value = ''
-    uploadDocType.value = 'other'
     uploadFile.value = null
     uploadedCount.value = 0
   } finally {
@@ -494,8 +467,8 @@ async function submitUpload() {
     const body = new FormData()
     body.append('client_id', String(selected.value.id))
     body.append('phone', phone.value.trim())
-    body.append('doc_type', uploadDocType.value)
-    body.append('title', uploadTitle.value.trim())
+    body.append('doc_type', 'id')
+    body.append('title', (uploadTitle.value || 'Government Photo ID').trim())
     body.append('notes', uploadNotes.value.trim())
     body.append('file', uploadFile.value)
 
@@ -512,10 +485,10 @@ async function submitUpload() {
 
     uploadedCount.value += 1
     uploadFile.value = null
-    uploadTitle.value = ''
+    uploadTitle.value = 'Government Photo ID'
     uploadNotes.value = ''
     messageKind.value = 'ok'
-    message.value = 'Document uploaded successfully.'
+    message.value = 'Government Photo ID uploaded successfully.'
   } finally {
     loading.value = false
   }
@@ -533,8 +506,7 @@ function resetFlow() {
   selected.value = null
   visitReason.value = ''
   savedAt.value = ''
-  uploadDocType.value = 'other'
-  uploadTitle.value = ''
+  uploadTitle.value = 'Government Photo ID'
   uploadNotes.value = ''
   uploadFile.value = null
   uploadedCount.value = 0
