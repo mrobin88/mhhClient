@@ -11,7 +11,7 @@ from rest_framework.test import APIClient
 from clients.admin import ClientAdmin
 from clients.models import Client
 from clients.models import Document
-from clients.notifications import _to_e164_us
+from clients.notifications import _to_e164_us, _compose_sms_body, send_phone_text_message
 from clients.models_extensions import WorkerAccount, WorkerShiftProof, WorkAssignment, WorkSite, ClientTextMessage
 from clients.worker_views import WorkerSession
 
@@ -168,3 +168,37 @@ class SmsPhoneFormattingTests(TestCase):
 
     def test_to_e164_us_rejects_invalid_short_values(self):
         self.assertEqual(_to_e164_us('925-550'), '')
+
+    @override_settings(SMS_APPEND_COMPLIANCE_FOOTER=True, SMS_COMPLIANCE_FOOTER=' Reply STOP to opt out.')
+    def test_compose_sms_body_appends_footer(self):
+        body = _compose_sms_body('Mission Hiring Hall update.')
+        self.assertTrue(body.endswith('Reply STOP to opt out.'))
+
+
+class SmsInternalOnlyGuardrailTests(TestCase):
+    def setUp(self):
+        self.client_record = Client.objects.create(
+            first_name='Allowed',
+            last_name='Recipient',
+            phone='9255501111',
+            email='allowed@example.com',
+            gender='F',
+        )
+
+    @override_settings(SMS_INTERNAL_ONLY=True)
+    def test_internal_only_blocks_unknown_phone(self):
+        ok, detail = send_phone_text_message(phone='9255509999', body='Test')
+        self.assertFalse(ok)
+        self.assertIn('allowlisted', detail)
+
+    @override_settings(SMS_INTERNAL_ONLY=True, AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake', AZURE_COMMUNICATION_SMS_FROM='+15555550123')
+    @patch('clients.notifications._sms_client')
+    def test_internal_only_allows_known_phone(self, sms_client_mock):
+        class SmsResult:
+            successful = True
+            message_id = 'msg-123'
+
+        sms_client_mock.return_value.send.return_value = [SmsResult()]
+        ok, detail = send_phone_text_message(phone='9255501111', body='Test')
+        self.assertTrue(ok)
+        self.assertIn('+19255501111', detail)

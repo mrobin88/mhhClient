@@ -314,6 +314,61 @@ def _to_e164_us(phone):
     return ''
 
 
+def _normalize_us_digits(phone):
+    """Normalize to 11-digit US format (1XXXXXXXXXX) when possible."""
+    from .phone_utils import normalize_login_phone
+
+    digits = normalize_login_phone(phone or '')
+    if len(digits) == 10:
+        return f'1{digits}'
+    if len(digits) == 11 and digits.startswith('1'):
+        return digits
+    return ''
+
+
+def _compliance_footer():
+    if not getattr(settings, 'SMS_APPEND_COMPLIANCE_FOOTER', True):
+        return ''
+    return getattr(settings, 'SMS_COMPLIANCE_FOOTER', ' Reply STOP to opt out.')
+
+
+def _compose_sms_body(body):
+    # Keep messages under segment-heavy lengths while preserving compliance footer.
+    content = (body or '').strip()
+    footer = _compliance_footer()
+    if not footer:
+        return content[:480]
+    reserve = max(480 - len(footer), 0)
+    return f'{content[:reserve].rstrip()}{footer}'
+
+
+def _is_internal_phone_allowed(to_phone):
+    """
+    When internal-only mode is enabled, allow sends only to known app records.
+    """
+    if not getattr(settings, 'SMS_INTERNAL_ONLY', False):
+        return True
+
+    target_digits = _normalize_us_digits(to_phone)
+    if not target_digits:
+        return False
+
+    from .models import Client
+    from .models_extensions import WorkerAccount
+    from users.models import StaffUser
+
+    for raw_phone in Client.objects.exclude(phone__isnull=True).exclude(phone='').values_list('phone', flat=True):
+        if _normalize_us_digits(raw_phone) == target_digits:
+            return True
+    for raw_phone in WorkerAccount.objects.exclude(phone='').values_list('phone', flat=True):
+        if _normalize_us_digits(raw_phone) == target_digits:
+            return True
+    for raw_phone in StaffUser.objects.exclude(phone__isnull=True).exclude(phone='').values_list('phone', flat=True):
+        if _normalize_us_digits(raw_phone) == target_digits:
+            return True
+    return False
+
+
 def send_phone_text_message(phone, body, require_enabled_flag=False):
     """
     Send SMS to a raw phone number (not tied to a Client row).
@@ -322,6 +377,8 @@ def send_phone_text_message(phone, body, require_enabled_flag=False):
     to_phone = _to_e164_us(phone)
     if not to_phone:
         return False, 'Phone is not a valid SMS number'
+    if not _is_internal_phone_allowed(to_phone):
+        return False, 'Phone is not allowlisted for internal-only SMS mode'
     if require_enabled_flag and not getattr(settings, 'SMS_FOLLOWUP_ENABLED', False):
         return False, 'SMS_FOLLOWUP_ENABLED is false'
 
@@ -329,11 +386,12 @@ def send_phone_text_message(phone, body, require_enabled_flag=False):
         result = _sms_client().send(
             from_=_sms_from_number(),
             to=[to_phone],
-            message=body,
+            message=_compose_sms_body(body),
             enable_delivery_report=True,
         )[0]
         if getattr(result, 'successful', False):
-            return True, to_phone
+            message_id = getattr(result, 'message_id', '') or ''
+            return True, f'{to_phone} ({message_id})' if message_id else to_phone
         err = getattr(result, 'error_message', '') or 'Azure SMS send failed'
         return False, err
     except Exception as exc:
@@ -416,7 +474,7 @@ def send_text_message(
         result = _sms_client().send(
             from_=_sms_from_number(),
             to=[to_phone],
-            message=body,
+            message=_compose_sms_body(body),
             enable_delivery_report=True,
         )[0]
         log.provider_message_id = getattr(result, 'message_id', '') or ''
