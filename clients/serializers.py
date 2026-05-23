@@ -2,15 +2,9 @@ from rest_framework import serializers
 from .models import Client, CaseNote, PitStopApplication, JobPlacement
 from .models_extensions import (
     WorkerAccount,
-    ServiceRequest,
     WorkAssignment,
     WorkSite,
-    OpenShift,
-    ShiftCoverInterest,
     WorkerTimePunch,
-    WorkerShiftProof,
-    WorkerPortalNote,
-    WorkerTimeOffRequest,
 )
 from .phone_utils import find_by_normalized_phone, phone_digits
 
@@ -199,74 +193,6 @@ class WorkSiteSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
-class OpenShiftSerializer(serializers.ModelSerializer):
-    """Open shift listing for workers."""
-
-    location_display = serializers.SerializerMethodField()
-    work_site_name = serializers.CharField(
-        source='work_site.name', read_only=True, allow_null=True
-    )
-
-    class Meta:
-        model = OpenShift
-        fields = [
-            'id',
-            'role_title',
-            'location_display',
-            'work_site_name',
-            'shift_date',
-            'start_time',
-            'end_time',
-            'notes',
-        ]
-
-    def get_location_display(self, obj):
-        if obj.work_site:
-            parts = [obj.work_site.name]
-            if getattr(obj.work_site, 'address', None):
-                parts.append(obj.work_site.address)
-            return ' — '.join(parts)
-        return obj.location_label or 'Location to be confirmed'
-
-
-class ShiftCoverInterestSerializer(serializers.ModelSerializer):
-    """Worker-facing interest record."""
-
-    open_shift = OpenShiftSerializer(read_only=True)
-    message_for_worker = serializers.SerializerMethodField()
-
-    class Meta:
-        model = ShiftCoverInterest
-        fields = [
-            'id',
-            'open_shift',
-            'status',
-            'message_for_worker',
-            'created_at',
-        ]
-
-    def get_message_for_worker(self, obj):
-        if obj.status == ShiftCoverInterest.STATUS_PENDING:
-            return (
-                'Thanks — we noted your interest. A supervisor may reach out if you are picked for this shift.'
-            )
-        if obj.status == ShiftCoverInterest.STATUS_SELECTED:
-            return 'You were selected for this shift. Watch for a call or message from the team.'
-        if obj.status == ShiftCoverInterest.STATUS_NOT_SELECTED:
-            return 'This shift was filled another way. Thank you for offering to help.'
-        if obj.status == ShiftCoverInterest.STATUS_CANCELLED:
-            return 'This shift is no longer open.'
-        return ''
-
-
-class ShiftCoverInterestStaffSerializer(serializers.ModelSerializer):
-    """Staff PATCH: status and internal note."""
-
-    class Meta:
-        model = ShiftCoverInterest
-        fields = ['status', 'staff_note']
-
-
 class WorkAssignmentSerializer(serializers.ModelSerializer):
     """Serializer for work assignments"""
     client_name = serializers.CharField(source='client.full_name', read_only=True)
@@ -338,93 +264,5 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
         if obj.work_site:
             return obj.work_site.name
         return ''
-
-
-class WorkerShiftProofSerializer(serializers.ModelSerializer):
-    """Worker-facing proof-of-post submission."""
-
-    assignment_label = serializers.SerializerMethodField()
-    photo_url = serializers.SerializerMethodField()
-
-    class Meta:
-        model = WorkerShiftProof
-        fields = [
-            'id',
-            'assignment',
-            'assignment_label',
-            'photo_url',
-            'submitted_at',
-            'geo_status',
-            'geo_basic_ok',
-            'geo_basic_note',
-        ]
-        read_only_fields = fields
-
-    def get_assignment_label(self, obj):
-        assignment = getattr(obj, 'assignment', None)
-        if not assignment:
-            return ''
-        return f'{assignment.assignment_date} {assignment.start_time} - {assignment.work_site.name}'
-
-    def get_photo_url(self, obj):
-        if not obj.photo:
-            return ''
-        try:
-            return obj.photo.url
-        except Exception:
-            return ''
-
-
-class ServiceRequestSerializer(serializers.ModelSerializer):
-    """Serializer for service requests"""
-    submitted_by_name = serializers.CharField(source='submitted_by.full_name', read_only=True)
-    work_site_name = serializers.CharField(source='work_site.name', read_only=True)
-    issue_type_display = serializers.CharField(source='get_issue_type_display', read_only=True)
-    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    is_overdue = serializers.ReadOnlyField()
-    
-    class Meta:
-        model = ServiceRequest
-        fields = '__all__'
-        read_only_fields = [
-            'submitted_by', 'created_at', 'updated_at',
-            'acknowledged_by', 'acknowledged_at', 'resolved_at'
-        ]
-
-
-class WorkerPortalNoteSerializer(serializers.ModelSerializer):
-    note_type_label = serializers.CharField(source='get_note_type_display', read_only=True)
-
-    class Meta:
-        model = WorkerPortalNote
-        fields = [
-            'id',
-            'note_type',
-            'note_type_label',
-            'content',
-            'staff_response',
-            'is_read_by_staff',
-            'created_at',
-        ]
-        read_only_fields = ['staff_response', 'is_read_by_staff', 'created_at']
-
-
-class WorkerTimeOffRequestSerializer(serializers.ModelSerializer):
-    status_label = serializers.CharField(source='get_status_display', read_only=True)
-
-    class Meta:
-        model = WorkerTimeOffRequest
-        fields = [
-            'id',
-            'start_date',
-            'end_date',
-            'reason',
-            'status',
-            'status_label',
-            'staff_note',
-            'created_at',
-        ]
-        read_only_fields = ['status', 'staff_note', 'created_at']
 
 

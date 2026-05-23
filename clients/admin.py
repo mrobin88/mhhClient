@@ -21,12 +21,6 @@ from .models_extensions import (
     WorkAssignment,
     WorkerAccount,
     WorkerTimePunch,
-    ServiceRequest,
-    OpenShift,
-    ShiftCoverInterest,
-    WorkerShiftProof,
-    WorkerPortalNote,
-    WorkerTimeOffRequest,
     ClientTextMessage,
 )
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
@@ -1271,76 +1265,6 @@ class JobPlacementAdmin(admin.ModelAdmin):
 # Worker Portal Admin Interfaces
 # ========================================
 
-class WorkerShiftProofInline(admin.TabularInline):
-    """Recent worker photo/location submissions shown on the roster profile."""
-
-    model = WorkerShiftProof
-    extra = 0
-    can_delete = False
-    fields = [
-        'assignment',
-        'submitted_at',
-        'photo_preview',
-        'geo_status',
-        'geo_basic_ok',
-        'geo_basic_note',
-    ]
-    readonly_fields = fields
-    ordering = ['-submitted_at']
-    max_num = 0
-    verbose_name = 'Photo/location check-in'
-    verbose_name_plural = 'Photo/location check-ins (latest first)'
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def photo_preview(self, obj):
-        if not obj or not obj.photo:
-            return '—'
-        return format_html(
-            '<a href="{}" target="_blank"><img src="{}" style="max-height: 80px; border-radius: 6px;" /></a>',
-            obj.photo.url,
-            obj.photo.url,
-        )
-
-    photo_preview.short_description = 'Photo'
-
-
-class AssignmentShiftProofInline(admin.TabularInline):
-    """Photo/location submissions shown directly on an assignment."""
-
-    model = WorkerShiftProof
-    extra = 0
-    can_delete = False
-    fields = [
-        'worker_account',
-        'submitted_at',
-        'photo_preview',
-        'geo_status',
-        'geo_basic_ok',
-        'geo_basic_note',
-    ]
-    readonly_fields = fields
-    ordering = ['-submitted_at']
-    max_num = 0
-    verbose_name = 'Photo/location check-in'
-    verbose_name_plural = 'Photo/location check-ins'
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def photo_preview(self, obj):
-        if not obj or not obj.photo:
-            return '—'
-        return format_html(
-            '<a href="{}" target="_blank"><img src="{}" style="max-height: 80px; border-radius: 6px;" /></a>',
-            obj.photo.url,
-            obj.photo.url,
-        )
-
-    photo_preview.short_description = 'Photo'
-
-
 @admin.register(WorkerAccount)
 class WorkerAccountAdmin(admin.ModelAdmin):
     """Primary PitStop roster focused on clock in/out tracking."""
@@ -1543,319 +1467,13 @@ class WorkerAccountAdmin(admin.ModelAdmin):
     unlock_accounts.short_description = 'Unlock selected accounts'
 
 
-@admin.register(ServiceRequest)
-class ServiceRequestAdmin(admin.ModelAdmin):
-    """Admin interface for worker-submitted service requests"""
-    list_display = ['title', 'work_site', 'submitted_by', 'issue_type', 'priority', 'status', 'created_at', 'is_overdue']
-    list_filter = ['status', 'priority', 'issue_type', 'work_site', 'created_at']
-    search_fields = ['title', 'description', 'submitted_by__first_name', 'submitted_by__last_name']
-    readonly_fields = ['submitted_by', 'created_at', 'updated_at', 'response_time_display', 'resolution_time_display', 'photo_preview']
-    date_hierarchy = 'created_at'
-    
-    fieldsets = (
-        ('Request Information', {
-            'fields': ('submitted_by', 'work_site', 'issue_type', 'title', 'description', 'location_detail')
-        }),
-        ('Priority & Status', {
-            'fields': ('priority', 'status')
-        }),
-        ('Evidence', {
-            'fields': ('photo', 'photo_preview')
-        }),
-        ('Response & Resolution', {
-            'fields': ('acknowledged_by', 'acknowledged_at', 'assigned_to', 'resolved_at', 'resolution_notes')
-        }),
-        ('Metrics', {
-            'fields': ('response_time_display', 'resolution_time_display'),
-            'classes': ('collapse',)
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-    
-    actions = ['acknowledge_requests', 'mark_in_progress', 'mark_resolved']
-    
-    def is_overdue(self, obj):
-        """Show overdue status with color"""
-        if obj.is_overdue:
-            return format_html('<span style="color: red; font-weight: bold;">⚠️ OVERDUE</span>')
-        return format_html('<span style="color: green;">✓ On Track</span>')
-    is_overdue.short_description = 'Status'
-    
-    def photo_preview(self, obj):
-        """Show photo preview"""
-        if obj.photo:
-            return format_html('<img src="{}" style="max-width: 300px; max-height: 300px;" />', obj.photo.url)
-        return "No photo"
-    photo_preview.short_description = 'Photo Preview'
-    
-    def response_time_display(self, obj):
-        """Show response time in human-readable format"""
-        rt = obj.response_time
-        if rt:
-            hours = rt.total_seconds() / 3600
-            if hours < 1:
-                return f"{int(rt.total_seconds() / 60)} minutes"
-            return f"{hours:.1f} hours"
-        return "Not acknowledged yet"
-    response_time_display.short_description = 'Response Time'
-    
-    def resolution_time_display(self, obj):
-        """Show resolution time in human-readable format"""
-        rt = obj.resolution_time
-        if rt:
-            hours = rt.total_seconds() / 3600
-            if hours < 24:
-                return f"{hours:.1f} hours"
-            return f"{hours / 24:.1f} days"
-        return "Not resolved yet"
-    resolution_time_display.short_description = 'Resolution Time'
-    
-    def acknowledge_requests(self, request, queryset):
-        """Acknowledge selected requests"""
-        from django.utils import timezone
-        updated = queryset.filter(status='open').update(
-            status='acknowledged',
-            acknowledged_by=request.user.get_full_name() or request.user.username,
-            acknowledged_at=timezone.now()
-        )
-        self.message_user(request, f'{updated} request(s) acknowledged.')
-    acknowledge_requests.short_description = 'Acknowledge selected requests'
-    
-    def mark_in_progress(self, request, queryset):
-        """Mark requests as in progress"""
-        updated = queryset.exclude(status__in=['resolved', 'closed']).update(status='in_progress')
-        self.message_user(request, f'{updated} request(s) marked in progress.')
-    mark_in_progress.short_description = 'Mark as In Progress'
-    
-    def mark_resolved(self, request, queryset):
-        """Mark requests as resolved"""
-        from django.utils import timezone
-        updated = 0
-        for req in queryset.exclude(status__in=['resolved', 'closed']):
-            req.status = 'resolved'
-            req.resolved_at = timezone.now()
-            req.save()
-            updated += 1
-        self.message_user(request, f'{updated} request(s) marked resolved.')
-    mark_resolved.short_description = 'Mark as Resolved'
-
-
 @admin.register(WorkSite)
 class WorkSiteAdmin(admin.ModelAdmin):
-    """Must register before OpenShiftAdmin so autocomplete_fields → work_site passes admin.E040."""
+    """PitStop work sites used for geofenced clock in/out."""
 
     list_display = ['name', 'neighborhood', 'site_type', 'latitude', 'longitude', 'is_active']
     list_filter = ['is_active', 'site_type', 'neighborhood']
     search_fields = ['name', 'address', 'neighborhood', 'supervisor_name', 'supervisor_email']
-
-
-class ShiftCoverInterestInline(admin.TabularInline):
-    model = ShiftCoverInterest
-    extra = 0
-    readonly_fields = ['created_at']
-    autocomplete_fields = ['worker_account']
-    fields = ['worker_account', 'status', 'staff_note', 'created_at']
-
-
-@admin.register(OpenShift)
-class OpenShiftAdmin(admin.ModelAdmin):
-    """Post shifts that need coverage; active workers get email or SMS outreach."""
-
-    list_display = [
-        'role_title',
-        'shift_date',
-        'time_range',
-        'work_site',
-        'is_open',
-        'interest_count',
-        'created_at',
-    ]
-    list_filter = ['is_open', 'shift_date', 'work_site']
-    search_fields = ['role_title', 'notes', 'location_label', 'created_by']
-    date_hierarchy = 'shift_date'
-    inlines = [ShiftCoverInterestInline]
-    # No autocomplete_fields for work_site — avoids admin.E040 if WorkSite admin
-    # ordering/registry differs on some hosts; use the select dropdown instead.
-    fieldsets = (
-        (
-            'Shift',
-            {
-                'fields': (
-                    'role_title',
-                    'work_site',
-                    'location_label',
-                    'shift_date',
-                    'start_time',
-                    'end_time',
-                    'notes',
-                )
-            },
-        ),
-        (
-            'Staff',
-            {
-                'fields': ('is_open', 'created_by'),
-                'description': 'Saving an open shift notifies current active PitStop workers. Uncheck “Is open” when the shift is filled.',
-            },
-        ),
-    )
-
-    def time_range(self, obj):
-        if obj.start_time and obj.end_time:
-            return f'{obj.start_time.strftime("%I:%M %p")} – {obj.end_time.strftime("%I:%M %p")}'
-        return '—'
-
-    time_range.short_description = 'Time'
-
-    def interest_count(self, obj):
-        return obj.cover_interests.count()
-
-    interest_count.short_description = 'Interests'
-
-    def save_model(self, request, obj, form, change):
-        if not (obj.created_by or '').strip():
-            obj.created_by = request.user.get_full_name() or request.user.username
-        super().save_model(request, obj, form, change)
-
-
-@admin.register(ShiftCoverInterest)
-class ShiftCoverInterestAdmin(admin.ModelAdmin):
-    list_display = ['open_shift', 'worker_name', 'status', 'created_at']
-    list_filter = ['status', 'created_at']
-    search_fields = [
-        'worker_account__client__first_name',
-        'worker_account__client__last_name',
-        'open_shift__role_title',
-    ]
-    readonly_fields = ['created_at', 'updated_at']
-    autocomplete_fields = ['worker_account', 'open_shift']
-
-    def worker_name(self, obj):
-        return obj.worker_account.client.full_name
-
-    worker_name.short_description = 'Worker'
-
-
-@admin.register(WorkerShiftProof)
-class WorkerShiftProofAdmin(admin.ModelAdmin):
-    """Staff review of worker photo/location check-ins."""
-
-    list_display = [
-        'worker_name',
-        'assignment',
-        'submitted_at',
-        'geo_status',
-        'geo_basic_ok',
-        'photo_link',
-    ]
-    list_filter = ['assignment__assignment_date', 'geo_status', 'geo_basic_ok', 'submitted_at']
-    search_fields = [
-        'worker_account__client__first_name',
-        'worker_account__client__last_name',
-        'worker_account__phone',
-        'assignment__work_site__name',
-        'staff_note',
-    ]
-    readonly_fields = [
-        'worker_account',
-        'assignment',
-        'photo_preview',
-        'submitted_at',
-        'client_reported_at',
-        'latitude',
-        'longitude',
-        'accuracy_meters',
-        'geo_status',
-        'geo_error',
-        'geo_basic_ok',
-        'geo_basic_note',
-    ]
-    fields = [
-        'worker_account',
-        'assignment',
-        'photo_preview',
-        'submitted_at',
-        'client_reported_at',
-        'latitude',
-        'longitude',
-        'accuracy_meters',
-        'geo_status',
-        'geo_basic_ok',
-        'geo_basic_note',
-        'geo_error',
-        'staff_note',
-    ]
-    autocomplete_fields = ['worker_account', 'assignment']
-    date_hierarchy = 'submitted_at'
-
-    def has_add_permission(self, request):
-        return False
-
-    def worker_name(self, obj):
-        return obj.worker_account.client.full_name
-
-    worker_name.short_description = 'Worker'
-
-    def photo_link(self, obj):
-        if not obj.photo:
-            return '—'
-        return format_html('<a href="{}" target="_blank">Open photo</a>', obj.photo.url)
-
-    photo_link.short_description = 'Photo'
-
-    def photo_preview(self, obj):
-        if not obj.photo:
-            return '—'
-        return format_html(
-            '<a href="{}" target="_blank"><img src="{}" style="max-width: 420px; border-radius: 8px;" /></a>',
-            obj.photo.url,
-            obj.photo.url,
-        )
-
-    photo_preview.short_description = 'Photo'
-
-
-@admin.register(WorkerPortalNote)
-class WorkerPortalNoteAdmin(admin.ModelAdmin):
-    list_display = ['worker_name', 'note_type', 'is_read_by_staff', 'created_at']
-    list_filter = ['note_type', 'is_read_by_staff', 'created_at']
-    search_fields = [
-        'worker_account__client__first_name',
-        'worker_account__client__last_name',
-        'worker_account__phone',
-        'content',
-        'staff_response',
-    ]
-    readonly_fields = ['created_at', 'updated_at']
-    autocomplete_fields = ['worker_account']
-
-    def worker_name(self, obj):
-        return obj.worker_account.client.full_name
-
-    worker_name.short_description = 'Worker'
-
-
-@admin.register(WorkerTimeOffRequest)
-class WorkerTimeOffRequestAdmin(admin.ModelAdmin):
-    list_display = ['worker_name', 'start_date', 'end_date', 'status', 'created_at']
-    list_filter = ['status', 'start_date', 'end_date', 'created_at']
-    search_fields = [
-        'worker_account__client__first_name',
-        'worker_account__client__last_name',
-        'worker_account__phone',
-        'reason',
-        'staff_note',
-    ]
-    readonly_fields = ['created_at', 'updated_at']
-    autocomplete_fields = ['worker_account']
-
-    def worker_name(self, obj):
-        return obj.worker_account.client.full_name
-
-    worker_name.short_description = 'Worker'
 
 
 @admin.register(ClientTextMessage)
@@ -2031,7 +1649,6 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
         'status',
         'confirmed_by_client',
         'scheduled_hours',
-        'photo_checkins',
         'assigned_by',
     ]
     list_filter = ['status', 'assignment_date', 'work_site', 'confirmed_by_client']
@@ -2042,8 +1659,7 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
         'assigned_by',
     ]
     date_hierarchy = 'assignment_date'
-    readonly_fields = ['created_at', 'updated_at', 'photo_checkins', 'scheduled_hours']
-    inlines = [AssignmentShiftProofInline]
+    readonly_fields = ['created_at', 'updated_at', 'scheduled_hours']
     actions = ['mark_confirmed', 'mark_in_progress', 'mark_completed']
 
     fieldsets = (
@@ -2052,10 +1668,6 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
         }),
         ('Schedule', {
             'fields': ('assignment_date', 'start_time', 'end_time', 'scheduled_hours', 'status', 'confirmed_by_client', 'confirmed_at'),
-        }),
-        ('Worker check-in', {
-            'fields': ('photo_checkins',),
-            'description': 'Workers submit photo/location proof only when a supervisor asks.',
         }),
         ('Staff Notes', {
             'fields': ('assigned_by', 'assignment_notes', 'performance_notes'),
@@ -2104,17 +1716,6 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
 
     scheduled_hours.short_description = 'Scheduled hours'
 
-    def photo_checkins(self, obj):
-        if not obj or not obj.pk:
-            return 'Save first to view photo check-ins.'
-        count = obj.shift_proofs.count()
-        url = reverse('admin:clients_workershiftproof_changelist') + f'?assignment__id__exact={obj.pk}'
-        if not count:
-            return format_html('<a href="{}">No photo check-ins yet</a>', url)
-        return format_html('<a href="{}">{} photo/location check-in(s)</a>', url, count)
-
-    photo_checkins.short_description = 'Photo check-ins'
-
     def mark_confirmed(self, request, queryset):
         updated = queryset.update(status='confirmed', confirmed_by_client=True, confirmed_at=timezone.now())
         self.message_user(request, f'{updated} assignment(s) marked confirmed.')
@@ -2134,18 +1735,10 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
     mark_completed.short_description = 'Mark selected assignments completed'
 
 
-# Iceboxed modules — hidden from admin to keep iPad clock workflow lean.
-for _model in (
-    OpenShift,
-    ServiceRequest,
-    ShiftCoverInterest,
-    WorkAssignment,
-    WorkerPortalNote,
-    WorkerShiftProof,
-    WorkerTimeOffRequest,
-):
-    try:
-        admin.site.unregister(_model)
-    except admin.sites.NotRegistered:
-        pass
+# Keep WorkAssignment hidden from the admin sidebar — the iPad clock workflow uses
+# WorkerTimePunch, but reports still query WorkAssignment for legacy scheduling data.
+try:
+    admin.site.unregister(WorkAssignment)
+except admin.sites.NotRegistered:
+    pass
 

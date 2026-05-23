@@ -493,7 +493,4 @@ class JobPlacement(models.Model):
 from .models_extensions import (
     WorkSite,
     WorkAssignment,
-    OpenShift,
-    ShiftCoverInterest,
-    WorkerShiftProof,
 )
