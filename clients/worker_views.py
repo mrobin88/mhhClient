@@ -201,7 +201,8 @@ def _site_geo_validation(site, geo_payload):
         float(site.latitude),
         float(site.longitude),
     )
-    max_distance = int(getattr(settings, 'WORKER_CLOCK_GEOFENCE_METERS', 250))
+    # Default to ~200 yards (183m) unless explicitly overridden in env.
+    max_distance = int(getattr(settings, 'WORKER_CLOCK_GEOFENCE_METERS', 183))
     if distance > max_distance:
         return False, f'Outside site geofence ({distance:.0f}m > {max_distance}m)', distance
     return True, f'Within geofence ({distance:.0f}m)', distance

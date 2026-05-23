@@ -239,6 +239,12 @@
         <div class="desc">Current day roster snapshot.</div>
         <a class="btn" href="/api/reports/todays-assignments/" target="_blank">Download CSV</a>
       </div>
+      <div class="card">
+        <div class="title">⏱️ PitStop Hours</div>
+        <div class="desc">Clock in/out punches with hours, geofence status, and site. Honors start/end dates above.</div>
+        <a class="btn" id="pitstopHoursCsv" href="/api/reports/pitstop-hours/" target="_blank">Download CSV</a>
+        <a class="btn secondary" id="pitstopHoursCsvComplete" href="/api/reports/pitstop-hours/?only_complete=1" target="_blank">Completed only</a>
+      </div>
     </section>
     <section class="support-note">
       <strong>🤲 Human-centered reporting:</strong>
@@ -297,6 +303,11 @@
       });
       document.getElementById('clientFileZip').href = buildUrl('/api/reports/client-file-package/', {
         client_lookup: clientLookupEl.value || ''
+      });
+      document.getElementById('pitstopHoursCsv').href = buildUrl('/api/reports/pitstop-hours/', common);
+      document.getElementById('pitstopHoursCsvComplete').href = buildUrl('/api/reports/pitstop-hours/', {
+        ...common,
+        only_complete: '1'
       });
     };
 

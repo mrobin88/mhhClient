@@ -1,11 +1,14 @@
 import shutil
 import tempfile
-from datetime import date, time
+from datetime import date, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.test import Client as DjangoTestClient
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -130,6 +133,96 @@ class WorkerTimePunchTests(TestCase):
         self.assertIsNotNone(punch.clock_out_at)
         self.assertEqual(punch.clock_out_geo_status, 'captured')
         self.assertTrue(punch.clock_out_geo_basic_ok)
+
+    def _login_superuser(self):
+        User = get_user_model()
+        admin_user = User.objects.create_superuser(
+            username='timepunch_admin',
+            email='admin@example.com',
+            password='supersecure123!',
+        )
+        client = DjangoTestClient()
+        assert client.login(username=admin_user.username, password='supersecure123!')
+        return client
+
+    def test_pitstop_hours_csv_includes_completed_punch(self):
+        clock_in = timezone.now().replace(microsecond=0) - timedelta(hours=5)
+        clock_out = clock_in + timedelta(hours=4, minutes=30)
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=clock_in,
+            clock_out_at=clock_out,
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+            clock_in_geo_basic_note='Captured with accuracy 20m',
+            clock_out_geo_status='captured',
+            clock_out_geo_basic_ok=True,
+            clock_out_geo_basic_note='Captured with accuracy 22m',
+            clock_in_latitude=37.7749,
+            clock_in_longitude=-122.4194,
+            clock_out_latitude=37.7749,
+            clock_out_longitude=-122.4194,
+        )
+
+        client = self._login_superuser()
+        url = reverse('pitstop-hours-report-csv')
+        response = client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode('utf-8')
+        self.assertIn('Hours', body)
+        self.assertIn('Test Worker', body)
+        self.assertIn('Mission Pit Stop', body)
+        self.assertIn('4.50', body)
+
+    def test_pitstop_hours_csv_skips_open_punch_when_only_complete(self):
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=timezone.now() - timedelta(hours=1),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+            clock_in_geo_basic_note='Captured with accuracy 18m',
+        )
+
+        client = self._login_superuser()
+        response = client.get(reverse('pitstop-hours-report-csv') + '?only_complete=1')
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode('utf-8')
+        rows = [line for line in body.strip().splitlines() if line]
+        self.assertEqual(len(rows), 1)
+        self.assertIn('Clock In Date', rows[0])
+
+    @override_settings(
+        STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage',
+        STORAGES={
+            'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+            'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+        },
+    )
+    def test_worker_time_punch_admin_change_list_shows_compact_columns(self):
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=timezone.now() - timedelta(hours=2),
+            clock_out_at=timezone.now(),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+            clock_in_geo_basic_note='Captured with accuracy 20m',
+            clock_out_geo_status='captured',
+            clock_out_geo_basic_ok=False,
+            clock_out_geo_basic_note='Outside site geofence (300m > 183m)',
+        )
+
+        client = self._login_superuser()
+        response = client.get('/admin/clients/workertimepunch/')
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode('utf-8')
+        self.assertIn('Hours', body)
+        self.assertIn('Geofence', body)
 
 
 class ClientAdminTextMissingDocumentsTests(TestCase):

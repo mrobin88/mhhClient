@@ -266,6 +266,8 @@ SMS_FOLLOWUP_CHECKPOINT_DAYS = [
 ]
 SMS_FOLLOWUP_WINDOW_DAYS = int(os.getenv('SMS_FOLLOWUP_WINDOW_DAYS', '1'))
 SMS_FOLLOWUP_START_FIELD = os.getenv('SMS_FOLLOWUP_START_FIELD', 'created_at')
+# Worker geofence threshold for clock in/out (200 yards ~= 183 meters).
+WORKER_CLOCK_GEOFENCE_METERS = int(os.getenv('WORKER_CLOCK_GEOFENCE_METERS', '183'))
 
 # Admin base URL for email links
 ADMIN_BASE_URL = os.getenv('ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net')

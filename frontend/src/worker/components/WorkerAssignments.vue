@@ -1,8 +1,6 @@
 <template>
   <div class="space-y-4">
-    <p class="worker-section-intro">
-      Select your PitStop location and clock in/out with geolocation.
-    </p>
+    <p class="worker-section-intro">Clock in and out for your assigned PitStop shift.</p>
 
     <div v-if="loading" class="text-center py-16 text-slate-500 text-base">Loading...</div>
 
@@ -16,37 +14,29 @@
       <p class="text-sm text-slate-600 mt-1">Ask staff to enable at least one work site.</p>
     </div>
 
-    <section v-else class="worker-card p-4 space-y-4">
-      <div class="space-y-2">
-        <label class="block text-sm font-semibold text-slate-800" for="work-site">PitStop location</label>
-        <select
-          id="work-site"
-          v-model="selectedSiteId"
-          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-        >
-          <option :value="null" disabled>Select location</option>
-          <option v-for="site in sites" :key="site.id" :value="site.id">
-            {{ site.name }} - {{ site.address }}
-          </option>
-        </select>
+    <section v-else class="worker-card p-4 sm:p-5 space-y-4">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">PitStop location</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900">{{ selectedSite?.name || 'Site not available' }}</p>
+        <p v-if="selectedSite?.address" class="mt-0.5 text-xs text-slate-600">{{ selectedSite.address }}</p>
       </div>
 
       <div class="worker-status-note bg-slate-50 text-slate-700 border border-slate-200">
-        <ClockIcon class="w-5 h-5 inline-block mr-1 align-text-bottom" aria-hidden="true" />
+        <ClockIcon class="w-4 h-4 inline-block mr-1.5 align-text-bottom" aria-hidden="true" />
         {{ activePunch ? `Clocked in at ${activePunch.work_site_name} ${formatDateTime(activePunch.clock_in_at)}` : 'Currently clocked out.' }}
       </div>
 
       <button
         type="button"
-        class="worker-btn"
+        class="worker-btn worker-btn-normalized"
         :class="activePunch ? 'worker-btn-secondary' : 'worker-btn-primary'"
-        :disabled="busy || (!activePunch && !selectedSiteId)"
+        :disabled="busy || (!activePunch && !selectedSite)"
         @click="submitPunch()"
       >
-        <StopCircleIcon v-if="activePunch" class="w-5 h-5" aria-hidden="true" />
-        <PlayCircleIcon v-else class="w-5 h-5" aria-hidden="true" />
+        <StopCircleIcon v-if="activePunch" class="w-4 h-4" aria-hidden="true" />
+        <PlayCircleIcon v-else class="w-4 h-4" aria-hidden="true" />
         <span v-if="busy">Sending...</span>
-        <span v-else>{{ activePunch ? 'Clock out with location' : 'Clock in with location' }}</span>
+        <span v-else>{{ activePunch ? 'Clock out' : 'Clock in' }}</span>
       </button>
     </section>
 
@@ -55,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   ClockIcon,
   InboxIcon,
@@ -95,6 +85,7 @@ const loading = ref(true)
 const busy = ref(false)
 const error = ref('')
 const message = ref('')
+const selectedSite = computed(() => sites.value.find((site) => site.id === selectedSiteId.value) || null)
 
 function formatDateTime(iso: string) {
   if (!iso) return ''
@@ -161,8 +152,10 @@ async function loadClockContext() {
     activePunch.value = punchBody.active_punch
     if (activePunch.value?.work_site) {
       selectedSiteId.value = activePunch.value.work_site
-    } else if (!selectedSiteId.value && sites.value.length > 0) {
+    } else if (sites.value.length > 0) {
       selectedSiteId.value = sites.value[0].id
+    } else {
+      selectedSiteId.value = null
     }
   } catch {
     error.value = 'No connection. Try again.'
@@ -172,8 +165,8 @@ async function loadClockContext() {
 }
 
 async function submitPunch() {
-  if (!activePunch.value && !selectedSiteId.value) {
-    error.value = 'Select a PitStop location first.'
+  if (!activePunch.value && !selectedSite.value) {
+    error.value = 'No active PitStop location available.'
     return
   }
   busy.value = true
@@ -187,7 +180,7 @@ async function submitPunch() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action,
-        work_site_id: selectedSiteId.value,
+        work_site_id: selectedSite.value?.id || selectedSiteId.value,
         geolocation,
       }),
     })
@@ -209,3 +202,19 @@ onMounted(() => {
   loadClockContext()
 })
 </script>
+
+<style scoped>
+.worker-btn-normalized {
+  min-height: 44px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 0.75rem;
+}
+
+@media (max-width: 1024px) {
+  .worker-btn-normalized {
+    min-height: 46px;
+    font-size: 0.94rem;
+  }
+}
+</style>

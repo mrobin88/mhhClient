@@ -14,7 +14,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Count
 
 from .models import Client, CaseNote, JobPlacement
-from .models_extensions import WorkAssignment, WorkSite
+from .models_extensions import WorkAssignment, WorkSite, WorkerTimePunch
 from .notifications import followup_stage
 
 
@@ -987,6 +987,133 @@ class CallOutReportCSVView(LoginRequiredMixin, View):
                 a.assignment_notes or '',
             ])
 
+        return response
+
+
+PITSTOP_HOURS_CSV_HEADER = [
+    'Clock In Date',
+    'Clock In Time',
+    'Clock Out Time',
+    'Hours',
+    'Worker Name',
+    'Worker Phone',
+    'Work Site',
+    'Clock In Geofence OK',
+    'Clock Out Geofence OK',
+    'Clock In Note',
+    'Clock Out Note',
+    'Clock In Lat',
+    'Clock In Lng',
+    'Clock Out Lat',
+    'Clock Out Lng',
+    'Punch ID',
+]
+
+
+def _pitstop_punch_hours(punch):
+    if not punch.clock_in_at or not punch.clock_out_at:
+        return None
+    seconds = max((punch.clock_out_at - punch.clock_in_at).total_seconds(), 0)
+    return round(seconds / 3600, 2)
+
+
+def _format_punch_row(punch):
+    hours = _pitstop_punch_hours(punch)
+    worker_client = getattr(punch.worker_account, 'client', None) if punch.worker_account else None
+    return [
+        punch.clock_in_at.strftime('%Y-%m-%d') if punch.clock_in_at else '',
+        punch.clock_in_at.strftime('%H:%M') if punch.clock_in_at else '',
+        punch.clock_out_at.strftime('%H:%M') if punch.clock_out_at else '',
+        f'{hours:.2f}' if hours is not None else '',
+        worker_client.full_name if worker_client else '',
+        (getattr(worker_client, 'phone', '') or getattr(punch.worker_account, 'phone', '') or '') if punch.worker_account else '',
+        punch.work_site.name if punch.work_site else '',
+        'Yes' if punch.clock_in_geo_basic_ok else 'No',
+        'Yes' if punch.clock_out_geo_basic_ok else ('No' if punch.clock_out_at else ''),
+        punch.clock_in_geo_basic_note or '',
+        punch.clock_out_geo_basic_note or '',
+        f'{punch.clock_in_latitude}' if punch.clock_in_latitude is not None else '',
+        f'{punch.clock_in_longitude}' if punch.clock_in_longitude is not None else '',
+        f'{punch.clock_out_latitude}' if punch.clock_out_latitude is not None else '',
+        f'{punch.clock_out_longitude}' if punch.clock_out_longitude is not None else '',
+        punch.pk,
+    ]
+
+
+def write_pitstop_hours_csv(stream, punches):
+    writer = csv.writer(stream)
+    writer.writerow(PITSTOP_HOURS_CSV_HEADER)
+    for punch in punches:
+        writer.writerow(_format_punch_row(punch))
+    return stream
+
+
+class PitStopHoursReportCSVView(LoginRequiredMixin, View):
+    """
+    Export CSV of PitStop hours (clock in/out punches) for payroll-style review.
+    GET parameters:
+        - start_date (YYYY-MM-DD, default: today minus 14 days)
+        - end_date (YYYY-MM-DD, default: today)
+        - work_site_id
+        - worker_id
+        - only_complete=1 (exclude open punches)
+        - min_hours (decimal)
+    """
+
+    def get(self, request):
+        today = date.today()
+        default_start = today - timedelta(days=14)
+        start_date_str = (request.GET.get('start_date') or default_start.isoformat()).strip()
+        end_date_str = (request.GET.get('end_date') or today.isoformat()).strip()
+        work_site_id = (request.GET.get('work_site_id') or '').strip()
+        worker_id = (request.GET.get('worker_id') or '').strip()
+        only_complete = request.GET.get('only_complete') in {'1', 'true', 'True'}
+        min_hours_raw = (request.GET.get('min_hours') or '').strip()
+
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return HttpResponse('Invalid start_date. Use YYYY-MM-DD.', status=400)
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return HttpResponse('Invalid end_date. Use YYYY-MM-DD.', status=400)
+
+        punches = (
+            WorkerTimePunch.objects.filter(
+                clock_in_at__date__gte=start_date,
+                clock_in_at__date__lte=end_date,
+            )
+            .select_related('worker_account__client', 'work_site')
+            .order_by('-clock_in_at')
+        )
+        if work_site_id:
+            punches = punches.filter(work_site_id=work_site_id)
+        if worker_id:
+            punches = punches.filter(worker_account_id=worker_id)
+        if only_complete:
+            punches = punches.exclude(clock_out_at__isnull=True)
+
+        min_hours_value = None
+        if min_hours_raw:
+            try:
+                min_hours_value = float(min_hours_raw)
+            except ValueError:
+                return HttpResponse('Invalid min_hours. Use a decimal value.', status=400)
+
+        if min_hours_value is not None:
+            kept = []
+            for punch in punches:
+                hours = _pitstop_punch_hours(punch)
+                if hours is not None and hours >= min_hours_value:
+                    kept.append(punch)
+            punches = kept
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = (
+            f'attachment; filename="pitstop_hours_{start_date.isoformat()}_to_{end_date.isoformat()}.csv"'
+        )
+        write_pitstop_hours_csv(response, punches)
         return response
 
 

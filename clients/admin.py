@@ -1905,31 +1905,117 @@ class ClientTextMessageAdmin(admin.ModelAdmin):
 
 @admin.register(WorkerTimePunch)
 class WorkerTimePunchAdmin(admin.ModelAdmin):
-    """Clock in/out log with geofence validation details."""
+    """Quick-glance clock log: compact columns, hidden GPS audit by default."""
 
     list_display = [
         'worker_account',
         'work_site',
         'clock_in_at',
         'clock_out_at',
+        'hours_display',
+        'geo_summary',
+    ]
+    list_filter = [
+        'work_site',
+        'clock_in_at',
         'clock_in_geo_basic_ok',
         'clock_out_geo_basic_ok',
     ]
-    list_filter = ['work_site', 'clock_in_geo_status', 'clock_out_geo_status', 'clock_in_at']
     search_fields = [
         'worker_account__client__first_name',
         'worker_account__client__last_name',
         'worker_account__phone',
         'work_site__name',
     ]
-    readonly_fields = [field.name for field in WorkerTimePunch._meta.fields]
     date_hierarchy = 'clock_in_at'
+    actions = ['export_pitstop_hours_csv']
 
-    def has_add_permission(self, request):
-        return False
+    fieldsets = (
+        ('Punch', {
+            'fields': (
+                'worker_account',
+                'work_site',
+                'clock_in_at',
+                'clock_out_at',
+                'hours_display',
+            ),
+        }),
+        ('Geofence', {
+            'fields': (
+                'clock_in_geo_basic_ok',
+                'clock_in_geo_basic_note',
+                'clock_out_geo_basic_ok',
+                'clock_out_geo_basic_note',
+            ),
+            'description': 'Out-of-range or unconfigured sites surface here. Adjust site coordinates in Work Sites if false positives appear.',
+        }),
+        ('Raw audit (advanced)', {
+            'classes': ('collapse',),
+            'fields': (
+                'assignment',
+                'clock_in_server_received_at',
+                'clock_out_server_received_at',
+                'clock_in_client_reported_at',
+                'clock_out_client_reported_at',
+                'clock_in_latitude',
+                'clock_in_longitude',
+                'clock_in_accuracy_meters',
+                'clock_in_geo_status',
+                'clock_in_geo_error',
+                'clock_out_latitude',
+                'clock_out_longitude',
+                'clock_out_accuracy_meters',
+                'clock_out_geo_status',
+                'clock_out_geo_error',
+            ),
+            'description': 'Raw GPS payload kept for audits. Superusers can correct records here.',
+        }),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        if request.user.is_superuser:
+            return ['hours_display']
+        return [f.name for f in WorkerTimePunch._meta.fields] + ['hours_display']
 
     def has_delete_permission(self, request, obj=None):
-        return False
+        return bool(request.user and request.user.is_superuser)
+
+    def hours_display(self, obj):
+        if not obj or not obj.clock_in_at or not obj.clock_out_at:
+            return '—'
+        seconds = max((obj.clock_out_at - obj.clock_in_at).total_seconds(), 0)
+        return f'{seconds / 3600:.2f}'
+    hours_display.short_description = 'Hours'
+
+    def geo_summary(self, obj):
+        if not obj:
+            return '—'
+        clock_in_ok = bool(obj.clock_in_geo_basic_ok)
+        clock_out_ok = bool(obj.clock_out_geo_basic_ok) if obj.clock_out_at else True
+        if clock_in_ok and clock_out_ok:
+            return format_html('<span style="color: #15803d; font-weight: 700;">✓ Geofence</span>')
+        notes = []
+        if not clock_in_ok and obj.clock_in_geo_basic_note:
+            notes.append(f'In: {obj.clock_in_geo_basic_note}')
+        if obj.clock_out_at and not clock_out_ok and obj.clock_out_geo_basic_note:
+            notes.append(f'Out: {obj.clock_out_geo_basic_note}')
+        detail = ' / '.join(notes) or 'Out of range or not captured'
+        return format_html('<span style="color: #b91c1c; font-weight: 700;">⚠ {}</span>', detail[:140])
+    geo_summary.short_description = 'Geofence'
+
+    @admin.action(description='Export selected punches to PitStop Hours CSV')
+    def export_pitstop_hours_csv(self, request, queryset):
+        from .reports import write_pitstop_hours_csv
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = (
+            f'attachment; filename="pitstop_hours_selection_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        )
+        write_pitstop_hours_csv(
+            response,
+            queryset.select_related('worker_account__client', 'work_site').order_by('-clock_in_at'),
+        )
+        return response
 
 
 @admin.register(WorkAssignment)
