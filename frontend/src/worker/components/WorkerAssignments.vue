@@ -26,7 +26,23 @@
 
       <div class="worker-status-note bg-slate-50 text-slate-700 border border-slate-200">
         <ClockIcon class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom" aria-hidden="true" />
-        {{ activePunch ? `Clocked in ${formatDateTime(activePunch.clock_in_at)}` : 'Currently clocked out.' }}
+        <template v-if="activePunch">
+          Clocked in for <strong>{{ activeDurationLabel }}</strong> · since {{ formatDateTime(activePunch.clock_in_at) }}
+        </template>
+        <template v-else>
+          Currently clocked out.
+        </template>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Today</p>
+          <p class="text-sm font-bold text-slate-900">{{ formatHours(todayDisplayHours) }}</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">This week</p>
+          <p class="text-sm font-bold text-slate-900">{{ formatHours(weekDisplayHours) }}</p>
+        </div>
       </div>
 
       <button
@@ -84,10 +100,14 @@ interface ActivePunch {
 }
 
 const PUNCH_COOLDOWN_MS = 2500
+const LIVE_TICK_MS = 30_000
 
 const sites = ref<WorkSite[]>([])
 const selectedSiteId = ref<number | null>(null)
 const activePunch = ref<ActivePunch | null>(null)
+const todayHours = ref(0)
+const weekHours = ref(0)
+const nowTick = ref(Date.now())
 const loading = ref(true)
 const busy = ref(false)
 const cooldown = ref(false)
@@ -95,6 +115,30 @@ const error = ref('')
 const message = ref('')
 const selectedSite = computed(() => sites.value.find((site) => site.id === selectedSiteId.value) || null)
 let cooldownTimer: ReturnType<typeof setTimeout> | null = null
+let liveTimer: ReturnType<typeof setInterval> | null = null
+
+const activeElapsedMs = computed(() => {
+  if (!activePunch.value?.clock_in_at) return 0
+  const started = new Date(activePunch.value.clock_in_at).getTime()
+  if (Number.isNaN(started)) return 0
+  return Math.max(nowTick.value - started, 0)
+})
+
+const activeDurationLabel = computed(() => {
+  const totalMinutes = Math.floor(activeElapsedMs.value / 60_000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours === 0) return `${minutes}m`
+  return `${hours}h ${minutes}m`
+})
+
+const todayDisplayHours = computed(() => todayHours.value + activeElapsedMs.value / 3_600_000)
+const weekDisplayHours = computed(() => weekHours.value + activeElapsedMs.value / 3_600_000)
+
+function formatHours(hours: number) {
+  if (!Number.isFinite(hours) || hours <= 0) return '0.00 hrs'
+  return `${hours.toFixed(2)} hrs`
+}
 
 function startCooldown() {
   cooldown.value = true
@@ -167,6 +211,9 @@ async function loadClockContext() {
     }
     sites.value = sitesBody
     activePunch.value = punchBody.active_punch
+    todayHours.value = Number(punchBody.today_hours) || 0
+    weekHours.value = Number(punchBody.week_hours) || 0
+    nowTick.value = Date.now()
     if (activePunch.value?.work_site) {
       selectedSiteId.value = activePunch.value.work_site
     } else if (sites.value.length > 0) {
@@ -223,9 +270,13 @@ async function submitPunch() {
 
 onMounted(() => {
   loadClockContext()
+  liveTimer = setInterval(() => {
+    nowTick.value = Date.now()
+  }, LIVE_TICK_MS)
 })
 
 onBeforeUnmount(() => {
   if (cooldownTimer) clearTimeout(cooldownTimer)
+  if (liveTimer) clearInterval(liveTimer)
 })
 </script>

@@ -103,6 +103,44 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNotNone(response.data['active_punch'])
         self.assertEqual(len(response.data['punches']), 1)
+        self.assertIn('today_hours', response.data)
+        self.assertIn('week_hours', response.data)
+
+    def test_worker_clock_context_returns_completed_hours_summary(self):
+        # Two completed punches today: 2h + 1.5h. Open punches excluded.
+        now = timezone.now().replace(microsecond=0)
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=now - timedelta(hours=6),
+            clock_out_at=now - timedelta(hours=4),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+        )
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=now - timedelta(hours=3),
+            clock_out_at=now - timedelta(hours=1, minutes=30),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+        )
+        # Open punch should NOT contribute to today_hours (server returns completed only).
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=now - timedelta(minutes=30),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+        )
+
+        response = self.api.get('/api/worker/time-punch/')
+
+        self.assertEqual(response.status_code, 200)
+        # 2h + 1.5h = 3.5 hours. Allow tiny rounding wiggle.
+        self.assertAlmostEqual(float(response.data['today_hours']), 3.5, places=2)
+        self.assertAlmostEqual(float(response.data['week_hours']), 3.5, places=2)
+        self.assertIsNotNone(response.data['active_punch'])
 
     def test_worker_can_clock_out(self):
         punch = WorkerTimePunch.objects.create(

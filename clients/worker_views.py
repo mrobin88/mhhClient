@@ -4,8 +4,10 @@ Worker Portal API — focused on worker clock in/out with geolocation.
 import json
 import math
 from datetime import datetime, timedelta, timezone as dt_timezone
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
+from django.db.models import DurationField, ExpressionWrapper, F, Sum
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
@@ -215,6 +217,48 @@ def _site_geo_validation(site, geo_payload):
     return True, f'Within geofence ({distance:.0f}m)', distance
 
 
+WORKER_LOCAL_TZ = ZoneInfo(getattr(settings, 'WORKER_PORTAL_DISPLAY_TZ', 'America/Los_Angeles'))
+
+
+def _local_day_bounds(now=None):
+    """Return (start_of_today, start_of_tomorrow) anchored to the worker portal's
+    display timezone, returned as timezone-aware datetimes (still UTC-comparable).
+
+    The DB stores everything in UTC, but workers see their day in local time.
+    """
+    now = now or timezone.now()
+    local_now = now.astimezone(WORKER_LOCAL_TZ)
+    start_today = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_tomorrow = start_today + timedelta(days=1)
+    return start_today, start_tomorrow
+
+
+def _completed_hours_in_range(account, start_dt, end_dt):
+    """Sum of completed punch durations in [start_dt, end_dt) for this worker.
+
+    Uses a single SQL aggregate. Open punches are excluded — the frontend adds
+    the live in-progress duration on top of these completed totals.
+    """
+    total = (
+        WorkerTimePunch.objects.filter(
+            worker_account=account,
+            clock_in_at__gte=start_dt,
+            clock_in_at__lt=end_dt,
+            clock_out_at__isnull=False,
+        )
+        .annotate(
+            duration=ExpressionWrapper(
+                F('clock_out_at') - F('clock_in_at'),
+                output_field=DurationField(),
+            )
+        )
+        .aggregate(total=Sum('duration'))['total']
+    )
+    if not total:
+        return 0.0
+    return round(max(total.total_seconds(), 0) / 3600, 2)
+
+
 def _punch_work_site(work_site_id):
     if not work_site_id:
         return None, Response(
@@ -350,10 +394,19 @@ def worker_time_punch(request):
             .order_by('-clock_in_at')[:25]
         )
         open_punch = next((p for p in punches if p.clock_out_at is None), None)
+
+        today_start, tomorrow_start = _local_day_bounds()
+        # "Last 7 days" includes today, so window is 7 calendar days back.
+        week_start = today_start - timedelta(days=6)
+        today_hours = _completed_hours_in_range(account, today_start, tomorrow_start)
+        week_hours = _completed_hours_in_range(account, week_start, tomorrow_start)
+
         return Response(
             {
                 'active_punch': WorkerTimePunchSerializer(open_punch).data if open_punch else None,
                 'punches': WorkerTimePunchSerializer(punches, many=True).data,
+                'today_hours': today_hours,
+                'week_hours': week_hours,
             }
         )
 
