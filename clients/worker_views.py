@@ -9,7 +9,13 @@ from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
-from rest_framework.decorators import api_view, authentication_classes, parser_classes, permission_classes
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    parser_classes,
+    permission_classes,
+    throttle_classes,
+)
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -26,6 +32,7 @@ from .serializers import (
     WorkSiteSerializer,
     WorkerTimePunchSerializer,
 )
+from .throttles import WorkerPunchThrottle
 
 class WorkerSession:
     """DB-backed worker portal session (multi-process safe)."""
@@ -329,6 +336,7 @@ def worker_shift_interests(request):
 
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
+@throttle_classes([WorkerPunchThrottle])
 def worker_time_punch(request):
     """Worker clock in/out with geolocation validated against selected PitStop site."""
     account, err = _require_worker(request)

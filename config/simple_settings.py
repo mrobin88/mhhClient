@@ -293,6 +293,7 @@ REST_FRAMEWORK = {
         'kiosk_lookup': os.getenv('THROTTLE_KIOSK_LOOKUP', '120/hour'),
         'kiosk_submit': os.getenv('THROTTLE_KIOSK_SUBMIT', '40/hour'),
         'kiosk_upload': os.getenv('THROTTLE_KIOSK_UPLOAD', '30/hour'),
+        'worker_punch': os.getenv('THROTTLE_WORKER_PUNCH', '10/min'),
     },
 }
 

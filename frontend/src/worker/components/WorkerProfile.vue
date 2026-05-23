@@ -1,23 +1,23 @@
 <template>
-  <div class="space-y-4">
-    <section class="worker-card p-4 space-y-3">
-      <h2 class="text-lg font-semibold text-slate-900">Profile</h2>
-      <div class="text-sm text-slate-700 space-y-2">
+  <div class="space-y-2">
+    <section class="worker-card p-3 space-y-1.5">
+      <h2 class="text-sm font-semibold text-slate-900">Profile</h2>
+      <div class="text-xs text-slate-700 space-y-0.5">
         <p><strong>Name:</strong> {{ profile?.client_name || 'Worker' }}</p>
         <p><strong>Phone:</strong> {{ profile?.phone || profile?.client_phone || '-' }}</p>
         <p><strong>Status:</strong> {{ profile?.worker_status_label || '-' }}</p>
       </div>
-      <p class="text-xs text-slate-500">Ask staff to update your name or phone number.</p>
+      <p class="text-[10px] text-slate-500">Ask staff to update your name or phone.</p>
     </section>
 
-    <section class="worker-card p-4 space-y-3">
-      <div class="flex items-start justify-between gap-3">
+    <section class="worker-card p-3 space-y-2">
+      <div class="flex items-start justify-between gap-2">
         <div>
-          <h2 class="text-lg font-semibold text-slate-900">Availability</h2>
-          <p class="text-sm text-slate-700">Tell staff if you can take work right now.</p>
+          <h2 class="text-sm font-semibold text-slate-900">Availability</h2>
+          <p class="text-[11px] text-slate-600">Can you take work right now?</p>
         </div>
         <span
-          class="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full"
+          class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
           :class="isAvailable ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'"
         >
           {{ isAvailable ? 'Available' : 'Not available' }}
@@ -31,7 +31,8 @@
         :disabled="busy"
         @click="toggleAvailability"
       >
-        <span v-if="busy">Saving...</span>
+        <span v-if="busy" class="worker-spinner" aria-hidden="true"></span>
+        <span v-if="busy">Saving</span>
         <span v-else>{{ isAvailable ? 'Set not available' : 'Set available' }}</span>
       </button>
 

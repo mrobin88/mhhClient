@@ -1,41 +1,46 @@
 <template>
-  <div class="space-y-4">
-    <p class="worker-section-intro">Clock in and out for your assigned PitStop shift.</p>
+  <div class="space-y-2">
+    <p class="worker-section-intro">Clock in / out for your PitStop shift.</p>
 
-    <div v-if="loading" class="text-center py-16 text-slate-500 text-base">Loading...</div>
+    <div v-if="loading" class="flex items-center justify-center py-6 text-slate-500 text-sm">
+      <span class="worker-spinner worker-spinner--dark" aria-hidden="true"></span>
+      Loading
+    </div>
 
-    <div v-else-if="error" class="rounded-xl bg-red-50 text-red-800 text-sm px-4 py-3 border border-red-100">
+    <div v-else-if="error" class="rounded-lg bg-red-50 text-red-800 text-xs px-3 py-2 border border-red-100">
       {{ error }}
     </div>
 
-    <div v-else-if="sites.length === 0" class="worker-card text-center py-14 px-4">
-      <InboxIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" aria-hidden="true" />
-      <p class="text-slate-600 font-medium">No active PitStop locations.</p>
-      <p class="text-sm text-slate-600 mt-1">Ask staff to enable at least one work site.</p>
+    <div v-else-if="sites.length === 0" class="worker-card text-center py-6 px-3">
+      <InboxIcon class="w-7 h-7 text-slate-300 mx-auto mb-2" aria-hidden="true" />
+      <p class="text-slate-600 text-sm font-medium">No active PitStop locations.</p>
+      <p class="text-xs text-slate-500 mt-0.5">Ask staff to enable a work site.</p>
     </div>
 
-    <section v-else class="worker-card p-4 sm:p-5 space-y-4">
-      <div class="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">PitStop location</p>
-        <p class="mt-1 text-sm font-semibold text-slate-900">{{ selectedSite?.name || 'Site not available' }}</p>
-        <p v-if="selectedSite?.address" class="mt-0.5 text-xs text-slate-600">{{ selectedSite.address }}</p>
+    <section v-else class="worker-card p-3 space-y-2">
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">PitStop location</p>
+        <p class="mt-0.5 text-sm font-semibold text-slate-900">{{ selectedSite?.name || 'Site not available' }}</p>
+        <p v-if="selectedSite?.address" class="text-[11px] text-slate-600">{{ selectedSite.address }}</p>
       </div>
 
       <div class="worker-status-note bg-slate-50 text-slate-700 border border-slate-200">
-        <ClockIcon class="w-4 h-4 inline-block mr-1.5 align-text-bottom" aria-hidden="true" />
-        {{ activePunch ? `Clocked in at ${activePunch.work_site_name} ${formatDateTime(activePunch.clock_in_at)}` : 'Currently clocked out.' }}
+        <ClockIcon class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom" aria-hidden="true" />
+        {{ activePunch ? `Clocked in ${formatDateTime(activePunch.clock_in_at)}` : 'Currently clocked out.' }}
       </div>
 
       <button
         type="button"
-        class="worker-btn worker-btn-normalized"
+        class="worker-btn"
         :class="activePunch ? 'worker-btn-secondary' : 'worker-btn-primary'"
-        :disabled="busy || (!activePunch && !selectedSite)"
+        :disabled="busy || cooldown || (!activePunch && !selectedSite)"
         @click="submitPunch()"
       >
-        <StopCircleIcon v-if="activePunch" class="w-4 h-4" aria-hidden="true" />
-        <PlayCircleIcon v-else class="w-4 h-4" aria-hidden="true" />
-        <span v-if="busy">Sending...</span>
+        <span v-if="busy" class="worker-spinner" aria-hidden="true"></span>
+        <StopCircleIcon v-else-if="activePunch" class="w-3.5 h-3.5" aria-hidden="true" />
+        <PlayCircleIcon v-else class="w-3.5 h-3.5" aria-hidden="true" />
+        <span v-if="busy">Sending</span>
+        <span v-else-if="cooldown">Please wait…</span>
         <span v-else>{{ activePunch ? 'Clock out' : 'Clock in' }}</span>
       </button>
     </section>
@@ -45,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   ClockIcon,
   InboxIcon,
@@ -78,14 +83,26 @@ interface ActivePunch {
   clock_in_at: string
 }
 
+const PUNCH_COOLDOWN_MS = 2500
+
 const sites = ref<WorkSite[]>([])
 const selectedSiteId = ref<number | null>(null)
 const activePunch = ref<ActivePunch | null>(null)
 const loading = ref(true)
 const busy = ref(false)
+const cooldown = ref(false)
 const error = ref('')
 const message = ref('')
 const selectedSite = computed(() => sites.value.find((site) => site.id === selectedSiteId.value) || null)
+let cooldownTimer: ReturnType<typeof setTimeout> | null = null
+
+function startCooldown() {
+  cooldown.value = true
+  if (cooldownTimer) clearTimeout(cooldownTimer)
+  cooldownTimer = setTimeout(() => {
+    cooldown.value = false
+  }, PUNCH_COOLDOWN_MS)
+}
 
 function formatDateTime(iso: string) {
   if (!iso) return ''
@@ -165,11 +182,13 @@ async function loadClockContext() {
 }
 
 async function submitPunch() {
+  if (busy.value || cooldown.value) return
   if (!activePunch.value && !selectedSite.value) {
     error.value = 'No active PitStop location available.'
     return
   }
   busy.value = true
+  startCooldown()
   error.value = ''
   message.value = ''
   try {
@@ -184,6 +203,10 @@ async function submitPunch() {
         geolocation,
       }),
     })
+    if (resp.status === 429) {
+      error.value = 'Too many requests. Wait a moment and try again.'
+      return
+    }
     const body = await resp.json().catch(() => null)
     if (!resp.ok || !body) {
       error.value = body?.error || body?.action?.[0] || 'Could not submit clock action.'
@@ -201,20 +224,8 @@ async function submitPunch() {
 onMounted(() => {
   loadClockContext()
 })
+
+onBeforeUnmount(() => {
+  if (cooldownTimer) clearTimeout(cooldownTimer)
+})
 </script>
-
-<style scoped>
-.worker-btn-normalized {
-  min-height: 44px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  border-radius: 0.75rem;
-}
-
-@media (max-width: 1024px) {
-  .worker-btn-normalized {
-    min-height: 46px;
-    font-size: 0.94rem;
-  }
-}
-</style>

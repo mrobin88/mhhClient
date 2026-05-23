@@ -1,29 +1,20 @@
 <template>
   <div class="worker-login-shell">
-    <div class="max-w-md w-full">
-      <div class="text-center mb-8">
+    <div class="max-w-xs w-full">
+      <div class="text-center mb-3">
         <div class="worker-login-brand">
           <BriefcaseIcon aria-hidden="true" />
         </div>
-        <h1 class="text-3xl font-semibold text-slate-900 tracking-tight">PitStop Worker Portal</h1>
-        <p class="text-sm text-slate-700 mt-2 max-w-sm mx-auto leading-relaxed">
-          Sign in with your phone and PIN to view open shifts, respond faster, and keep your work record current.
-        </p>
+        <h1 class="text-lg font-semibold text-slate-900 tracking-tight">PitStop Worker</h1>
+        <p class="text-[11px] text-slate-600 mt-0.5">Sign in with your phone and PIN.</p>
       </div>
 
-      <div class="worker-card p-6 sm:p-8">
-        <div class="mb-5 rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-900">
-          <p class="font-semibold mb-1">Why this helps you</p>
-          <p>Get open shifts quickly and keep your requests visible to supervisors.</p>
-        </div>
-        <form @submit.prevent="handleLogin" class="space-y-5">
+      <div class="worker-card p-3">
+        <form @submit.prevent="handleLogin" class="space-y-2.5">
           <div>
-            <label for="phone" class="block text-sm font-semibold text-slate-800 mb-2">Mobile number</label>
+            <label for="phone" class="block text-[11px] font-semibold text-slate-800 mb-1">Mobile number</label>
             <div class="worker-input-wrap">
-              <DevicePhoneMobileIcon
-                class="worker-input-icon"
-                aria-hidden="true"
-              />
+              <DevicePhoneMobileIcon class="worker-input-icon" aria-hidden="true" />
               <input
                 id="phone"
                 v-model="phone"
@@ -39,12 +30,9 @@
           </div>
 
           <div>
-            <label for="pin" class="block text-sm font-semibold text-slate-800 mb-2">PIN (4 digits)</label>
+            <label for="pin" class="block text-[11px] font-semibold text-slate-800 mb-1">PIN (4 digits)</label>
             <div class="worker-input-wrap">
-              <LockClosedIcon
-                class="worker-input-icon"
-                aria-hidden="true"
-              />
+              <LockClosedIcon class="worker-input-icon" aria-hidden="true" />
               <input
                 id="pin"
                 v-model="pin"
@@ -61,28 +49,25 @@
             <button
               type="button"
               @click="useLast4()"
-              class="worker-btn worker-btn-secondary mt-2 min-h-[44px] text-sm"
+              class="worker-btn worker-btn-secondary mt-1.5 text-[11px]"
             >
-              Use last 4 digits of my number as PIN
+              Use last 4 of my number
             </button>
           </div>
 
-          <div v-if="error" class="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+          <div v-if="error" class="text-[11px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">
             {{ error }}
           </div>
 
-          <button
-            type="submit"
-            :disabled="loading"
-            class="worker-btn worker-btn-primary"
-          >
-            <span v-if="loading">Signing in…</span>
+          <button type="submit" :disabled="loading" class="worker-btn worker-btn-primary">
+            <span v-if="loading" class="worker-spinner" aria-hidden="true"></span>
+            <span v-if="loading">Signing in</span>
             <span v-else>Sign in</span>
           </button>
         </form>
 
-        <p class="text-xs text-slate-600 text-center mt-6">
-          PitStop workers only. Ask your supervisor if you need a PIN reset.
+        <p class="text-[10px] text-slate-500 text-center mt-2.5">
+          PitStop workers only. Ask your supervisor for PIN reset.
         </p>
       </div>
     </div>

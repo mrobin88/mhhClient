@@ -3,6 +3,7 @@
 .worker-portal {
   font-family: 'Inter', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
   color: #0f172a;
+  -webkit-text-size-adjust: 100%;
 }
 
 .worker-portal * {
@@ -12,14 +13,35 @@
 .worker-card {
   background: #ffffff;
   border: 1px solid #cbd5e1;
-  border-radius: 16px;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
 }
 
 .worker-section-intro {
-  color: #1e293b;
-  font-size: 0.95rem;
-  line-height: 1.55;
+  color: #475569;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.worker-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: worker-spin 0.7s linear infinite;
+  vertical-align: -2px;
+}
+
+.worker-spinner--dark {
+  border-color: rgba(15, 23, 42, 0.18);
+  border-top-color: #0f172a;
+}
+
+@keyframes worker-spin {
+  to { transform: rotate(360deg); }
 }
 
 .worker-label {
@@ -63,13 +85,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.4rem;
   width: 100%;
-  min-height: 44px;
+  min-height: 38px;
   border: 1px solid transparent;
-  border-radius: 12px;
-  font-size: 0.92rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 0.005em;
+  padding: 0.4rem 0.8rem;
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease;
 }
 
@@ -113,46 +137,46 @@
 }
 
 .worker-status-note {
-  border-radius: 12px;
-  padding: 0.7rem 0.85rem;
-  font-size: 0.86rem;
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
 .worker-login-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(to bottom, #f1f5f9, #ffffff);
-  padding: 2.5rem 1rem;
+  padding: 1.25rem 1rem;
 }
 
 .worker-login-brand {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 4rem;
-  height: 4rem;
-  margin-bottom: 1rem;
-  border-radius: 1rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: 0.6rem;
+  border-radius: 0.85rem;
   background: #0f766e;
   color: #ffffff;
-  box-shadow: 0 10px 18px rgba(15, 118, 110, 0.22);
+  box-shadow: 0 6px 14px rgba(15, 118, 110, 0.22);
 }
 
 .worker-login-brand svg {
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 1.5rem;
+  height: 1.5rem;
   flex: none;
 }
 
 .worker-input-wrap {
   display: flex;
   align-items: center;
-  min-height: 48px;
+  min-height: 42px;
   border: 1px solid #94a3b8;
-  border-radius: 14px;
+  border-radius: 10px;
   background: #ffffff;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
@@ -176,9 +200,9 @@
   border: 0;
   background: transparent;
   color: #020617;
-  font-size: 1rem;
-  line-height: 1.4;
-  padding: 0.75rem 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  padding: 0.5rem 0.7rem;
   outline: none;
 }
 
