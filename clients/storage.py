@@ -4,6 +4,7 @@ Azure Blob Storage configuration for client documents
 
 import os
 import logging
+from contextvars import ContextVar
 from urllib.parse import quote
 from django.conf import settings
 from storages.backends.azure_storage import AzureStorage
@@ -11,6 +12,21 @@ from azure.storage.blob import generate_blob_sas, BlobSasPermissions, BlobServic
 from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger('clients')
+
+# Per-request cache so repeated checks for the same blob do not fan out HEAD calls.
+_blob_exists_cache: ContextVar[dict | None] = ContextVar('blob_exists_cache', default=None)
+
+
+def clear_blob_exists_cache():
+    _blob_exists_cache.set({})
+
+
+def _cache_blob_result(blob_name, result):
+    cache = _blob_exists_cache.get()
+    if cache is None:
+        cache = {}
+        _blob_exists_cache.set(cache)
+    cache[blob_name] = result
 
 
 class AzurePrivateStorage(AzureStorage):
@@ -23,7 +39,7 @@ class AzurePrivateStorage(AzureStorage):
     expiration_secs = 15 * 60  # 15-minute SAS tokens
     overwrite_files = False
     location = ''
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.default_acl = None
@@ -51,12 +67,11 @@ def _get_blob_service():
     return service, account_name, container_name
 
 
-def blob_exists(blob_name):
-    """Check if a blob exists in Azure Storage. Returns the found path or None."""
+def _blob_exists_uncached(blob_name):
     service, account_name, container_name = _get_blob_service()
     if not service:
         return None
-    
+
     container = service.get_container_client(container_name)
 
     # Normalize: strip leading slash and container prefix
@@ -77,12 +92,31 @@ def blob_exists(blob_name):
         paths.extend([f'resumes/{blob_name}', f'documents/{blob_name}'])
 
     for path in dict.fromkeys(paths):  # dedupe, preserve order
+        cache = _blob_exists_cache.get()
+        if cache is not None and path in cache:
+            found = cache[path]
+            if found:
+                return found
+            continue
         try:
             if container.get_blob_client(path).exists():
+                _cache_blob_result(path, path)
                 return path
         except Exception:
             continue
+        _cache_blob_result(path, None)
     return None
+
+
+def blob_exists(blob_name):
+    """Check if a blob exists in Azure Storage. Returns the found path or None."""
+    cache = _blob_exists_cache.get()
+    if cache is not None and blob_name in cache:
+        return cache[blob_name]
+
+    result = _blob_exists_uncached(blob_name)
+    _cache_blob_result(blob_name, result)
+    return result
 
 
 def generate_document_sas_url(blob_name, expiry_minutes=15):

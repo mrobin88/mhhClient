@@ -208,10 +208,9 @@ class DocumentInline(admin.TabularInline):
     def inline_download(self, obj):
         if not obj or not obj.pk or not obj.file:
             return format_html('<span style="color: #999;">-</span>')
-        url = obj.download_url
-        if url:
-            return format_html('<a href="{}" target="_blank">📥 Download</a>', url)
-        return format_html('<span style="color: #f44336;" title="File missing from Azure">⚠️ Missing</span>')
+        # Use authenticated API download — avoids N Azure HEAD checks per client page load.
+        url = reverse('document-download', kwargs={'pk': obj.pk})
+        return format_html('<a href="{}" target="_blank">📥 Download</a>', url)
     inline_download.short_description = 'Download'
 
 
@@ -565,44 +564,33 @@ class ClientAdmin(admin.ModelAdmin):
     has_resume.short_description = 'Resume'
     
     def resume_preview(self, obj):
-        """Display preview/download link for resume, or re-upload prompt if missing."""
+        """Download link only — no Azure blob checks or embedded previews on page load."""
         if not obj.resume:
             return format_html('<span style="color: #999;">No resume uploaded</span>')
-        
+
         filename = obj.resume.name.split('/')[-1]
-        
-        try:
-            download_url = obj.resume_download_url
-        except FileNotFoundError:
-            download_url = None
-        except Exception as e:
-            logging.getLogger('clients').error('Resume preview error for Client %s: %s', obj.pk, e)
-            download_url = None
-        
-        if not download_url:
-            return format_html(
-                '<div style="padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px;">'
-                '<strong style="color: #856404;">⚠️ File Missing from Azure Storage</strong><br>'
-                '<span style="color: #856404;">File <code>{}</code> is not in Azure.</span><br>'
-                '<span style="color: #856404;">Use the "Choose File" button above to re-upload it, then click Save.</span>'
-                '</div>',
-                filename
-            )
-        
-        file_type = obj.get_resume_file_type()
-        preview_html = '<div style="margin-top: 10px;">'
-        
-        if file_type == 'pdf':
-            preview_html += f'<div style="margin-bottom: 10px;"><strong>Preview:</strong><br><iframe src="{download_url}" width="100%" height="600px" style="border: 1px solid #ddd; border-radius: 4px;"></iframe></div>'
-        elif file_type == 'image':
-            preview_html += f'<div style="margin-bottom: 10px;"><strong>Preview:</strong><br><img src="{download_url}" alt="{filename}" style="max-width: 100%; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; padding: 5px;"></div>'
-        else:
-            preview_html += f'<div style="margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;"><strong>File:</strong> {filename}<br><em>Preview not available for this file type. Please download to view.</em></div>'
-        
-        preview_html += f'<div><a href="{download_url}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #1976d2; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">📥 Download Resume</a></div>'
-        preview_html += '</div>'
-        return format_html(preview_html)
-    resume_preview.short_description = 'Resume Preview & Download'
+        download_url = reverse('client-resume-download', kwargs={'pk': obj.pk})
+        file_type = obj.get_resume_file_type() or 'other'
+        type_label = {
+            'pdf': 'PDF',
+            'image': 'Image',
+            'word': 'Word document',
+        }.get(file_type, 'File')
+
+        return format_html(
+            '<div style="padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">'
+            '<strong>{}</strong> ({})<br>'
+            '<a href="{}" target="_blank" style="display: inline-block; margin-top: 10px; padding: 8px 16px; '
+            'background: #1976d2; color: white; text-decoration: none; border-radius: 4px;">'
+            '📥 Download resume</a>'
+            '<p style="margin: 10px 0 0; color: #64748b; font-size: 12px;">'
+            'Opens on demand so this page stays fast for clients with many documents.</p>'
+            '</div>',
+            filename,
+            type_label,
+            download_url,
+        )
+    resume_preview.short_description = 'Resume'
     
     def case_notes_count(self, obj):
         # Uses queryset annotation to avoid per-row COUNT queries on changelist.
@@ -673,26 +661,24 @@ class ClientAdmin(admin.ModelAdmin):
         # masked_ssn is always readonly since it's a display method
         return readonly
     
-    def get_fields(self, request, obj=None):
-        """Allow superusers to edit actual SSN field"""
+    def get_fieldsets(self, request, obj=None):
+        """Superusers edit raw SSN; never mutate class-level fieldsets."""
         self._current_request = request
-        fields = list(super().get_fields(request, obj))
-        
-        # For superusers, show both masked view and editable SSN field
-        if request.user.is_superuser and obj:
-            # Find where masked_ssn is and add actual ssn field after it
-            personal_info_fields = list(self.fieldsets[0][1]['fields'])
-            if 'masked_ssn' in personal_info_fields and 'ssn' not in personal_info_fields:
-                # Replace masked_ssn with ssn for superusers in edit mode
-                idx = personal_info_fields.index('masked_ssn')
-                personal_info_fields[idx] = 'ssn'
-                self.fieldsets = (
-                    ('Personal Information', {
-                        'fields': tuple(personal_info_fields)
-                    }),
-                ) + self.fieldsets[1:]
-        
-        return fields
+        fieldsets = list(super().get_fieldsets(request, obj))
+        if obj and request.user.is_superuser:
+            title, options = fieldsets[0]
+            personal = list(options['fields'])
+            if 'masked_ssn' in personal and 'ssn' not in personal:
+                personal = [
+                    'ssn' if field == 'masked_ssn' else field
+                    for field in personal
+                ]
+                fieldsets[0] = (title, {**options, 'fields': tuple(personal)})
+        return fieldsets
+
+    def get_fields(self, request, obj=None):
+        self._current_request = request
+        return super().get_fields(request, obj)
     
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(case_notes_total=Count('casenotes'))
@@ -999,46 +985,30 @@ class DocumentAdmin(admin.ModelAdmin):
     file_size_mb.short_description = 'File Size'
     
     def file_preview(self, obj):
-        """Display preview/download link, or re-upload prompt if missing."""
+        """Download link only — blob verification runs when staff clicks download."""
         if not obj.file:
             return format_html('<span style="color: #999;">No file uploaded</span>')
-        
+
         filename = obj.file.name.split('/')[-1]
-        download_url = obj.download_url
-        
-        if not download_url:
-            return format_html(
-                '<div style="padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px;">'
-                '<strong style="color: #856404;">⚠️ File Missing from Azure Storage</strong><br>'
-                '<span style="color: #856404;">File <code>{}</code> is not in Azure.</span><br>'
-                '<span style="color: #856404;">Use the "Choose File" button above to re-upload it, then click Save.</span>'
-                '</div>',
-                filename
-            )
-        
-        file_type = obj.get_file_type()
-        preview_html = '<div style="margin-top: 10px;">'
-        
-        if file_type == 'pdf':
-            preview_html += f'<div style="margin-bottom: 10px;"><strong>Preview:</strong><br><iframe src="{download_url}" width="100%" height="600px" style="border: 1px solid #ddd; border-radius: 4px;"></iframe></div>'
-        elif file_type == 'image':
-            preview_html += f'<div style="margin-bottom: 10px;"><strong>Preview:</strong><br><img src="{download_url}" alt="{filename}" style="max-width: 100%; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; padding: 5px;"></div>'
-        else:
-            preview_html += f'<div style="margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;"><strong>File:</strong> {filename}<br><em>Preview not available for this file type. Please download to view.</em></div>'
-        
-        preview_html += f'<div><a href="{download_url}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #1976d2; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">📥 Download Document</a></div>'
-        preview_html += '</div>'
-        return format_html(preview_html)
-    file_preview.short_description = 'Preview & Download'
+        download_url = reverse('document-download', kwargs={'pk': obj.pk})
+        return format_html(
+            '<div style="margin-top: 10px;">'
+            '<strong>{}</strong><br>'
+            '<a href="{}" target="_blank" style="display: inline-block; margin-top: 10px; padding: 8px 16px; '
+            'background: #1976d2; color: white; text-decoration: none; border-radius: 4px;">'
+            '📥 Download document</a>'
+            '</div>',
+            filename,
+            download_url,
+        )
+    file_preview.short_description = 'Download'
     
     def download_link(self, obj):
         """Quick download link for list view"""
         if not obj.file:
             return '-'
-        download_url = obj.download_url
-        if download_url:
-            return format_html('<a href="{}" target="_blank">📥</a>', download_url)
-        return format_html('<span style="color: #f44336;" title="File missing from Azure">⚠️</span>')
+        download_url = reverse('document-download', kwargs={'pk': obj.pk})
+        return format_html('<a href="{}" target="_blank">📥</a>', download_url)
     download_link.short_description = 'Download'
     
     def blob_path_info(self, obj):

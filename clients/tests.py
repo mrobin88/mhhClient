@@ -453,3 +453,58 @@ class SmsInternalOnlyGuardrailTests(TestCase):
         ok, detail = send_phone_text_message(phone='9255501111', body='Test')
         self.assertTrue(ok)
         self.assertIn('+19255501111', detail)
+
+
+@override_settings(
+    MEDIA_ROOT=TEST_MEDIA_ROOT,
+    STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage',
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    },
+)
+class ClientAdminChangeViewTests(TestCase):
+    """Client admin change must not HEAD-check every Azure blob on page load."""
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_superuser(
+            username='admin',
+            password='testpass123',
+            email='admin@example.com',
+        )
+        self.django_client = DjangoTestClient()
+        self.django_client.force_login(self.staff)
+        self.client_record = Client.objects.create(
+            first_name='Davis',
+            last_name='Example',
+            phone='4155559999',
+            email='davis@example.com',
+            gender='M',
+            training_interest='general',
+            status='active',
+        )
+        self.client_record.resume = SimpleUploadedFile('resume.pdf', b'%PDF-1.4 resume')
+        self.client_record.save()
+        for idx in range(8):
+            Document.objects.create(
+                client=self.client_record,
+                title=f'Document {idx}',
+                doc_type='other',
+                file=SimpleUploadedFile(f'doc{idx}.jpg', b'jpeg-bytes'),
+                uploaded_by='admin',
+            )
+
+    @patch('clients.storage.blob_exists')
+    def test_client_change_page_loads_without_azure_blob_checks(self, blob_exists_mock):
+        url = reverse('admin:clients_client_change', args=[self.client_record.pk])
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        blob_exists_mock.assert_not_called()
+        self.assertContains(response, 'Download resume')
+        self.assertContains(response, '/api/documents/')
