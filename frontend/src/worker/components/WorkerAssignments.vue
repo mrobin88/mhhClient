@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-2">
-    <p class="worker-section-intro">Clock in / out for your PitStop shift.</p>
+    <p class="worker-section-intro">Tap to clock in or out for your shift.</p>
 
     <div v-if="loading" class="flex items-center justify-center py-6 text-slate-500 text-sm">
       <span class="worker-spinner worker-spinner--dark" aria-hidden="true"></span>
@@ -11,19 +11,7 @@
       {{ error }}
     </div>
 
-    <div v-else-if="sites.length === 0" class="worker-card text-center py-6 px-3">
-      <InboxIcon class="w-7 h-7 text-slate-300 mx-auto mb-2" aria-hidden="true" />
-      <p class="text-slate-600 text-sm font-medium">No active PitStop locations.</p>
-      <p class="text-xs text-slate-500 mt-0.5">Ask staff to enable a work site.</p>
-    </div>
-
     <section v-else class="worker-card p-3 space-y-2">
-      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">PitStop location</p>
-        <p class="mt-0.5 text-sm font-semibold text-slate-900">{{ selectedSite?.name || 'Site not available' }}</p>
-        <p v-if="selectedSite?.address" class="text-[11px] text-slate-600">{{ selectedSite.address }}</p>
-      </div>
-
       <div class="worker-status-note bg-slate-50 text-slate-700 border border-slate-200">
         <ClockIcon class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom" aria-hidden="true" />
         <template v-if="activePunch">
@@ -49,7 +37,7 @@
         type="button"
         class="worker-btn"
         :class="activePunch ? 'worker-btn-secondary' : 'worker-btn-primary'"
-        :disabled="busy || cooldown || (!activePunch && !selectedSite)"
+        :disabled="busy || cooldown"
         @click="submitPunch()"
       >
         <span v-if="busy" class="worker-spinner" aria-hidden="true"></span>
@@ -69,19 +57,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   ClockIcon,
-  InboxIcon,
   PlayCircleIcon,
   StopCircleIcon,
 } from '@heroicons/vue/24/outline'
 import { workerFetch } from '../api'
 
 type GeoStatus = 'captured' | 'denied' | 'unavailable' | 'timeout' | 'error' | 'skipped'
-
-interface WorkSite {
-  id: number
-  name: string
-  address: string
-}
 
 interface GeoPayload {
   status: GeoStatus
@@ -94,16 +75,12 @@ interface GeoPayload {
 
 interface ActivePunch {
   id: number
-  work_site: number | null
-  work_site_name?: string
   clock_in_at: string
 }
 
 const PUNCH_COOLDOWN_MS = 2500
 const LIVE_TICK_MS = 30_000
 
-const sites = ref<WorkSite[]>([])
-const selectedSiteId = ref<number | null>(null)
 const activePunch = ref<ActivePunch | null>(null)
 const todayHours = ref(0)
 const weekHours = ref(0)
@@ -113,7 +90,6 @@ const busy = ref(false)
 const cooldown = ref(false)
 const error = ref('')
 const message = ref('')
-const selectedSite = computed(() => sites.value.find((site) => site.id === selectedSiteId.value) || null)
 let cooldownTimer: ReturnType<typeof setTimeout> | null = null
 let liveTimer: ReturnType<typeof setInterval> | null = null
 
@@ -199,28 +175,16 @@ async function loadClockContext() {
   loading.value = true
   error.value = ''
   try {
-    const [sitesResp, punchResp] = await Promise.all([
-      workerFetch('/api/worker/work-sites/'),
-      workerFetch('/api/worker/time-punch/'),
-    ])
-    const sitesBody = await sitesResp.json().catch(() => null)
+    const punchResp = await workerFetch('/api/worker/time-punch/')
     const punchBody = await punchResp.json().catch(() => null)
-    if (!sitesResp.ok || !sitesBody || !punchResp.ok || !punchBody) {
-      error.value = sitesBody?.error || punchBody?.error || 'Could not load clock data.'
+    if (!punchResp.ok || !punchBody) {
+      error.value = punchBody?.error || 'Could not load clock data.'
       return
     }
-    sites.value = sitesBody
     activePunch.value = punchBody.active_punch
     todayHours.value = Number(punchBody.today_hours) || 0
     weekHours.value = Number(punchBody.week_hours) || 0
     nowTick.value = Date.now()
-    if (activePunch.value?.work_site) {
-      selectedSiteId.value = activePunch.value.work_site
-    } else if (sites.value.length > 0) {
-      selectedSiteId.value = sites.value[0].id
-    } else {
-      selectedSiteId.value = null
-    }
   } catch {
     error.value = 'No connection. Try again.'
   } finally {
@@ -230,15 +194,14 @@ async function loadClockContext() {
 
 async function submitPunch() {
   if (busy.value || cooldown.value) return
-  if (!activePunch.value && !selectedSite.value) {
-    error.value = 'No active PitStop location available.'
-    return
-  }
   busy.value = true
   startCooldown()
   error.value = ''
   message.value = ''
   try {
+    // Geolocation is still captured and stored server-side for audit; the
+    // worker UI just doesn't bind it to a specific site since assignments
+    // aren't given out through the portal.
     const geolocation = await captureGeolocation()
     const action = activePunch.value ? 'clock_out' : 'clock_in'
     const resp = await workerFetch('/api/worker/time-punch/', {
@@ -246,7 +209,6 @@ async function submitPunch() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action,
-        work_site_id: selectedSite.value?.id || selectedSiteId.value,
         geolocation,
       }),
     })

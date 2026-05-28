@@ -259,12 +259,16 @@ def _completed_hours_in_range(account, start_dt, end_dt):
     return round(max(total.total_seconds(), 0) / 3600, 2)
 
 
-def _punch_work_site(work_site_id):
+def _resolve_optional_work_site(work_site_id):
+    """Look up an optional WorkSite.
+
+    Worker assignments are still scheduled manually, so the worker app doesn't
+    pick a site at punch time. We keep the FK for backward compatibility — if
+    a caller (e.g. an older client or staff tooling) provides a site id, we
+    honor it. Missing id is fine; an unknown id is a soft error.
+    """
     if not work_site_id:
-        return None, Response(
-            {'work_site_id': ['Choose your PitStop location.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return None, None
     try:
         site = WorkSite.objects.get(pk=work_site_id, is_active=True)
     except (TypeError, ValueError, WorkSite.DoesNotExist):
@@ -417,12 +421,17 @@ def worker_time_punch(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    site, site_err = _punch_work_site(request.data.get('work_site_id'))
+    site, site_err = _resolve_optional_work_site(request.data.get('work_site_id'))
     if site_err:
         return site_err
 
     geo = _parse_geo_payload(request.data.get('geolocation'))
-    geo_basic_ok, geo_basic_note, _geo_distance = _site_geo_validation(site, geo)
+    # When a site is provided, gate on the geofence. Without a site we still
+    # record lat/long and grade it on format/precision only.
+    if site is not None:
+        geo_basic_ok, geo_basic_note, _geo_distance = _site_geo_validation(site, geo)
+    else:
+        geo_basic_ok, geo_basic_note = _basic_geo_validation(geo)
     now = timezone.now()
 
     open_punch = (
@@ -454,9 +463,10 @@ def worker_time_punch(request):
             clock_in_geo_basic_ok=geo_basic_ok,
             clock_in_geo_basic_note=geo_basic_note,
         )
+        clock_in_message = f'Clocked in at {site.name}.' if site else 'Clocked in.'
         return Response(
             {
-                'message': f'Clocked in at {site.name}.',
+                'message': clock_in_message,
                 'punch': WorkerTimePunchSerializer(punch).data,
             },
             status=status.HTTP_201_CREATED,
@@ -492,9 +502,14 @@ def worker_time_punch(request):
             'clock_out_geo_basic_note',
         ]
     )
+    clock_out_message = (
+        f'Clocked out from {open_punch.work_site.name}.'
+        if open_punch.work_site
+        else 'Clocked out.'
+    )
     return Response(
         {
-            'message': f'Clocked out from {open_punch.work_site.name if open_punch.work_site else "site"}.',
+            'message': clock_out_message,
             'punch': WorkerTimePunchSerializer(open_punch).data,
         }
     )
