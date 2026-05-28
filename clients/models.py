@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.db import models
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -243,6 +245,10 @@ class CaseNote(models.Model):
     content = models.TextField(help_text='Case note content')
     next_steps = models.TextField(blank=True, null=True, help_text='Next steps or action items')
     follow_up_date = models.DateField(blank=True, null=True, help_text='When to follow up')
+    note_date = models.DateField(
+        default=date.today,
+        help_text='Date the interaction happened (use for retroactive entry).',
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -253,8 +259,23 @@ class CaseNote(models.Model):
         verbose_name = 'Case Note'
         verbose_name_plural = 'Case Notes'
     
+    def save(self, *args, **kwargs):
+        if not self.note_date:
+            if self.created_at:
+                self.note_date = self.created_at.date()
+            else:
+                from django.utils.timezone import localdate
+                self.note_date = localdate()
+        super().save(*args, **kwargs)
+
+    @property
+    def service_date(self):
+        """Date shown on timelines and reports."""
+        return self.note_date
+
     def __str__(self):
-        return f"{self.client.full_name} - {self.note_type} - {self.created_at.strftime('%m/%d/%Y')}"
+        date_label = self.note_date.strftime('%m/%d/%Y') if self.note_date else '—'
+        return f"{self.client.full_name} - {self.note_type} - {date_label}"
     
     @property
     def is_overdue_followup(self):

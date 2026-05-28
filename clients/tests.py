@@ -1,6 +1,6 @@
 import shutil
 import tempfile
-from datetime import date, time, timedelta
+from datetime import date, time, timedelta  # date used for note_date tests
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
@@ -506,5 +506,30 @@ class ClientAdminChangeViewTests(TestCase):
         response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
         blob_exists_mock.assert_not_called()
-        self.assertContains(response, 'Download resume')
-        self.assertContains(response, '/api/documents/')
+        self.assertContains(response, 'documents hub')
+        self.assertContains(response, 'Document checklist')
+        self.assertNotContains(response, 'Supporting Documents')
+
+    def test_client_documents_hub_lists_files_without_blob_checks(self):
+        url = reverse('admin:clients_client_documents', args=[self.client_record.pk])
+        with patch('clients.storage.blob_exists') as blob_exists_mock:
+            response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        blob_exists_mock.assert_not_called()
+        self.assertContains(response, 'Download')
+        self.assertContains(response, 'Government ID')
+
+    def test_case_note_inline_includes_editable_note_date(self):
+        from clients.models import CaseNote
+        CaseNote.objects.create(
+            client=self.client_record,
+            staff_member='admin',
+            note_type='general',
+            content='Retro entry',
+            note_date=date(2025, 9, 2),
+        )
+        url = reverse('admin:clients_client_change', args=[self.client_record.pk])
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'note_date')
+        self.assertContains(response, '2025-09-02')

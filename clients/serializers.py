@@ -55,41 +55,26 @@ class CaseNoteSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at', 'formatted_timestamp', 'formatted_date', 'relative_time', 'note_type_display']
     
     def get_formatted_timestamp(self, obj):
-        """Return formatted timestamp: Jan 15, 2025 at 2:30 PM"""
-        if not obj.created_at:
+        if not obj.note_date:
             return None
-        return obj.created_at.strftime('%b %d, %Y at %I:%M %p')
+        return obj.note_date.strftime('%b %d, %Y')
     
     def get_formatted_date(self, obj):
-        """Return formatted date: Jan 15, 2025"""
-        if not obj.created_at:
+        if not obj.note_date:
             return None
-        return obj.created_at.strftime('%b %d, %Y')
+        return obj.note_date.strftime('%b %d, %Y')
     
     def get_relative_time(self, obj):
-        """Return relative time: 2 hours ago, 3 days ago, etc."""
-        if not obj.created_at:
+        if not obj.note_date:
             return None
-        
-        from django.utils import timezone
-        now = timezone.now()
-        
-        # Handle both timezone-aware and naive datetimes
-        if obj.created_at.tzinfo:
-            diff = now - obj.created_at
-        else:
-            diff = timezone.make_aware(now) - timezone.make_aware(obj.created_at)
-        
-        if diff.days > 0:
-            return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
-        elif diff.seconds >= 3600:
-            hours = diff.seconds // 3600
-            return f"{hours} hour{'s' if hours > 1 else ''} ago"
-        elif diff.seconds >= 60:
-            minutes = diff.seconds // 60
-            return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
-        else:
-            return "just now"
+
+        from datetime import date
+        days = (date.today() - obj.note_date).days
+        if days > 0:
+            return f"{days} day{'s' if days != 1 else ''} ago"
+        if days < 0:
+            return f"in {abs(days)} day{'s' if abs(days) != 1 else ''}"
+        return 'today'
 
 
 class PitStopApplicationSerializer(serializers.ModelSerializer):

@@ -25,6 +25,17 @@ from .models_extensions import (
 )
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 
+# Document checklist on client profile (no blob calls until download).
+CLIENT_DOC_CHECKLIST = (
+    ('resume', 'Resume'),
+    ('id', 'Government ID'),
+    ('consent', 'Consent Form'),
+    ('intake', 'Intake Form'),
+    ('sf_residency', 'Proof of SF Residency'),
+    ('hs_diploma', 'HS Diploma / GED'),
+    ('photo_release', 'Photo Release'),
+)
+
 
 def _staff_display_name(user):
     """Display name used for case notes, client credit, and audit fields."""
@@ -107,20 +118,28 @@ class CaseNoteInline(admin.TabularInline):
     """Inline admin for displaying case notes as a timestamped list on Client admin page"""
     model = CaseNote
     extra = 0  # Don't show empty forms by default - use "Add another Case Note" button
-    readonly_fields = ['formatted_timestamp', 'overdue_indicator']
-    fields = ['formatted_timestamp', 'overdue_indicator', 'note_type', 'content', 'next_steps', 'follow_up_date']
-    ordering = ['-created_at']  # Newest first
+    readonly_fields = ['overdue_indicator', 'entered_at_display']
+    fields = ['note_date', 'note_type', 'content', 'next_steps', 'follow_up_date', 'overdue_indicator', 'entered_at_display']
+    ordering = ['-note_date', '-created_at']
     can_delete = True
     verbose_name = 'Case Note'
-    verbose_name_plural = 'Case Notes Timeline (Each row = ONE separate entry)'
+    verbose_name_plural = 'Case Notes Timeline (Each row = ONE separate entry; set Note date for retroactive entry)'
     
     def get_readonly_fields(self, request, obj=None):
-        """Show formatted timestamp only for existing notes"""
         readonly = list(super().get_readonly_fields(request, obj))
-        if obj and obj.pk:  # Existing case note
-            readonly.append('formatted_timestamp')
+        if obj and obj.pk:
             readonly.append('overdue_indicator')
+            readonly.append('entered_at_display')
         return readonly
+
+    def entered_at_display(self, obj):
+        if not obj or not obj.pk or not obj.created_at:
+            return format_html('<em style="color:#999;">—</em>')
+        return format_html(
+            '<span style="color:#64748b;font-size:11px;" title="When saved in system">Entered {}</span>',
+            obj.created_at.strftime('%m/%d/%Y %I:%M %p'),
+        )
+    entered_at_display.short_description = 'System'
     
     class Media:
         css = {
@@ -185,7 +204,7 @@ class CaseNoteInline(admin.TabularInline):
             relative
         )
     formatted_timestamp.short_description = 'Timestamp'
-    
+
     def has_add_permission(self, request, obj=None):
         """Allow adding new case notes"""
         return True
@@ -195,31 +214,12 @@ class CaseNoteInline(admin.TabularInline):
         return True
 
 
-class DocumentInline(admin.TabularInline):
-    """Inline admin for uploading/reviewing supporting documents on the Client page."""
-    model = Document
-    extra = 0
-    verbose_name = 'Document'
-    verbose_name_plural = 'Supporting Documents (stored in Azure Blob Storage)'
-    fields = ['doc_type', 'title', 'file', 'created_at', 'inline_download']
-    readonly_fields = ['created_at', 'inline_download']
-    ordering = ['-created_at']
-
-    def inline_download(self, obj):
-        if not obj or not obj.pk or not obj.file:
-            return format_html('<span style="color: #999;">-</span>')
-        # Use authenticated API download — avoids N Azure HEAD checks per client page load.
-        url = reverse('document-download', kwargs={'pk': obj.pk})
-        return format_html('<a href="{}" target="_blank">📥 Download</a>', url)
-    inline_download.short_description = 'Download'
-
-
 @admin.register(CaseNote)
 class CaseNoteAdmin(admin.ModelAdmin):
     list_display = ['formatted_date', 'client', 'note_type', 'content_preview', 'follow_up_date', 'is_overdue']
-    list_filter = ['note_type', 'staff_member', 'created_at', 'follow_up_date']
+    list_filter = ['note_type', 'staff_member', 'note_date', 'follow_up_date']
     search_fields = ['client__first_name', 'client__last_name', 'content', 'staff_member']
-    date_hierarchy = 'created_at'
+    date_hierarchy = 'note_date'
     readonly_fields = ['created_at', 'updated_at', 'staff_member_display']
     list_per_page = 50
     
@@ -228,8 +228,8 @@ class CaseNoteAdmin(admin.ModelAdmin):
             'fields': ('client', 'staff_member_display')
         }),
         ('Note Details', {
-            'fields': ('note_type', 'content', 'next_steps'),
-            'description': '⚠️ IMPORTANT: Each case note should be ONE entry. If you have multiple dated entries (e.g., "09/02/2025...", "09/09/2025..."), create SEPARATE case notes for each date.'
+            'fields': ('note_date', 'note_type', 'content', 'next_steps'),
+            'description': '⚠️ IMPORTANT: Each case note should be ONE entry. Set Note date to when the interaction happened (retroactive entry is OK).',
         }),
         ('Follow-up', {
             'fields': ('follow_up_date',),
@@ -273,7 +273,8 @@ class CaseNoteAdmin(admin.ModelAdmin):
             'Next Steps',
             'Follow-up Date',
             'Follow-up Status',
-            'Created At',
+            'Note Date',
+            'Entered At (system)',
             'Updated At'
         ])
         
@@ -304,6 +305,7 @@ class CaseNoteAdmin(admin.ModelAdmin):
                 note.next_steps or '',
                 note.follow_up_date.strftime('%Y-%m-%d') if note.follow_up_date else '',
                 followup_status,
+                note.note_date.strftime('%Y-%m-%d') if note.note_date else '',
                 note.created_at.strftime('%Y-%m-%d %H:%M:%S') if note.created_at else '',
                 note.updated_at.strftime('%Y-%m-%d %H:%M:%S') if note.updated_at else '',
             ])
@@ -314,12 +316,11 @@ class CaseNoteAdmin(admin.ModelAdmin):
     export_to_csv.short_description = "Download selected case notes in CSV"
     
     def formatted_date(self, obj):
-        """Display formatted date"""
-        if obj.created_at:
-            return obj.created_at.strftime('%Y-%m-%d')
+        if obj.note_date:
+            return obj.note_date.strftime('%Y-%m-%d')
         return '-'
-    formatted_date.short_description = 'Date'
-    formatted_date.admin_order_field = 'created_at'
+    formatted_date.short_description = 'Note date'
+    formatted_date.admin_order_field = 'note_date'
     
     def content_preview(self, obj):
         """Display content preview (first 100 chars)"""
@@ -433,12 +434,14 @@ class ClientAdmin(admin.ModelAdmin):
         'updated_at',
         'case_notes_count',
         'masked_ssn',
-        'resume_preview',
+        'documents_checklist',
+        'documents_hub_link',
+        'resume_download_link',
         'worker_portal_summary',
         'staff_name',
     ]
     date_hierarchy = 'created_at'
-    inlines = [WorkAssignmentInline, DocumentInline, CaseNoteInline]  # Schedule, documents + case notes
+    inlines = [WorkAssignmentInline, CaseNoteInline]
     list_per_page = 25
     show_full_result_count = False
     
@@ -451,6 +454,11 @@ class ClientAdmin(admin.ModelAdmin):
                 '<path:object_id>/add-case-note/',
                 self.admin_site.admin_view(self.add_case_note_view),
                 name='clients_client_add_case_note',
+            ),
+            path(
+                '<path:object_id>/documents/',
+                self.admin_site.admin_view(self.client_documents_view),
+                name='clients_client_documents',
             ),
         ]
         return custom_urls + urls
@@ -496,13 +504,19 @@ class ClientAdmin(admin.ModelAdmin):
         
         if request.method == 'POST':
             try:
+                from datetime import datetime as dt
+                note_date_raw = (request.POST.get('note_date') or '').strip()
+                note_date = None
+                if note_date_raw:
+                    note_date = dt.strptime(note_date_raw, '%Y-%m-%d').date()
                 note = CaseNote.objects.create(
                     client=client,
-                    staff_member=request.user.get_full_name() or request.user.username,
+                    staff_member=_staff_display_name(request.user),
                     note_type=request.POST.get('note_type', 'general'),
                     content=request.POST.get('content', ''),
                     next_steps=request.POST.get('next_steps', '') or None,
                     follow_up_date=request.POST.get('follow_up_date') or None,
+                    note_date=note_date or timezone.localdate(),
                 )
                 messages.success(request, f'Case note added successfully for {client.full_name}!')
                 return redirect('admin:clients_client_change', object_id)
@@ -537,8 +551,8 @@ class ClientAdmin(admin.ModelAdmin):
             'fields': ('referral_source', 'additional_notes')
         }),
         ('Documents', {
-            'fields': ('resume', 'resume_preview'),
-            'description': 'Upload a resume or view existing resume. Preview and download links are available below.'
+            'fields': ('documents_checklist', 'documents_hub_link', 'resume', 'resume_download_link'),
+            'description': 'Checklist only on this page — open Documents hub to upload or download (files load on demand).',
         }),
         ('Status & Tracking', {
             'fields': ('status', 'staff_name'),
@@ -563,34 +577,105 @@ class ClientAdmin(admin.ModelAdmin):
         return format_html('<span style="color: red;">✗</span>')
     has_resume.short_description = 'Resume'
     
-    def resume_preview(self, obj):
-        """Download link only — no Azure blob checks or embedded previews on page load."""
-        if not obj.resume:
-            return format_html('<span style="color: #999;">No resume uploaded</span>')
+    def _client_present_doc_types(self, obj):
+        present = set(obj.documents.exclude(file='').values_list('doc_type', flat=True))
+        if obj.resume:
+            present.add('resume')
+        return present
 
+    def documents_checklist(self, obj):
+        if not obj or not obj.pk:
+            return format_html('<span style="color:#999;">Save client first</span>')
+        present = self._client_present_doc_types(obj)
+        rows = []
+        for code, label in CLIENT_DOC_CHECKLIST:
+            if code in present:
+                icon = '<span style="color:#059669;font-weight:700;">✓</span>'
+                status = 'On file'
+            else:
+                icon = '<span style="color:#dc2626;font-weight:700;">○</span>'
+                status = 'Missing'
+            rows.append(
+                f'<tr><td style="padding:6px 10px;">{icon}</td>'
+                f'<td style="padding:6px 10px;"><strong>{label}</strong></td>'
+                f'<td style="padding:6px 10px;color:#64748b;">{status}</td></tr>'
+            )
+        return format_html(
+            '<table style="width:100%;max-width:420px;border-collapse:collapse;background:#f8fafc;'
+            'border:1px solid #e2e8f0;border-radius:8px;">{}</table>',
+            mark_safe(''.join(rows)),
+        )
+    documents_checklist.short_description = 'Document checklist'
+
+    def documents_hub_link(self, obj):
+        if not obj or not obj.pk:
+            return '—'
+        url = reverse('admin:clients_client_documents', args=[obj.pk])
+        count = obj.documents.exclude(file='').count() + (1 if obj.resume else 0)
+        return format_html(
+            '<a href="{}" class="button" style="padding:10px 16px;">📁 Open documents hub ({} on file)</a>'
+            '<p style="margin:8px 0 0;color:#64748b;font-size:12px;">'
+            'Upload and download files there — nothing is pulled from Azure until you click download.</p>',
+            url,
+            count,
+        )
+    documents_hub_link.short_description = 'Manage files'
+
+    def resume_download_link(self, obj):
+        if not obj or not obj.resume:
+            return format_html('<span style="color:#999;">No resume on file</span>')
         filename = obj.resume.name.split('/')[-1]
         download_url = reverse('client-resume-download', kwargs={'pk': obj.pk})
-        file_type = obj.get_resume_file_type() or 'other'
-        type_label = {
-            'pdf': 'PDF',
-            'image': 'Image',
-            'word': 'Word document',
-        }.get(file_type, 'File')
-
         return format_html(
-            '<div style="padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">'
-            '<strong>{}</strong> ({})<br>'
-            '<a href="{}" target="_blank" style="display: inline-block; margin-top: 10px; padding: 8px 16px; '
-            'background: #1976d2; color: white; text-decoration: none; border-radius: 4px;">'
-            '📥 Download resume</a>'
-            '<p style="margin: 10px 0 0; color: #64748b; font-size: 12px;">'
-            'Opens on demand so this page stays fast for clients with many documents.</p>'
-            '</div>',
-            filename,
-            type_label,
+            '<a href="{}" target="_blank">📥 Download resume ({})</a>',
             download_url,
+            filename,
         )
-    resume_preview.short_description = 'Resume'
+    resume_download_link.short_description = 'Resume file'
+
+    def client_documents_view(self, request, object_id):
+        """Separate page for document checklist, list, upload — no blob checks until download."""
+        from django.shortcuts import get_object_or_404, redirect
+        from django.template.response import TemplateResponse
+
+        client = get_object_or_404(Client, pk=object_id)
+        staff_name = _staff_display_name(request.user)
+
+        if request.method == 'POST':
+            upload_file = request.FILES.get('file')
+            if upload_file:
+                try:
+                    Document.objects.create(
+                        client=client,
+                        title=(request.POST.get('title') or upload_file.name).strip()[:255],
+                        doc_type=request.POST.get('doc_type') or 'other',
+                        file=upload_file,
+                        uploaded_by=staff_name,
+                    )
+                    messages.success(request, f'Uploaded {upload_file.name} for {client.full_name}.')
+                except Exception as exc:
+                    messages.error(request, f'Upload failed: {exc}')
+            return redirect('admin:clients_client_documents', object_id)
+
+        present = self._client_present_doc_types(client)
+        checklist = [
+            {'code': code, 'label': label, 'present': code in present}
+            for code, label in CLIENT_DOC_CHECKLIST
+        ]
+        documents = client.documents.exclude(file='').order_by('-created_at')
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': f'Documents — {client.full_name}',
+            'client': client,
+            'checklist': checklist,
+            'documents': documents,
+            'doc_type_choices': Document.DOC_TYPE_CHOICES,
+            'opts': self.model._meta,
+            'resume_download_url': reverse('client-resume-download', kwargs={'pk': client.pk}) if client.resume else None,
+            'back_url': reverse('admin:clients_client_change', args=[client.pk]),
+        }
+        return TemplateResponse(request, 'admin/clients/client_documents.html', context)
     
     def case_notes_count(self, obj):
         # Uses queryset annotation to avoid per-row COUNT queries on changelist.

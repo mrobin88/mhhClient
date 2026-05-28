@@ -162,6 +162,16 @@
         
         <div class="form-row">
             <label>
+                Note Date: <small>(When the interaction happened)</small>
+            </label>
+            <input type="date" name="note_date" required />
+            <small style="display: block; margin-top: 5px; color: #64748b;">
+                Use the actual service date for retroactive entry — not necessarily today.
+            </small>
+        </div>
+
+        <div class="form-row">
+            <label>
                 Note Type: <small>(Required)</small>
             </label>
             <select name="note_type" required>
@@ -206,7 +216,7 @@
         <h2>📋 Recent Case Notes for {{ client.full_name }}</h2>
         {% for note in client.casenotes.all|slice:":5" %}
         <div class="note-preview">
-            <strong>{{ note.created_at|date:"M d, Y" }} - {{ note.get_note_type_display }}</strong>
+            <strong>{{ note.note_date|date:"M d, Y" }} - {{ note.get_note_type_display }}</strong>
             <p>{{ note.content|truncatewords:30 }}</p>
             {% if note.follow_up_date %}
                 <small style="color: #f59e0b;">

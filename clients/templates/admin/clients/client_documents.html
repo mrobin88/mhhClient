@@ -1,0 +1,111 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.doc-hub { max-width: 900px; margin: 20px auto; }
+.doc-hub h1 { margin-bottom: 8px; }
+.doc-hub .back { margin-bottom: 20px; display: inline-block; }
+.checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 16px 0 24px;
+}
+.check-item {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.check-item.present { border-color: #86efac; background: #f0fdf4; }
+.check-item.missing { border-color: #fecaca; background: #fef2f2; }
+.check-item strong { display: block; font-size: 14px; }
+.file-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.file-table th, .file-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+.upload-box {
+  margin-top: 28px;
+  padding: 20px;
+  border: 1px dashed #94a3b8;
+  border-radius: 10px;
+  background: #fff;
+}
+.upload-box h2 { margin-top: 0; font-size: 18px; }
+.upload-row { margin-bottom: 14px; }
+.upload-row label { display: block; font-weight: 600; margin-bottom: 6px; }
+.upload-row input, .upload-row select { width: 100%; max-width: 480px; padding: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="doc-hub">
+  <a href="{{ back_url }}" class="back">← Back to client profile</a>
+  <h1>Documents — {{ client.full_name }}</h1>
+  <p style="color:#64748b;">Files are downloaded from Azure only when you click Download.</p>
+
+  <h2>Checklist</h2>
+  <div class="checklist-grid">
+    {% for item in checklist %}
+    <div class="check-item {% if item.present %}present{% else %}missing{% endif %}">
+      <strong>{% if item.present %}✓{% else %}○{% endif %} {{ item.label }}</strong>
+      <span style="font-size:12px;color:#64748b;">{% if item.present %}On file{% else %}Missing{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if resume_download_url %}
+  <p><a href="{{ resume_download_url }}" target="_blank" class="button">📥 Download resume (on client record)</a></p>
+  {% endif %}
+
+  <h2>Files on record ({{ documents|length }})</h2>
+  {% if documents %}
+  <table class="file-table">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Title</th>
+        <th>Uploaded</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for doc in documents %}
+      <tr>
+        <td>{{ doc.get_doc_type_display }}</td>
+        <td>{{ doc.title }}</td>
+        <td>{{ doc.created_at|date:"M j, Y" }}{% if doc.uploaded_by %} · {{ doc.uploaded_by }}{% endif %}</td>
+        <td><a href="{% url 'document-download' doc.pk %}" target="_blank">Download</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:#64748b;">No supporting documents uploaded yet.</p>
+  {% endif %}
+
+  <div class="upload-box">
+    <h2>Upload a document</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="upload-row">
+        <label for="doc_type">Document type</label>
+        <select name="doc_type" id="doc_type" required>
+          {% for value, label in doc_type_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="upload-row">
+        <label for="title">Title (optional)</label>
+        <input type="text" name="title" id="title" placeholder="Defaults to file name" />
+      </div>
+      <div class="upload-row">
+        <label for="file">File</label>
+        <input type="file" name="file" id="file" required />
+      </div>
+      <input type="submit" value="Upload" class="default" />
+    </form>
+  </div>
+</div>
+{% endblock %}

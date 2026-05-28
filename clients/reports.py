@@ -111,7 +111,7 @@ def _build_client_case_narrative(client, notes):
     return (
         f"{client.full_name} entered services on {client.created_at.strftime('%Y-%m-%d')} and currently "
         f"{job_status}. Their case timeline includes {len(notes)} notes from "
-        f"{first_note.created_at.strftime('%Y-%m-%d')} through {last_note.created_at.strftime('%Y-%m-%d')}, with "
+        f"{first_note.note_date.strftime('%Y-%m-%d')} through {last_note.note_date.strftime('%Y-%m-%d')}, with "
         f"most activity in {top_note_type.lower()}. There are {overdue_notes} overdue follow-up items and "
         f"{upcoming_followups} upcoming follow-up items currently on file."
     )
@@ -349,7 +349,7 @@ class ClientFilePackageView(LoginRequiredMixin, View):
         if error:
             return HttpResponse(f'Client lookup error: {error}', status=400)
 
-        notes = list(client.casenotes.all().order_by('created_at'))
+        notes = list(client.casenotes.all().order_by('note_date', 'created_at'))
         narrative = _build_client_case_narrative(client, notes)
 
         profile_io = io.StringIO()
@@ -384,7 +384,7 @@ class ClientFilePackageView(LoginRequiredMixin, View):
         ])
         for note in notes:
             nw.writerow([
-                note.created_at.strftime('%Y-%m-%d'),
+                note.note_date.strftime('%Y-%m-%d') if note.note_date else '',
                 note.staff_member or '',
                 note.get_note_type_display(),
                 note.content or '',
@@ -396,7 +396,7 @@ class ClientFilePackageView(LoginRequiredMixin, View):
         timeline_items = ''.join(
             f"""
             <tr>
-              <td>{escape(note.created_at.strftime('%Y-%m-%d'))}</td>
+              <td>{escape(note.note_date.strftime('%Y-%m-%d') if note.note_date else '')}</td>
               <td>{escape(note.get_note_type_display())}</td>
               <td>{escape(note.staff_member or '')}</td>
               <td>{escape((note.content or '').strip() or '—')}</td>
@@ -777,7 +777,7 @@ class ClientOutcomesReportCSVView(LoginRequiredMixin, View):
                 'Yes' if client.job_placed else 'No',
                 client.job_placement_date.isoformat() if client.job_placement_date else '',
                 len(notes),
-                last_note.created_at.strftime('%Y-%m-%d %H:%M:%S') if last_note else '',
+                last_note.note_date.strftime('%Y-%m-%d') if last_note and last_note.note_date else '',
                 overdue_bucket,
             ])
 
@@ -868,7 +868,7 @@ class StaffFollowUpScorecardCSVView(LoginRequiredMixin, View):
         since_days = int(request.GET.get('since_days', '90') or 90)
         since_date = date.today() - timedelta(days=since_days)
 
-        notes = CaseNote.objects.filter(created_at__date__gte=since_date).select_related('client')
+        notes = CaseNote.objects.filter(note_date__gte=since_date).select_related('client')
         if mine in {'1', 'true', 'True'}:
             notes = notes.filter(staff_member__in=_staff_aliases(request.user))
 
