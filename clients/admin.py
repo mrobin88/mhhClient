@@ -26,6 +26,11 @@ from .models_extensions import (
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 
 
+def _staff_display_name(user):
+    """Display name used for case notes, client credit, and audit fields."""
+    return (user.get_full_name() or '').strip() or user.username
+
+
 def _current_week_bounds():
     today = timezone.localdate()
     week_start = today - timedelta(days=today.weekday())
@@ -103,7 +108,7 @@ class CaseNoteInline(admin.TabularInline):
     model = CaseNote
     extra = 0  # Don't show empty forms by default - use "Add another Case Note" button
     readonly_fields = ['formatted_timestamp', 'overdue_indicator']
-    fields = ['formatted_timestamp', 'overdue_indicator', 'staff_member', 'note_type', 'content', 'next_steps', 'follow_up_date']
+    fields = ['formatted_timestamp', 'overdue_indicator', 'note_type', 'content', 'next_steps', 'follow_up_date']
     ordering = ['-created_at']  # Newest first
     can_delete = True
     verbose_name = 'Case Note'
@@ -216,12 +221,12 @@ class CaseNoteAdmin(admin.ModelAdmin):
     list_filter = ['note_type', 'staff_member', 'created_at', 'follow_up_date']
     search_fields = ['client__first_name', 'client__last_name', 'content', 'staff_member']
     date_hierarchy = 'created_at'
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at', 'staff_member_display']
     list_per_page = 50
     
     fieldsets = (
         ('Client Information', {
-            'fields': ('client', 'staff_member')
+            'fields': ('client', 'staff_member_display')
         }),
         ('Note Details', {
             'fields': ('note_type', 'content', 'next_steps'),
@@ -380,10 +385,16 @@ class CaseNoteAdmin(admin.ModelAdmin):
     
     send_followup_alerts_action.short_description = "Send follow-up alert emails for selected case notes"
 
+    def staff_member_display(self, obj):
+        if obj and (obj.staff_member or '').strip():
+            return obj.staff_member
+        return format_html('<span style="color:#64748b;">Set automatically when you save</span>')
+    staff_member_display.short_description = 'Staff member'
+
     def save_model(self, request, obj, form, change):
-        """Stamp staff member from logged-in user when missing."""
-        if not obj.staff_member:
-            obj.staff_member = request.user.get_full_name() or request.user.username
+        """Credit new case notes to the logged-in staff member."""
+        if not change:
+            obj.staff_member = _staff_display_name(request.user)
         super().save_model(request, obj, form, change)
     
     def changelist_view(self, request, extra_context=None):
@@ -418,7 +429,15 @@ class ClientAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'program_completed_date', 'job_placed', 'has_resume', 'case_notes_count', 'created_at']
     list_filter = ['status', 'training_interest', 'job_placed', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
     search_fields = ['first_name', 'last_name', 'phone', 'job_title', 'job_company']
-    readonly_fields = ['created_at', 'updated_at', 'case_notes_count', 'masked_ssn', 'resume_preview', 'worker_portal_summary']
+    readonly_fields = [
+        'created_at',
+        'updated_at',
+        'case_notes_count',
+        'masked_ssn',
+        'resume_preview',
+        'worker_portal_summary',
+        'staff_name',
+    ]
     date_hierarchy = 'created_at'
     inlines = [WorkAssignmentInline, DocumentInline, CaseNoteInline]  # Schedule, documents + case notes
     list_per_page = 25
@@ -451,13 +470,22 @@ class ClientAdmin(admin.ModelAdmin):
         Ensure Document.uploaded_by is populated when adding docs from the Client page.
         """
         instances = formset.save(commit=False)
+        staff_name = _staff_display_name(request.user)
         for inst in instances:
-            if isinstance(inst, Document) and not inst.uploaded_by:
-                inst.uploaded_by = request.user.get_full_name() or request.user.username
-            if isinstance(inst, WorkAssignment) and not inst.assigned_by:
-                inst.assigned_by = request.user.get_full_name() or request.user.username or 'Admin'
+            if isinstance(inst, Document) and not inst.pk:
+                inst.uploaded_by = staff_name
+            if isinstance(inst, WorkAssignment) and not inst.pk:
+                inst.assigned_by = staff_name
+            if isinstance(inst, CaseNote) and not inst.pk:
+                inst.staff_member = staff_name
             inst.save()
         formset.save_m2m()
+
+    def save_model(self, request, obj, form, change):
+        """Credit new admin-created clients to the logged-in staff member."""
+        if not change and not (obj.staff_name or '').strip():
+            obj.staff_name = _staff_display_name(request.user)
+        super().save_model(request, obj, form, change)
     
     def add_case_note_view(self, request, object_id):
         """Quick add case note view"""
@@ -514,7 +542,8 @@ class ClientAdmin(admin.ModelAdmin):
             'description': 'Upload a resume or view existing resume. Preview and download links are available below.'
         }),
         ('Status & Tracking', {
-            'fields': ('status', 'staff_name')
+            'fields': ('status', 'staff_name'),
+            'description': 'Case manager is set automatically from your login when you create this client.',
         }),
         ('Program Completion & Job Placement', {
             'fields': ('program_completed_date', 'job_placed', 'job_placement_date', 'job_title', 'job_company', 'job_hourly_wage')
@@ -937,7 +966,15 @@ class DocumentAdmin(admin.ModelAdmin):
     list_display = ['client', 'title', 'doc_type', 'file_size_mb', 'uploaded_by', 'created_at', 'download_link']
     list_filter = ['doc_type', 'created_at', 'uploaded_by']
     search_fields = ['client__first_name', 'client__last_name', 'title', 'uploaded_by']
-    readonly_fields = ['created_at', 'updated_at', 'file_size', 'content_type', 'file_preview', 'blob_path_info']
+    readonly_fields = [
+        'created_at',
+        'updated_at',
+        'file_size',
+        'content_type',
+        'uploaded_by',
+        'file_preview',
+        'blob_path_info',
+    ]
     date_hierarchy = 'created_at'
     actions = ['safe_delete_selected', 'verify_blob_exists', 'list_all_blobs', 'check_storage_config']
     
@@ -1018,6 +1055,10 @@ class DocumentAdmin(admin.ModelAdmin):
         
         return format_html(info)
     blob_path_info.short_description = 'Azure Blob Path'
+
+    def save_model(self, request, obj, form, change):
+        obj.uploaded_by = _staff_display_name(request.user)
+        super().save_model(request, obj, form, change)
 
     def safe_delete_selected(self, request, queryset):
         """Bulk delete that swallows storage errors and continues."""
@@ -1239,8 +1280,8 @@ class JobPlacementAdmin(admin.ModelAdmin):
         'job_title',
         'created_by_name',
     ]
-    autocomplete_fields = ['client', 'created_by_user']
-    readonly_fields = ['created_at', 'updated_at']
+    autocomplete_fields = ['client']
+    readonly_fields = ['created_at', 'updated_at', 'created_by_user', 'created_by_name']
 
     fieldsets = (
         ('Placement', {
@@ -1256,9 +1297,15 @@ class JobPlacementAdmin(admin.ModelAdmin):
             )
         }),
         ('Audit', {
-            'fields': ('created_by_user', 'created_by_name', 'created_at', 'updated_at')
+            'fields': ('created_by_user', 'created_by_name', 'created_at', 'updated_at'),
+            'description': 'Logged automatically from your staff login.',
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        obj.created_by_user = request.user
+        obj.created_by_name = _staff_display_name(request.user)
+        super().save_model(request, obj, form, change)
 
 
 # ========================================
@@ -1659,7 +1706,7 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
         'assigned_by',
     ]
     date_hierarchy = 'assignment_date'
-    readonly_fields = ['created_at', 'updated_at', 'scheduled_hours']
+    readonly_fields = ['created_at', 'updated_at', 'scheduled_hours', 'assigned_by']
     actions = ['mark_confirmed', 'mark_in_progress', 'mark_completed']
 
     fieldsets = (
@@ -1671,6 +1718,7 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
         }),
         ('Staff Notes', {
             'fields': ('assigned_by', 'assignment_notes', 'performance_notes'),
+            'description': 'Assigned by is set automatically from your login.',
         }),
         ('Call-out', {
             'fields': ('called_out_at', 'callout_reason', 'replacement_found', 'replacement_client'),
@@ -1686,15 +1734,8 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
     )
 
     def save_model(self, request, obj, form, change):
-        if not (obj.assigned_by or '').strip():
-            obj.assigned_by = request.user.get_full_name() or request.user.username or 'Admin'
+        obj.assigned_by = _staff_display_name(request.user)
         super().save_model(request, obj, form, change)
-
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        if 'assigned_by' in form.base_fields:
-            form.base_fields['assigned_by'].required = False
-        return form
 
     def time_range(self, obj):
         if obj.start_time and obj.end_time:

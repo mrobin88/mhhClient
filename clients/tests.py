@@ -199,6 +199,72 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(punch.clock_out_geo_status, 'captured')
         self.assertTrue(punch.clock_out_geo_basic_ok)
 
+    def test_worker_lunch_flow_subtracts_from_net_hours(self):
+        # Clock in 8h ago.
+        punch = WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            clock_in_at=timezone.now() - timedelta(hours=8),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+        )
+        geo = (
+            '{"status":"captured","latitude":37.7749,'
+            '"longitude":-122.4194,"accuracy":20,'
+            '"timestamp":"2026-05-28T19:00:00Z"}'
+        )
+
+        start = self.api.post(
+            '/api/worker/time-punch/',
+            {'action': 'start_lunch', 'geolocation': geo},
+            format='json',
+        )
+        self.assertEqual(start.status_code, 200)
+        punch.refresh_from_db()
+        self.assertTrue(punch.is_on_lunch)
+        self.assertIsNotNone(punch.lunch_start_latitude)
+
+        # Can't clock out while on lunch.
+        blocked = self.api.post(
+            '/api/worker/time-punch/',
+            {'action': 'clock_out', 'geolocation': geo},
+            format='json',
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn('lunch', blocked.data['error'].lower())
+
+        # End lunch, then make it a 30-min lunch for deterministic math.
+        end = self.api.post(
+            '/api/worker/time-punch/',
+            {'action': 'end_lunch', 'geolocation': geo},
+            format='json',
+        )
+        self.assertEqual(end.status_code, 200)
+        punch.refresh_from_db()
+        punch.lunch_start_at = punch.clock_out_at or timezone.now()
+        # Force a known 30-minute lunch window.
+        punch.lunch_start_at = timezone.now() - timedelta(hours=4)
+        punch.lunch_end_at = punch.lunch_start_at + timedelta(minutes=30)
+        punch.clock_out_at = punch.clock_in_at + timedelta(hours=8)
+        punch.save()
+        punch.refresh_from_db()
+        self.assertEqual(punch.lunch_minutes, 30)
+        # 8h worked − 0.5h lunch = 7.5h net.
+        self.assertAlmostEqual(punch.net_hours, 7.5, places=2)
+
+    def test_start_lunch_requires_clock_in(self):
+        response = self.api.post(
+            '/api/worker/time-punch/',
+            {
+                'action': 'start_lunch',
+                'geolocation': (
+                    '{"status":"captured","latitude":37.7749,'
+                    '"longitude":-122.4194,"accuracy":20}'
+                ),
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
     def _login_superuser(self):
         User = get_user_model()
         admin_user = User.objects.create_superuser(

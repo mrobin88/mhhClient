@@ -234,29 +234,41 @@ def _local_day_bounds(now=None):
 
 
 def _completed_hours_in_range(account, start_dt, end_dt):
-    """Sum of completed punch durations in [start_dt, end_dt) for this worker.
+    """Net paid hours for completed punches in [start_dt, end_dt) for this worker.
 
-    Uses a single SQL aggregate. Open punches are excluded — the frontend adds
-    the live in-progress duration on top of these completed totals.
+    Net = worked time minus the unpaid lunch. Two SQL aggregates (gross worked
+    and total lunch), subtracted in Python — keeps it DB-agnostic and avoids
+    nested null-duration arithmetic. Open punches are excluded; the frontend
+    adds the live in-progress duration on top of these completed totals.
     """
-    total = (
+    aggregates = (
         WorkerTimePunch.objects.filter(
             worker_account=account,
             clock_in_at__gte=start_dt,
             clock_in_at__lt=end_dt,
             clock_out_at__isnull=False,
         )
-        .annotate(
-            duration=ExpressionWrapper(
-                F('clock_out_at') - F('clock_in_at'),
-                output_field=DurationField(),
-            )
+        .aggregate(
+            worked=Sum(
+                ExpressionWrapper(
+                    F('clock_out_at') - F('clock_in_at'),
+                    output_field=DurationField(),
+                )
+            ),
+            lunch=Sum(
+                ExpressionWrapper(
+                    F('lunch_end_at') - F('lunch_start_at'),
+                    output_field=DurationField(),
+                )
+            ),
         )
-        .aggregate(total=Sum('duration'))['total']
     )
-    if not total:
-        return 0.0
-    return round(max(total.total_seconds(), 0) / 3600, 2)
+    worked = aggregates['worked']
+    lunch = aggregates['lunch']
+    worked_seconds = worked.total_seconds() if worked else 0
+    lunch_seconds = lunch.total_seconds() if lunch else 0
+    net_seconds = max(worked_seconds - lunch_seconds, 0)
+    return round(net_seconds / 3600, 2)
 
 
 def _resolve_optional_work_site(work_site_id):
@@ -382,6 +394,72 @@ def worker_shift_interests(request):
     )
 
 
+def _handle_lunch_action(action, open_punch, geo, now):
+    """Start or end the single unpaid lunch break on the worker's open punch."""
+    if not open_punch:
+        return Response(
+            {'error': 'Clock in before starting lunch.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if action == 'start_lunch':
+        if open_punch.lunch_start_at is not None:
+            return Response(
+                {
+                    'error': 'Lunch already recorded for this shift.',
+                    'active_punch': WorkerTimePunchSerializer(open_punch).data,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        open_punch.lunch_start_at = now
+        open_punch.lunch_start_latitude = geo['latitude']
+        open_punch.lunch_start_longitude = geo['longitude']
+        open_punch.save(
+            update_fields=[
+                'lunch_start_at',
+                'lunch_start_latitude',
+                'lunch_start_longitude',
+            ]
+        )
+        return Response(
+            {
+                'message': 'Lunch started.',
+                'punch': WorkerTimePunchSerializer(open_punch).data,
+            }
+        )
+
+    # end_lunch
+    if open_punch.lunch_start_at is None:
+        return Response(
+            {'error': 'Start lunch before ending it.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if open_punch.lunch_end_at is not None:
+        return Response(
+            {
+                'error': 'Lunch already ended.',
+                'active_punch': WorkerTimePunchSerializer(open_punch).data,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    open_punch.lunch_end_at = now
+    open_punch.lunch_end_latitude = geo['latitude']
+    open_punch.lunch_end_longitude = geo['longitude']
+    open_punch.save(
+        update_fields=[
+            'lunch_end_at',
+            'lunch_end_latitude',
+            'lunch_end_longitude',
+        ]
+    )
+    return Response(
+        {
+            'message': f'Lunch ended ({open_punch.lunch_minutes} min).',
+            'punch': WorkerTimePunchSerializer(open_punch).data,
+        }
+    )
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 @throttle_classes([WorkerPunchThrottle])
@@ -415,9 +493,9 @@ def worker_time_punch(request):
         )
 
     action = str(request.data.get('action') or '').strip().lower()
-    if action not in {'clock_in', 'clock_out'}:
+    if action not in {'clock_in', 'clock_out', 'start_lunch', 'end_lunch'}:
         return Response(
-            {'action': ['Use "clock_in" or "clock_out".']},
+            {'action': ['Use "clock_in", "clock_out", "start_lunch", or "end_lunch".']},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -440,6 +518,9 @@ def worker_time_punch(request):
         .order_by('-clock_in_at')
         .first()
     )
+
+    if action in {'start_lunch', 'end_lunch'}:
+        return _handle_lunch_action(action, open_punch, geo, now)
 
     if action == 'clock_in':
         if open_punch:
@@ -475,6 +556,15 @@ def worker_time_punch(request):
     if not open_punch:
         return Response(
             {'error': 'No active clock-in found.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if open_punch.is_on_lunch:
+        return Response(
+            {
+                'error': 'End your lunch before clocking out.',
+                'active_punch': WorkerTimePunchSerializer(open_punch).data,
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
 

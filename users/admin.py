@@ -48,6 +48,10 @@ class StaffUserAdmin(UserAdmin):
     
     readonly_fields = ('date_joined', 'last_login')
 
+    def has_add_permission(self, request):
+        """Only superusers can create new staff logins from admin."""
+        return bool(request.user and request.user.is_superuser)
+
     def has_delete_permission(self, request, obj=None):
         """Staff user history should be retained; disable login instead."""
         return False

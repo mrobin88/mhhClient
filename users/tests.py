@@ -22,6 +22,18 @@ class StaffUserAdminTests(TestCase):
         self.assertFalse(self.admin.has_delete_permission(self.request))
         self.assertNotIn('delete_selected', self.admin.get_actions(self.request))
 
+    def test_non_superuser_cannot_add_staff_users(self):
+        staff_user = StaffUser.objects.create_user(
+            username='caseworker',
+            password='testpass123',
+            is_staff=True,
+        )
+        self.request.user = staff_user
+        self.assertFalse(self.admin.has_add_permission(self.request))
+
+    def test_superuser_can_add_staff_users(self):
+        self.assertTrue(self.admin.has_add_permission(self.request))
+
     def test_delete_model_deactivates_without_removing_staff_user(self):
         staff_user = StaffUser.objects.create_user(
             username='caseworker',

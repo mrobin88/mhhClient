@@ -1009,7 +1009,12 @@ PITSTOP_HOURS_CSV_HEADER = [
     'Clock Out',
     'Clock Out Longitude',
     'Clock Out Latitude',
-    'Hours',
+    'Gross Hours',
+    'Lunch Out',
+    'Lunch In',
+    'Lunch (min)',
+    'Net Hours',
+    'Short Shift?',
     'Status',
     'Work Site',
     'Clock In Location Verified',
@@ -1020,6 +1025,10 @@ PITSTOP_HOURS_CSV_HEADER = [
     'Worker ID',
     'Punch ID',
 ]
+
+
+def _short_shift_threshold():
+    return float(getattr(settings, 'WORKER_SHORT_SHIFT_HOURS', 7.0))
 
 
 def _pitstop_punch_hours(punch):
@@ -1044,9 +1053,17 @@ def _local_time_12h(value):
 
 
 def _format_punch_row(punch):
-    hours = _pitstop_punch_hours(punch)
+    gross_hours = _pitstop_punch_hours(punch)
+    net_hours = punch.net_hours
+    lunch_minutes = punch.lunch_minutes
     worker_client = getattr(punch.worker_account, 'client', None) if punch.worker_account else None
     status = 'Complete' if punch.clock_out_at else 'Still clocked in'
+
+    if net_hours is None:
+        short_shift = ''  # open punch — nothing to judge yet
+    else:
+        short_shift = 'Yes' if net_hours < _short_shift_threshold() else 'No'
+
     return [
         worker_client.full_name if worker_client else '',
         _local_date(punch.clock_in_at),
@@ -1056,7 +1073,12 @@ def _format_punch_row(punch):
         _local_time_12h(punch.clock_out_at),
         f'{punch.clock_out_longitude}' if punch.clock_out_longitude is not None else '',
         f'{punch.clock_out_latitude}' if punch.clock_out_latitude is not None else '',
-        f'{hours:.2f}' if hours is not None else '',
+        f'{gross_hours:.2f}' if gross_hours is not None else '',
+        _local_time_12h(punch.lunch_start_at),
+        _local_time_12h(punch.lunch_end_at),
+        lunch_minutes if lunch_minutes else '',
+        f'{net_hours:.2f}' if net_hours is not None else '',
+        short_shift,
         status,
         punch.work_site.name if punch.work_site else '',
         'Yes' if punch.clock_in_geo_basic_ok else 'No',

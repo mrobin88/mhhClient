@@ -258,6 +258,16 @@ class WorkerTimePunch(models.Model):
     )
     clock_out_geo_basic_note = models.CharField(max_length=200, blank=True)
 
+    # Unpaid meal break (single lunch per shift). Paid 10-minute rest breaks are
+    # not tracked because they do not affect net paid hours. lat/long captured
+    # for audit, mirroring the clock-in/out geolocation.
+    lunch_start_at = models.DateTimeField(null=True, blank=True)
+    lunch_end_at = models.DateTimeField(null=True, blank=True)
+    lunch_start_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    lunch_start_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    lunch_end_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    lunch_end_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
     class Meta:
         ordering = ['-clock_in_at']
         verbose_name = 'Worker Time Punch'
@@ -271,6 +281,27 @@ class WorkerTimePunch(models.Model):
 
     def __str__(self):
         return f"{self.worker_account.client.full_name} clock-in {self.clock_in_at}"
+
+    @property
+    def is_on_lunch(self):
+        return self.lunch_start_at is not None and self.lunch_end_at is None
+
+    @property
+    def lunch_minutes(self):
+        """Completed lunch length in minutes, or 0 if no completed lunch."""
+        if not self.lunch_start_at or not self.lunch_end_at:
+            return 0
+        seconds = max((self.lunch_end_at - self.lunch_start_at).total_seconds(), 0)
+        return int(seconds // 60)
+
+    @property
+    def net_hours(self):
+        """Paid hours = worked time minus the unpaid lunch. None if still open."""
+        if not self.clock_in_at or not self.clock_out_at:
+            return None
+        worked = max((self.clock_out_at - self.clock_in_at).total_seconds(), 0)
+        net_seconds = max(worked - self.lunch_minutes * 60, 0)
+        return round(net_seconds / 3600, 2)
 
 
 class ClientTextMessage(models.Model):

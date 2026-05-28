@@ -268,6 +268,8 @@ SMS_FOLLOWUP_WINDOW_DAYS = int(os.getenv('SMS_FOLLOWUP_WINDOW_DAYS', '1'))
 SMS_FOLLOWUP_START_FIELD = os.getenv('SMS_FOLLOWUP_START_FIELD', 'created_at')
 # Worker geofence threshold for clock in/out (200 yards ~= 183 meters).
 WORKER_CLOCK_GEOFENCE_METERS = int(os.getenv('WORKER_CLOCK_GEOFENCE_METERS', '183'))
+# Net paid hours below this flag a shift as "short" (possible early departure).
+WORKER_SHORT_SHIFT_HOURS = float(os.getenv('WORKER_SHORT_SHIFT_HOURS', '7.0'))
 
 # Admin base URL for email links
 ADMIN_BASE_URL = os.getenv('ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net')

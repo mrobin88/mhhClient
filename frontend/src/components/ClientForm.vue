@@ -1,17 +1,17 @@
 <template>
-  <div class="min-h-screen bg-gradient py-12 px-4">
+  <div class="registration-page min-h-screen bg-gradient py-6 px-4 sm:py-10">
     <!-- Header with organization branding -->
-    <div class="max-w-5xl mx-auto mb-12 text-center">
+    <div class="registration-shell mx-auto mb-6 text-center sm:mb-10">
       <div class="relative">
         <!-- Decorative background elements -->
         <div class="absolute inset-0 flex items-center justify-center">
           <div class="w-24 h-24 border-4 border-mission-400 rounded-full opacity-20 animate-pulse"></div>
           <div class="w-12 h-12 border-2 border-mission-500 rounded-full absolute opacity-30 animate-ping"></div>
         </div>
-        <h1 class="text-5xl font-bold text-slate-800 relative z-10 mb-4">
+        <h1 class="registration-title font-bold text-slate-800 relative z-10 mb-3">
           <span class="text-mission-600">Client Services</span> Portal
         </h1>
-        <p class="text-xl text-slate-600 relative z-10">Professional Service Management System</p>
+        <p class="registration-subtitle text-slate-600 relative z-10">Professional Service Management System</p>
         <p class="text-mission-800 relative z-10 mt-3 text-base">
           Already registered?
           <RouterLink to="/checkin" class="font-semibold underline hover:text-mission-900">Check in here</RouterLink>
@@ -26,34 +26,32 @@
     </div>
 
     <!-- Main Form Container -->
-    <div class="max-w-5xl mx-auto">
-      <form @submit.prevent="handleSubmit" class="form-card">
+    <div class="registration-shell mx-auto">
+      <form @submit.prevent="handleSubmit" class="form-card registration-form">
         <!-- Form Header -->
         <div class="form-header">
           <div class="decorative-pattern"></div>
           <div class="relative z-10">
-            <h2 class="text-3xl font-bold text-white flex items-center mb-2">
+            <h2 class="form-title font-bold text-white flex items-center mb-2">
               <svg class="w-10 h-10 mr-4" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
               New Client Registration
             </h2>
-            <p class="text-mission-100 text-lg">Complete the form below to register for services</p>
+            <p class="text-mission-100 form-intro">Complete the form below to register for services</p>
           </div>
         </div>
 
         <!-- Form Content -->
-        <div class="p-10 space-y-10">
+        <div class="form-body space-y-8">
           <!-- Training Program Interest Section - Compact Button Rows -->
           <div class="space-y-4">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="text-2xl font-semibold text-slate-800">Training Program Interest <span class="text-mission-600">*</span></h3>
+              <h3 class="section-title font-semibold text-slate-800">Training Program Interest <span class="text-mission-600">*</span></h3>
             </div>
             
-            <div class="space-y-3">
-              <!-- Compact Program Buttons - Row 1 -->
-              <div class="flex flex-wrap gap-2">
+            <div class="program-stack">
                 <button
                   type="button"
                   @click="form.training_interest = 'citybuild'"
@@ -89,10 +87,7 @@
                   <span class="mr-2">🛡️</span>
                   <span>Security Guard Card</span>
                 </button>
-              </div>
 
-              <!-- Compact Program Buttons - Row 2 -->
-              <div class="flex flex-wrap gap-2">
                 <button
                   type="button"
                   @click="form.training_interest = 'construction'"
@@ -140,7 +135,7 @@
                   <span class="mr-2">✨</span>
                   <span>Other Programs</span>
                 </button>
-              </div>
+            </div>
 
               <!-- Validation message -->
               <p v-if="!form.training_interest && formAttempted" class="text-red-600 text-sm">
@@ -155,11 +150,11 @@
           <div class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="text-2xl font-semibold text-slate-800">Personal Information</h3>
+              <h3 class="section-title font-semibold text-slate-800">Personal Information</h3>
             </div>
             
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div class="space-y-3">
+            <div class="form-stack">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> First Name
                 </label>
@@ -172,7 +167,7 @@
                 />
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">Middle Name</label>
                 <input 
                   v-model="form.middle_name" 
@@ -182,7 +177,7 @@
                 />
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> Last Name
                 </label>
@@ -195,7 +190,7 @@
                 />
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">Date of Birth</label>
                 <input
                   v-model="form.dob"
@@ -209,7 +204,7 @@
                 <p class="text-xs text-slate-500">Type MM/DD/YYYY so you do not have to scroll back through years.</p>
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> Phone Number
                 </label>
@@ -222,7 +217,7 @@
                 />
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">Email</label>
                 <input 
                   v-model="form.email" 
@@ -232,7 +227,7 @@
                 />
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">SSN (Optional)</label>
                 <input 
                   v-model="form.ssn" 
@@ -243,7 +238,7 @@
                 <p class="text-xs text-slate-500">For employment verification only</p>
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> Gender
                 </label>
@@ -263,24 +258,24 @@
           <div class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="text-2xl font-semibold text-slate-800">Address</h3>
+              <h3 class="section-title font-semibold text-slate-800">Address</h3>
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-              <div class="lg:col-span-2 space-y-3">
+            <div class="form-stack">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">Street Address</label>
-                <input v-model="form.address" type="text" class="form-input" placeholder="123 Main St" />
+                <input v-model="form.address" type="text" class="form-input" placeholder="123 Main St" autocomplete="street-address" />
               </div>
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">City</label>
-                <input v-model="form.city" type="text" class="form-input" placeholder="San Francisco" />
+                <input v-model="form.city" type="text" class="form-input" placeholder="San Francisco" autocomplete="address-level2" />
               </div>
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">State</label>
-                <input v-model="form.state" type="text" class="form-input" placeholder="CA" />
+                <input v-model="form.state" type="text" class="form-input" placeholder="CA" autocomplete="address-level1" />
               </div>
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">Zip</label>
-                <input v-model="form.zip_code" type="text" class="form-input" placeholder="94103" />
+                <input v-model="form.zip_code" type="text" inputmode="numeric" class="form-input" placeholder="94103" autocomplete="postal-code" />
               </div>
             </div>
           </div>
@@ -289,11 +284,11 @@
           <div class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="text-2xl font-semibold text-slate-800">San Francisco Residency & Background</h3>
+              <h3 class="section-title font-semibold text-slate-800">San Francisco Residency & Background</h3>
             </div>
             
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div class="space-y-3">
+            <div class="form-stack">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> San Francisco Resident
                 </label>
@@ -305,7 +300,7 @@
                 <p class="text-xs text-slate-500">Priority given to SF residents</p>
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> Neighborhood/Area
                 </label>
@@ -320,8 +315,8 @@
                 </select>
               </div>
 
-              <div class="space-y-3">
-                <label class="block text-sm font-semibold text-slate-700">
+              <div class="form-field">
+                <label class="block text-sm fontibold text-slate-700">
                   <span class="text-mission-600">*</span> Ethnicity/Race
                 </label>
                 <select v-model="form.demographic_info" required class="form-select">
@@ -339,7 +334,7 @@
                 </select>
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> Primary Language
                 </label>
@@ -354,7 +349,7 @@
                 </select>
               </div>
 
-              <div v-if="form.language === 'other'" class="lg:col-span-2 space-y-3">
+              <div v-if="form.language === 'other'" class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">Other Language</label>
                 <input 
                   v-model="form.language_other" 
@@ -364,7 +359,7 @@
                 />
               </div>
 
-              <div class="space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> Education Level
                 </label>
@@ -388,11 +383,11 @@
           <div class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="text-2xl font-semibold text-slate-800">Employment & Referral Information</h3>
+              <h3 class="section-title font-semibold text-slate-800">Employment & Referral Information</h3>
             </div>
             
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div class="space-y-3">
+            <div class="form-stack">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> Current Employment Status
                 </label>
@@ -407,7 +402,7 @@
                 </select>
               </div>
 
-              <div class="lg:col-span-2 space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
                   <span class="text-mission-600">*</span> How did you hear about us?
                 </label>
@@ -423,7 +418,7 @@
                 </select>
               </div>
 
-              <div class="lg:col-span-2 space-y-3">
+              <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">Additional Notes</label>
                 <textarea 
                   v-model="form.additional_notes" 
@@ -439,7 +434,7 @@
           <div class="form-section">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="text-xl font-semibold text-slate-800">Resume & Documents</h3>
+              <h3 class="section-title font-semibold text-slate-800">Resume & Documents</h3>
             </div>
             
             <div class="form-group">
@@ -512,30 +507,30 @@
           <!-- Pit Stop Specific Fields (shown after main application) -->
           <div v-if="form.training_interest === 'pit_stop'" class="space-y-6 p-6 border rounded-xl bg-slate-50">
             <h4 class="text-xl font-semibold text-slate-800">Pit Stop Application</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
+            <div class="form-stack">
+              <div class="form-field">
                 <label class="form-label">Are you legally able to work in the U.S.?</label>
                 <select v-model="pitstop.can_work_us" class="form-select">
                   <option :value="true">Yes</option>
                   <option :value="false">No</option>
                 </select>
               </div>
-              <div>
+              <div class="form-field">
                 <label class="form-label">Are you a veteran?</label>
                 <select v-model="pitstop.is_veteran" class="form-select">
                   <option :value="false">No</option>
                   <option :value="true">Yes</option>
                 </select>
               </div>
-              <div>
+              <div class="form-field">
                 <label class="form-label">Position you are applying for</label>
                 <input v-model="pitstop.position_applied_for" type="text" class="form-input" placeholder="Pit Stop Attendant" />
               </div>
-              <div>
+              <div class="form-field">
                 <label class="form-label">Available Start Date</label>
                 <input v-model="pitstop.available_start_date" type="date" class="form-input" />
               </div>
-              <div>
+              <div class="form-field">
                 <label class="form-label">Employment desired</label>
                 <div class="mobile-checkbox-row flex gap-4">
                   <label class="inline-flex items-center"><input type="checkbox" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
@@ -587,7 +582,7 @@
             <div>
               <label class="form-label">Employment History (Last Job)</label>
               <div class="p-4 bg-white rounded border space-y-3 mb-3">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="form-stack">
                   <input v-model="pitstop.employment_history[0].company" class="form-input" placeholder="Company name" />
                   <input v-model="pitstop.employment_history[0].title" class="form-input" placeholder="Job title/role" />
                   <input v-model="pitstop.employment_history[0].city" class="form-input" placeholder="City" />
@@ -652,7 +647,7 @@
     </div>
 
     <!-- Footer with organization branding -->
-    <div class="max-w-5xl mx-auto mt-12 text-center">
+    <div class="registration-shell mx-auto mt-8 text-center sm:mt-12">
       <div class="flex justify-center space-x-3 mb-4">
         <div class="w-3 h-3 bg-mission-400 rounded-full animate-pulse"></div>
         <div class="w-2 h-2 bg-mission-500 rounded-full animate-ping"></div>
@@ -1125,21 +1120,80 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-/* Compact Program Button Styles */
+.registration-shell {
+  width: 100%;
+  max-width: 42rem;
+}
+
+.registration-title {
+  font-size: clamp(1.75rem, 6vw, 3rem);
+  line-height: 1.12;
+}
+
+.registration-subtitle {
+  font-size: clamp(1rem, 3.5vw, 1.25rem);
+  line-height: 1.45;
+}
+
+.form-title {
+  font-size: clamp(1.35rem, 4.5vw, 1.875rem);
+  line-height: 1.2;
+}
+
+.form-intro {
+  font-size: clamp(0.95rem, 3.2vw, 1.125rem);
+  line-height: 1.45;
+}
+
+.section-title {
+  font-size: clamp(1.15rem, 4vw, 1.5rem);
+  line-height: 1.25;
+}
+
+.form-body {
+  padding: clamp(1rem, 4vw, 2.5rem);
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.program-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+/* Program buttons — full-width tap targets for phones */
 .program-btn-compact {
-  padding: 0.75rem 1.25rem;
-  border-radius: 0.5rem;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border-radius: 0.75rem;
   border: 2px solid #e2e8f0;
   background: white;
-  font-size: 0.9375rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 600;
   color: #475569;
   transition: all 0.2s ease;
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  white-space: nowrap;
-  max-width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  line-height: 1.3;
+  min-height: 3.1rem;
 }
 
 .program-btn-inactive {
@@ -1219,21 +1273,17 @@ async function handleSubmit() {
 
 .docs-scroll {
   display: flex;
+  flex-direction: column;
   gap: 0.75rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
+  width: 100%;
 }
 
 .doc-tile {
-  min-width: 240px;
-  max-width: 260px;
-  scroll-snap-align: start;
+  width: 100%;
   background: white;
   border: 2px solid #e2e8f0;
   border-radius: 0.9rem;
-  padding: 0.9rem;
+  padding: 1rem;
 }
 
 .doc-title {
@@ -1268,171 +1318,97 @@ textarea.form-input {
   line-height: 1.5;
 }
 
-.schedule-grid-wrap {
-  overflow-x: visible;
+.registration-form .form-input,
+.registration-form .form-select {
+  width: 100%;
+  min-height: 3.1rem;
+  font-size: 16px;
+  padding: 0.85rem 0.95rem;
+  box-sizing: border-box;
 }
 
-@media (max-width: 768px) {
-  .min-h-screen {
-    padding-top: 1.5rem;
-    padding-bottom: 1.5rem;
-  }
+.registration-form select.form-select {
+  line-height: 1.35;
+}
 
-  .mb-12 {
-    margin-bottom: 1.5rem;
-  }
+.registration-form textarea.form-input {
+  min-height: 8rem;
+}
 
-  .text-5xl {
-    font-size: 2rem;
-    line-height: 1.12;
-  }
+.registration-form input[type="file"] {
+  width: 100%;
+  font-size: 0.95rem;
+}
 
-  .text-xl {
-    font-size: 1rem;
-    line-height: 1.45;
-  }
+.registration-form .section-header {
+  align-items: flex-start;
+  padding: 0.85rem;
+  margin-bottom: 0.75rem;
+}
 
-  .form-card {
-    border-radius: 1rem;
-    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.16);
-  }
+.registration-form .section-header .w-2 {
+  flex-shrink: 0;
+}
 
-  .form-header {
-    padding: 1.25rem;
-  }
+.registration-form .mobile-checkbox-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+}
 
-  .form-header h2 {
-    align-items: flex-start;
-    font-size: 1.35rem;
-    line-height: 1.2;
-  }
+.registration-form .mobile-checkbox-row label {
+  min-height: 2.85rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  background: #ffffff;
+}
 
-  .form-header svg {
-    width: 1.75rem;
-    height: 1.75rem;
-    margin-right: 0.75rem;
-    flex: none;
-  }
+.registration-form .open-availability-btn {
+  width: 100%;
+  min-height: 2.85rem;
+}
 
-  .p-10 {
-    padding: 1.1rem;
-  }
+.schedule-grid-wrap {
+  overflow: visible;
+  width: 100%;
+}
 
-  .space-y-10 > * + * {
-    margin-top: 1.5rem;
-  }
+.schedule-day-grid {
+  display: block;
+}
 
-  .section-header {
-    align-items: flex-start;
-    padding: 0.8rem;
-    margin-bottom: 1rem;
-  }
+.schedule-day-grid > span {
+  display: block;
+  margin-bottom: 0.65rem;
+}
 
-  .section-header h3 {
-    font-size: 1.2rem;
-    line-height: 1.25;
-  }
+.schedule-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
 
-  .grid {
-    gap: 1rem;
-  }
+.registration-form .submit-button {
+  width: 100%;
+  min-height: 3.35rem;
+  transform: none !important;
+}
 
-  .program-btn-compact {
-    width: 100%;
-    justify-content: flex-start;
-    white-space: normal;
-    text-align: left;
-    line-height: 1.25;
-  }
+.registration-form .form-header {
+  padding: clamp(1.1rem, 4vw, 2rem);
+}
 
-  .form-input,
-  .form-select {
-    min-height: 3rem;
-    font-size: 1rem;
-    padding: 0.85rem 0.95rem;
-  }
+.registration-form .form-header svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-right: 0.75rem;
+  flex: none;
+}
 
-  select.form-select {
-    line-height: 1.35;
-  }
-
-  textarea.form-input {
-    min-height: 8rem;
-  }
-
-  .mobile-checkbox-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.65rem;
-  }
-
-  .mobile-checkbox-row label {
-    min-height: 2.75rem;
-    padding: 0.65rem 0.75rem;
-    border: 1px solid #cbd5e1;
-    border-radius: 0.75rem;
-    background: #ffffff;
-  }
-
-  .open-availability-btn {
-    width: 100%;
-    min-height: 2.75rem;
-  }
-
-  .schedule-grid-wrap {
-    overflow: visible;
-  }
-
-  .schedule-days {
-    min-width: 0;
-  }
-
-  .schedule-day {
-    padding: 0.75rem;
-  }
-
-  .schedule-day-grid {
-    display: block;
-  }
-
-  .schedule-day-grid > span {
-    display: block;
-    margin-bottom: 0.65rem;
-  }
-
+@media (min-width: 640px) {
   .schedule-slot-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .time-slot-compact {
-    min-width: 0;
-    min-height: 3.15rem;
-    padding: 0.55rem 0.45rem;
-    overflow-wrap: anywhere;
-  }
-
-  .docs-well {
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .docs-scroll {
-    display: grid;
-    grid-template-columns: 1fr;
-    overflow: visible;
-  }
-
-  .doc-tile {
-    min-width: 0;
-    max-width: none;
-    width: 100%;
-  }
-
-  .submit-button {
-    width: 100%;
-    min-height: 3.25rem;
-    transform: none !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 </style>

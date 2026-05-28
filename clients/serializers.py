@@ -226,6 +226,9 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
     duration_minutes = serializers.SerializerMethodField()
     assignment_label = serializers.SerializerMethodField()
     work_site_name = serializers.CharField(source='work_site.name', read_only=True)
+    is_on_lunch = serializers.ReadOnlyField()
+    lunch_minutes = serializers.ReadOnlyField()
+    net_hours = serializers.ReadOnlyField()
 
     class Meta:
         model = WorkerTimePunch
@@ -243,6 +246,11 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
             'clock_in_geo_basic_note',
             'clock_out_geo_basic_ok',
             'clock_out_geo_basic_note',
+            'lunch_start_at',
+            'lunch_end_at',
+            'is_on_lunch',
+            'lunch_minutes',
+            'net_hours',
             'is_open',
             'duration_minutes',
         ]

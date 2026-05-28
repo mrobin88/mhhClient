@@ -14,7 +14,10 @@
     <section v-else class="worker-card p-3 space-y-2">
       <div class="worker-status-note bg-slate-50 text-slate-700 border border-slate-200">
         <ClockIcon class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom" aria-hidden="true" />
-        <template v-if="activePunch">
+        <template v-if="isOnLunch">
+          On lunch since {{ formatDateTime(activePunch?.lunch_start_at) }}
+        </template>
+        <template v-else-if="activePunch">
           Clocked in for <strong>{{ activeDurationLabel }}</strong> · since {{ formatDateTime(activePunch.clock_in_at) }}
         </template>
         <template v-else>
@@ -33,12 +36,27 @@
         </div>
       </div>
 
+      <!-- Lunch: End lunch takes over while on break; Start lunch shows once per shift -->
       <button
+        v-if="isOnLunch"
+        type="button"
+        class="worker-btn worker-btn-primary"
+        :disabled="busy || cooldown"
+        @click="submitAction('end_lunch')"
+      >
+        <span v-if="busy" class="worker-spinner" aria-hidden="true"></span>
+        <span v-if="busy">Sending</span>
+        <span v-else-if="cooldown">Please wait…</span>
+        <span v-else>End lunch</span>
+      </button>
+
+      <button
+        v-else
         type="button"
         class="worker-btn"
         :class="activePunch ? 'worker-btn-secondary' : 'worker-btn-primary'"
         :disabled="busy || cooldown"
-        @click="submitPunch()"
+        @click="submitAction(activePunch ? 'clock_out' : 'clock_in')"
       >
         <span v-if="busy" class="worker-spinner" aria-hidden="true"></span>
         <StopCircleIcon v-else-if="activePunch" class="w-3.5 h-3.5" aria-hidden="true" />
@@ -46,6 +64,16 @@
         <span v-if="busy">Sending</span>
         <span v-else-if="cooldown">Please wait…</span>
         <span v-else>{{ activePunch ? 'Clock out' : 'Clock in' }}</span>
+      </button>
+
+      <button
+        v-if="canStartLunch"
+        type="button"
+        class="worker-btn worker-btn-secondary"
+        :disabled="busy || cooldown"
+        @click="submitAction('start_lunch')"
+      >
+        Start lunch
       </button>
     </section>
 
@@ -76,6 +104,9 @@ interface GeoPayload {
 interface ActivePunch {
   id: number
   clock_in_at: string
+  lunch_start_at: string | null
+  lunch_end_at: string | null
+  is_on_lunch: boolean
 }
 
 const PUNCH_COOLDOWN_MS = 2500
@@ -92,6 +123,11 @@ const error = ref('')
 const message = ref('')
 let cooldownTimer: ReturnType<typeof setTimeout> | null = null
 let liveTimer: ReturnType<typeof setInterval> | null = null
+
+const isOnLunch = computed(() => Boolean(activePunch.value?.is_on_lunch))
+const canStartLunch = computed(
+  () => Boolean(activePunch.value) && !isOnLunch.value && !activePunch.value?.lunch_start_at,
+)
 
 const activeElapsedMs = computed(() => {
   if (!activePunch.value?.clock_in_at) return 0
@@ -124,7 +160,7 @@ function startCooldown() {
   }, PUNCH_COOLDOWN_MS)
 }
 
-function formatDateTime(iso: string) {
+function formatDateTime(iso: string | null | undefined) {
   if (!iso) return ''
   const d = new Date(iso)
   return d.toLocaleString(undefined, {
@@ -192,18 +228,17 @@ async function loadClockContext() {
   }
 }
 
-async function submitPunch() {
+async function submitAction(action: 'clock_in' | 'clock_out' | 'start_lunch' | 'end_lunch') {
   if (busy.value || cooldown.value) return
   busy.value = true
   startCooldown()
   error.value = ''
   message.value = ''
   try {
-    // Geolocation is still captured and stored server-side for audit; the
-    // worker UI just doesn't bind it to a specific site since assignments
-    // aren't given out through the portal.
+    // Geolocation is still captured and stored server-side for audit (clock and
+    // lunch alike); the worker UI just doesn't bind it to a specific site since
+    // assignments aren't given out through the portal.
     const geolocation = await captureGeolocation()
-    const action = activePunch.value ? 'clock_out' : 'clock_in'
     const resp = await workerFetch('/api/worker/time-punch/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
