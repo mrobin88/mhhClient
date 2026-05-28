@@ -65,6 +65,33 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['id'], self.site.id)
 
+    def test_worker_can_clock_in_without_work_site(self):
+        """Worker portal no longer sends work_site_id — punch still records and
+        geo lat/long are still saved for audit. Geofence check is skipped."""
+        response = self.api.post(
+            '/api/worker/time-punch/',
+            {
+                'action': 'clock_in',
+                'geolocation': (
+                    '{"status":"captured","latitude":37.7800,'
+                    '"longitude":-122.4100,"accuracy":18,'
+                    '"timestamp":"2026-05-28T19:00:00Z"}'
+                ),
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        punch = WorkerTimePunch.objects.get()
+        self.assertEqual(punch.worker_account, self.worker)
+        self.assertIsNone(punch.work_site)
+        self.assertEqual(punch.clock_in_geo_status, 'captured')
+        # lat/long must still land in the DB for staff audit even without a site.
+        self.assertIsNotNone(punch.clock_in_latitude)
+        self.assertIsNotNone(punch.clock_in_longitude)
+        # Without a site we grade on format/precision only, which passes here.
+        self.assertTrue(punch.clock_in_geo_basic_ok)
+
     def test_worker_can_clock_in_with_geolocation(self):
         response = self.api.post(
             '/api/worker/time-punch/',
@@ -209,10 +236,15 @@ class WorkerTimePunchTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.content.decode('utf-8')
+        header = body.strip().splitlines()[0]
+        # Accountant-friendly column order leads with the worker name.
+        self.assertTrue(header.startswith('Worker Name,Date,Clock In,'))
         self.assertIn('Hours', body)
+        self.assertIn('Status', body)
         self.assertIn('Test Worker', body)
         self.assertIn('Mission Pit Stop', body)
         self.assertIn('4.50', body)
+        self.assertIn('Complete', body)
 
     def test_pitstop_hours_csv_skips_open_punch_when_only_complete(self):
         WorkerTimePunch.objects.create(
@@ -231,7 +263,7 @@ class WorkerTimePunchTests(TestCase):
         body = response.content.decode('utf-8')
         rows = [line for line in body.strip().splitlines() if line]
         self.assertEqual(len(rows), 1)
-        self.assertIn('Clock In Date', rows[0])
+        self.assertIn('Worker Name', rows[0])
 
     @override_settings(
         STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage',

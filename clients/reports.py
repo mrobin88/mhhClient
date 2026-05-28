@@ -7,6 +7,9 @@ import re
 import zipfile
 from datetime import date, datetime, timedelta
 from html import escape
+from zoneinfo import ZoneInfo
+
+from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.views import View
@@ -16,6 +19,10 @@ from django.db.models import Q, Count
 from .models import Client, CaseNote, JobPlacement
 from .models_extensions import WorkAssignment, WorkSite, WorkerTimePunch
 from .notifications import followup_stage
+
+
+# Accountants read these reports in local time, but the DB stores UTC.
+REPORT_DISPLAY_TZ = ZoneInfo(getattr(settings, 'WORKER_PORTAL_DISPLAY_TZ', 'America/Los_Angeles'))
 
 
 def _staff_aliases(user):
@@ -990,22 +997,27 @@ class CallOutReportCSVView(LoginRequiredMixin, View):
         return response
 
 
+# Columns ordered for accountant/staff review: who → each punch with its
+# location → hours → verification → audit references. Every backend data point
+# from the punch is preserved (lat/long, geo status notes, IDs).
 PITSTOP_HOURS_CSV_HEADER = [
-    'Clock In Date',
-    'Clock In Time',
-    'Clock Out Time',
-    'Hours',
     'Worker Name',
-    'Worker Phone',
+    'Date',
+    'Clock In',
+    'Clock In Longitude',
+    'Clock In Latitude',
+    'Clock Out',
+    'Clock Out Longitude',
+    'Clock Out Latitude',
+    'Hours',
+    'Status',
     'Work Site',
-    'Clock In Geofence OK',
-    'Clock Out Geofence OK',
+    'Clock In Location Verified',
+    'Clock Out Location Verified',
     'Clock In Note',
     'Clock Out Note',
-    'Clock In Lat',
-    'Clock In Lng',
-    'Clock Out Lat',
-    'Clock Out Lng',
+    'Worker Phone',
+    'Worker ID',
     'Punch ID',
 ]
 
@@ -1017,25 +1029,42 @@ def _pitstop_punch_hours(punch):
     return round(seconds / 3600, 2)
 
 
+def _local_date(value):
+    if not value:
+        return ''
+    return value.astimezone(REPORT_DISPLAY_TZ).strftime('%Y-%m-%d')
+
+
+def _local_time_12h(value):
+    if not value:
+        return ''
+    # %I gives a zero-padded 12-hour hour; strip the leading zero for readability.
+    formatted = value.astimezone(REPORT_DISPLAY_TZ).strftime('%I:%M %p')
+    return formatted[1:] if formatted.startswith('0') else formatted
+
+
 def _format_punch_row(punch):
     hours = _pitstop_punch_hours(punch)
     worker_client = getattr(punch.worker_account, 'client', None) if punch.worker_account else None
+    status = 'Complete' if punch.clock_out_at else 'Still clocked in'
     return [
-        punch.clock_in_at.strftime('%Y-%m-%d') if punch.clock_in_at else '',
-        punch.clock_in_at.strftime('%H:%M') if punch.clock_in_at else '',
-        punch.clock_out_at.strftime('%H:%M') if punch.clock_out_at else '',
-        f'{hours:.2f}' if hours is not None else '',
         worker_client.full_name if worker_client else '',
-        (getattr(worker_client, 'phone', '') or getattr(punch.worker_account, 'phone', '') or '') if punch.worker_account else '',
+        _local_date(punch.clock_in_at),
+        _local_time_12h(punch.clock_in_at),
+        f'{punch.clock_in_longitude}' if punch.clock_in_longitude is not None else '',
+        f'{punch.clock_in_latitude}' if punch.clock_in_latitude is not None else '',
+        _local_time_12h(punch.clock_out_at),
+        f'{punch.clock_out_longitude}' if punch.clock_out_longitude is not None else '',
+        f'{punch.clock_out_latitude}' if punch.clock_out_latitude is not None else '',
+        f'{hours:.2f}' if hours is not None else '',
+        status,
         punch.work_site.name if punch.work_site else '',
         'Yes' if punch.clock_in_geo_basic_ok else 'No',
         'Yes' if punch.clock_out_geo_basic_ok else ('No' if punch.clock_out_at else ''),
         punch.clock_in_geo_basic_note or '',
         punch.clock_out_geo_basic_note or '',
-        f'{punch.clock_in_latitude}' if punch.clock_in_latitude is not None else '',
-        f'{punch.clock_in_longitude}' if punch.clock_in_longitude is not None else '',
-        f'{punch.clock_out_latitude}' if punch.clock_out_latitude is not None else '',
-        f'{punch.clock_out_longitude}' if punch.clock_out_longitude is not None else '',
+        (getattr(worker_client, 'phone', '') or getattr(punch.worker_account, 'phone', '') or '') if punch.worker_account else '',
+        punch.worker_account_id or '',
         punch.pk,
     ]
 
