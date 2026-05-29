@@ -91,37 +91,7 @@ class Command(BaseCommand):
         self.stdout.write(f'Sent {result["emails_sent"]} alert(s), {result["errors"]} error(s)')
 
     def _send_schedule_reminders(self, dry_run):
-        from clients.notifications import send_schedule_reminders
-        from clients.models_extensions import WorkAssignment
-        from datetime import timedelta
-
-        tomorrow = date.today() + timedelta(days=1)
-        assignments = WorkAssignment.objects.filter(
-            assignment_date=tomorrow,
-            status__in=['pending', 'confirmed'],
-        ).select_related('client', 'work_site')
-
-        self.stdout.write(f'Found {assignments.count()} assignment(s) for tomorrow')
-
-        if assignments.count() == 0:
-            self.stdout.write('Nothing to send.')
-            return
-
-        if dry_run:
-            for a in assignments[:10]:
-                has_email = 'email' if a.client.email else 'NO EMAIL'
-                self.stdout.write(
-                    f'  {a.client.full_name} @ {a.work_site.name} '
-                    f'{a.start_time.strftime("%I:%M %p")}-{a.end_time.strftime("%I:%M %p")} '
-                    f'({has_email})'
-                )
-            return
-
-        result = send_schedule_reminders()
-        self.stdout.write(
-            f'Sent {result["sent"]} reminder(s), '
-            f'{result["skipped"]} skipped (no email)'
-        )
+        self.stdout.write('Skipped (WorkAssignment scheduling retired; use time punches).')
 
     def _send_sms_followups(self, dry_run):
         from clients.notifications import send_due_progress_followups

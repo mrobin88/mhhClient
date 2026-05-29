@@ -546,8 +546,8 @@ class ClientAdminChangeViewTests(TestCase):
         response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Worker portal summary')
-        self.assertContains(response, 'Edit schedule')
-        self.assertContains(response, 'workassignment_set-group')
+        self.assertContains(response, 'View time punches')
+        self.assertNotContains(response, 'workassignment_set-group')
 
     def test_client_change_caps_case_note_inline_rows(self):
         from clients.models import CaseNote

@@ -8,11 +8,8 @@ HOW TO LOG IN
 3. PIN: Last 4 digits of your phone number
 
 WHAT YOU CAN DO
-- See your upcoming shifts
-- Confirm your assignments
-- Call out if you can't make it
-- Set which days you're available
-- Report a problem at your site
+- Clock in and out at your PitStop site (with location on your phone)
+- View your recent time punches
 
 Questions? Talk to your supervisor.
 

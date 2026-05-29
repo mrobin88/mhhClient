@@ -21,7 +21,6 @@ from django.utils import timezone
 from .models import Client, CaseNote, Document, PitStopApplication, JobPlacement
 from .models_extensions import (
     WorkSite,
-    WorkAssignment,
     WorkerAccount,
     WorkerTimePunch,
     ClientTextMessage,
@@ -78,15 +77,6 @@ def _format_hours(hours):
     return f'{hours:.2f} hrs'
 
 
-def _assignment_duration_hours(assignment):
-    start_dt = datetime.combine(assignment.assignment_date, assignment.start_time)
-    end_dt = datetime.combine(assignment.assignment_date, assignment.end_time)
-    if end_dt <= start_dt:
-        end_dt += timedelta(days=1)
-    seconds = max((end_dt - start_dt).total_seconds(), 0)
-    return seconds / 3600
-
-
 def _punch_duration_hours(punch):
     if not punch.clock_in_at or not punch.clock_out_at:
         return 0
@@ -117,24 +107,6 @@ def _last_assignment_for_worker(account):
     if not account or not account.pk:
         return None
     return WorkerTimePunch.objects.filter(worker_account=account).select_related('work_site').order_by('-clock_in_at').first()
-
-
-class WorkAssignmentInline(admin.TabularInline):
-    """Schedule rows directly on the client profile."""
-
-    model = WorkAssignment
-    fk_name = 'client'
-    extra = 0
-    fields = [
-        'work_site',
-        'assignment_date',
-        'start_time',
-        'end_time',
-        'status',
-        'confirmed_by_client',
-    ]
-    ordering = ['-assignment_date', 'start_time']
-    autocomplete_fields = []
 
 
 class CaseNoteInline(admin.TabularInline):
@@ -464,7 +436,7 @@ class ClientAdmin(admin.ModelAdmin):
         'staff_name',
     ]
     date_hierarchy = 'created_at'
-    inlines = [WorkAssignmentInline, CaseNoteInline]
+    inlines = [CaseNoteInline]
     list_per_page = 25
     show_full_result_count = False
     
@@ -536,10 +508,6 @@ class ClientAdmin(admin.ModelAdmin):
             'case note inline formset',
             lambda: CaseNoteInline(self, self.admin_site).get_formset(request, client).queryset.count(),
         )
-        run_check(
-            'work assignment inline formset',
-            lambda: WorkAssignmentInline(self, self.admin_site).get_formset(request, client).queryset.count(),
-        )
         run_check('documents_checklist', lambda: 'rendered' if self.documents_checklist(client) else 'empty')
         run_check('documents_hub_link', lambda: 'rendered' if self.documents_hub_link(client) else 'empty')
         run_check('resume_download_link', lambda: 'rendered' if self.resume_download_link(client) else 'empty')
@@ -576,8 +544,6 @@ class ClientAdmin(admin.ModelAdmin):
         for inst in instances:
             if isinstance(inst, Document) and not inst.pk:
                 inst.uploaded_by = staff_name
-            if isinstance(inst, WorkAssignment) and not inst.pk:
-                inst.assigned_by = staff_name
             if isinstance(inst, CaseNote) and not inst.pk:
                 inst.staff_member = staff_name
             inst.save()
@@ -660,9 +626,9 @@ class ClientAdmin(admin.ModelAdmin):
         ('Program Completion & Job Placement', {
             'fields': ('program_completed_date', 'job_placed', 'job_placement_date', 'job_title', 'job_company', 'job_hourly_wage')
         }),
-        ('Worker Portal + Schedule', {
+        ('Worker Portal', {
             'fields': ('worker_portal_summary',),
-            'description': 'Use the Work Assignments section below to schedule PitStop shifts for this worker.',
+            'description': 'PitStop workers clock in/out on the iPad portal (time punches). No staff scheduling grid.',
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
@@ -828,7 +794,6 @@ class ClientAdmin(admin.ModelAdmin):
 
         hours = _weekly_hours_for_worker(account)
         account_url = reverse('admin:clients_workeraccount_change', args=[account.pk])
-        schedule_url = reverse('admin:clients_client_change', args=[obj.pk]) + '#workassignment_set-group'
         punches_url = (
             reverse('admin:clients_workertimepunch_changelist')
             + f'?worker_account__id__exact={account.pk}'
@@ -838,13 +803,11 @@ class ClientAdmin(admin.ModelAdmin):
             '<strong>Portal:</strong> {}<br>'
             '<strong>Clocked this week:</strong> {}<br>'
             '<a href="{}">Open worker account</a> · '
-            '<a href="{}">Edit schedule</a> · '
-            '<a href="{}">Time punches</a>'
+            '<a href="{}">View time punches</a>'
             '</div>',
             'On' if account.is_active else 'Off',
             _format_hours(hours),
             account_url,
-            schedule_url,
             punches_url,
         )
 
@@ -1867,101 +1830,4 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
             queryset.select_related('worker_account__client', 'work_site').order_by('-clock_in_at'),
         )
         return response
-
-
-@admin.register(WorkAssignment)
-class WorkAssignmentAdmin(admin.ModelAdmin):
-    """Staff scheduling view for PitStop worker assignments (hidden from admin index)."""
-
-    def has_module_permission(self, request):
-        """Hide from sidebar; assignments are edited on the client profile inline."""
-        return False
-
-    list_display = [
-        'client',
-        'worker_phone',
-        'work_site',
-        'assignment_date',
-        'time_range',
-        'status',
-        'confirmed_by_client',
-        'scheduled_hours',
-        'assigned_by',
-    ]
-    list_filter = ['status', 'assignment_date', 'work_site', 'confirmed_by_client']
-    search_fields = [
-        'client__first_name',
-        'client__last_name',
-        'work_site__name',
-        'assigned_by',
-    ]
-    date_hierarchy = 'assignment_date'
-    readonly_fields = ['created_at', 'updated_at', 'scheduled_hours', 'assigned_by']
-    actions = ['mark_confirmed', 'mark_in_progress', 'mark_completed']
-
-    fieldsets = (
-        ('Worker + Site', {
-            'fields': ('client', 'work_site'),
-        }),
-        ('Schedule', {
-            'fields': ('assignment_date', 'start_time', 'end_time', 'scheduled_hours', 'status', 'confirmed_by_client', 'confirmed_at'),
-        }),
-        ('Staff Notes', {
-            'fields': ('assigned_by', 'assignment_notes', 'performance_notes'),
-            'description': 'Assigned by is set automatically from your login.',
-        }),
-        ('Call-out', {
-            'fields': ('called_out_at', 'callout_reason', 'replacement_found', 'replacement_client'),
-            'classes': ('collapse',),
-        }),
-        ('Completion', {
-            'fields': ('hours_worked',),
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',),
-        }),
-    )
-
-    def save_model(self, request, obj, form, change):
-        obj.assigned_by = _staff_display_name(request.user)
-        super().save_model(request, obj, form, change)
-
-    def time_range(self, obj):
-        if obj.start_time and obj.end_time:
-            return f'{obj.start_time.strftime("%I:%M %p")} - {obj.end_time.strftime("%I:%M %p")}'
-        return '—'
-
-    time_range.short_description = 'Time'
-
-    def worker_phone(self, obj):
-        account = getattr(obj.client, 'worker_account', None)
-        return account.phone if account else obj.client.phone
-
-    worker_phone.short_description = 'Phone'
-
-    def scheduled_hours(self, obj):
-        if not obj or not obj.assignment_date or not obj.start_time or not obj.end_time:
-            return '—'
-        return _format_hours(_assignment_duration_hours(obj))
-
-    scheduled_hours.short_description = 'Scheduled hours'
-
-    def mark_confirmed(self, request, queryset):
-        updated = queryset.update(status='confirmed', confirmed_by_client=True, confirmed_at=timezone.now())
-        self.message_user(request, f'{updated} assignment(s) marked confirmed.')
-
-    mark_confirmed.short_description = 'Mark selected assignments confirmed'
-
-    def mark_in_progress(self, request, queryset):
-        updated = queryset.update(status='in_progress')
-        self.message_user(request, f'{updated} assignment(s) marked in progress.')
-
-    mark_in_progress.short_description = 'Mark selected assignments in progress'
-
-    def mark_completed(self, request, queryset):
-        updated = queryset.update(status='completed')
-        self.message_user(request, f'{updated} assignment(s) marked completed.')
-
-    mark_completed.short_description = 'Mark selected assignments completed'
 

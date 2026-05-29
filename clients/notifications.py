@@ -128,8 +128,7 @@ def send_worker_welcome_email(worker_account):
             f"Log in here: {WORKER_PORTAL_URL}\n"
             f"Phone: {context['phone']}\n"
             f"PIN: Last 4 digits of your phone number\n\n"
-            f"From there you can see your schedule, confirm shifts, "
-            f"and report any issues at your site.\n\n"
+            f"From there you clock in and out at your PitStop site with your phone location.\n\n"
             f"Questions? Talk to your supervisor.\n"
         )
 
@@ -137,109 +136,15 @@ def send_worker_welcome_email(worker_account):
 
 
 def send_assignment_notification(assignment):
-    """
-    Send email when a worker gets a new or updated assignment.
-    Returns True if sent, False if skipped or failed.
-    """
-    client = assignment.client
-    email = client.email
-    if not email:
-        logger.warning(
-            'No email for client %s - skipping assignment notification',
-            client.full_name
-        )
-        return False
-
-    context = {
-        'worker_name': client.first_name or client.full_name,
-        'site_name': assignment.work_site.name,
-        'site_address': assignment.work_site.address,
-        'assignment_date': assignment.assignment_date,
-        'start_time': assignment.start_time,
-        'end_time': assignment.end_time,
-        'supervisor_name': assignment.work_site.supervisor_name,
-        'supervisor_phone': assignment.work_site.supervisor_phone,
-        'status': assignment.get_status_display(),
-        'notes': assignment.assignment_notes,
-        'portal_url': WORKER_PORTAL_URL,
-    }
-
-    subject = f"Shift Update: {assignment.work_site.name} on {assignment.assignment_date.strftime('%b %d')}"
-    try:
-        html = render_to_string('clients/emails/assignment_notification.html', context)
-        plain = render_to_string('clients/emails/assignment_notification.txt', context)
-    except Exception:
-        html = None
-        plain = (
-            f"Hi {context['worker_name']},\n\n"
-            f"You have a shift update:\n\n"
-            f"Site: {context['site_name']}\n"
-            f"Address: {context['site_address']}\n"
-            f"Date: {context['assignment_date']}\n"
-            f"Time: {context['start_time'].strftime('%I:%M %p')} - {context['end_time'].strftime('%I:%M %p')}\n"
-            f"Supervisor: {context['supervisor_name']} {context['supervisor_phone']}\n\n"
-            f"Confirm your shift: {WORKER_PORTAL_URL}\n"
-        )
-
-    return _send(subject, plain, html, email)
+    """Deprecated: staff no longer schedule via WorkAssignment."""
+    logger.debug('send_assignment_notification skipped (assignments retired)')
+    return False
 
 
 def send_schedule_reminders():
-    """
-    Send reminder emails to workers with assignments tomorrow.
-    Returns dict with counts.
-    """
-    from .models_extensions import WorkAssignment
-
-    tomorrow = date.today() + timedelta(days=1)
-    assignments = WorkAssignment.objects.filter(
-        assignment_date=tomorrow,
-        status__in=['pending', 'confirmed'],
-    ).select_related('client', 'work_site')
-
-    sent = 0
-    skipped = 0
-
-    for assignment in assignments:
-        email = assignment.client.email
-        if not email:
-            skipped += 1
-            continue
-
-        context = {
-            'worker_name': assignment.client.first_name or assignment.client.full_name,
-            'site_name': assignment.work_site.name,
-            'site_address': assignment.work_site.address,
-            'assignment_date': assignment.assignment_date,
-            'start_time': assignment.start_time,
-            'end_time': assignment.end_time,
-            'supervisor_name': assignment.work_site.supervisor_name,
-            'supervisor_phone': assignment.work_site.supervisor_phone,
-            'portal_url': WORKER_PORTAL_URL,
-        }
-
-        subject = f"Reminder: You work at {assignment.work_site.name} tomorrow"
-        try:
-            html = render_to_string('clients/emails/schedule_reminder.html', context)
-            plain = render_to_string('clients/emails/schedule_reminder.txt', context)
-        except Exception:
-            html = None
-            plain = (
-                f"Hi {context['worker_name']},\n\n"
-                f"Reminder: You have a shift tomorrow.\n\n"
-                f"Site: {context['site_name']}\n"
-                f"Address: {context['site_address']}\n"
-                f"Time: {context['start_time'].strftime('%I:%M %p')} - "
-                f"{context['end_time'].strftime('%I:%M %p')}\n"
-                f"Supervisor: {context['supervisor_name']} {context['supervisor_phone']}\n\n"
-                f"View your schedule: {WORKER_PORTAL_URL}\n"
-            )
-
-        if _send(subject, plain, html, email):
-            sent += 1
-
-    logger.info('Schedule reminders: %d sent, %d skipped (no email)', sent, skipped)
-    return {'sent': sent, 'skipped': skipped, 'total': assignments.count()}
+    """Deprecated: staff no longer schedule via WorkAssignment."""
+    logger.debug('send_schedule_reminders skipped (assignments retired)')
+    return {'sent': 0, 'skipped': 0, 'total': 0}
 
 
 def send_pitstop_application_alert(application):
