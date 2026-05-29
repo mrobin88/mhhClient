@@ -828,21 +828,24 @@ class ClientAdmin(admin.ModelAdmin):
 
         hours = _weekly_hours_for_worker(account)
         account_url = reverse('admin:clients_workeraccount_change', args=[account.pk])
-        assignments_url = (
-            reverse('admin:clients_workassignment_changelist')
-            + f'?client__id__exact={obj.pk}'
+        schedule_url = reverse('admin:clients_client_change', args=[obj.pk]) + '#workassignment_set-group'
+        punches_url = (
+            reverse('admin:clients_workertimepunch_changelist')
+            + f'?worker_account__id__exact={account.pk}'
         )
         return format_html(
             '<div style="padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; line-height: 1.5;">'
             '<strong>Portal:</strong> {}<br>'
-            '<strong>Scheduled this week:</strong> {}<br>'
+            '<strong>Clocked this week:</strong> {}<br>'
             '<a href="{}">Open worker account</a> · '
-            '<a href="{}">View schedule</a>'
+            '<a href="{}">Edit schedule</a> · '
+            '<a href="{}">Time punches</a>'
             '</div>',
             'On' if account.is_active else 'Off',
             _format_hours(hours),
             account_url,
-            assignments_url,
+            schedule_url,
+            punches_url,
         )
 
     worker_portal_summary.short_description = 'Worker portal summary'
@@ -1868,7 +1871,11 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
 
 @admin.register(WorkAssignment)
 class WorkAssignmentAdmin(admin.ModelAdmin):
-    """Staff scheduling view for PitStop worker assignments."""
+    """Staff scheduling view for PitStop worker assignments (hidden from admin index)."""
+
+    def has_module_permission(self, request):
+        """Hide from sidebar; assignments are edited on the client profile inline."""
+        return False
 
     list_display = [
         'client',
@@ -1957,12 +1964,4 @@ class WorkAssignmentAdmin(admin.ModelAdmin):
         self.message_user(request, f'{updated} assignment(s) marked completed.')
 
     mark_completed.short_description = 'Mark selected assignments completed'
-
-
-# Keep WorkAssignment hidden from the admin sidebar — the iPad clock workflow uses
-# WorkerTimePunch, but reports still query WorkAssignment for legacy scheduling data.
-try:
-    admin.site.unregister(WorkAssignment)
-except admin.sites.NotRegistered:
-    pass
 

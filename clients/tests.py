@@ -534,6 +534,21 @@ class ClientAdminChangeViewTests(TestCase):
         self.assertContains(response, 'note_date')
         self.assertContains(response, '2025-09-02')
 
+    def test_client_change_with_worker_account_renders_portal_summary(self):
+        from clients.models_extensions import WorkerAccount
+        WorkerAccount.objects.create(
+            client=self.client_record,
+            phone='4155551111',
+            pin_hash='test',
+            is_active=True,
+        )
+        url = reverse('admin:clients_client_change', args=[self.client_record.pk])
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Worker portal summary')
+        self.assertContains(response, 'Edit schedule')
+        self.assertContains(response, 'workassignment_set-group')
+
     def test_client_change_caps_case_note_inline_rows(self):
         from clients.models import CaseNote
         for idx in range(45):
