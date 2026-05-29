@@ -1,0 +1,31 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Client {{ client.pk }} diagnostics{% endblock %}
+{% block content %}
+<h1>Client change diagnostics — {{ client.full_name }} (#{{ client.pk }})</h1>
+<p style="color:#64748b;max-width:720px;">
+  Each check runs an isolated step from the change page. Failed rows show the exception that would cause a 500.
+</p>
+<table style="width:100%;max-width:900px;border-collapse:collapse;margin-top:16px;">
+  <thead>
+    <tr style="background:#f1f5f9;text-align:left;">
+      <th style="padding:10px;border:1px solid #e2e8f0;">Check</th>
+      <th style="padding:10px;border:1px solid #e2e8f0;">Status</th>
+      <th style="padding:10px;border:1px solid #e2e8f0;">Detail</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in checks %}
+    <tr>
+      <td style="padding:10px;border:1px solid #e2e8f0;"><strong>{{ row.label }}</strong></td>
+      <td style="padding:10px;border:1px solid #e2e8f0;">
+        {% if row.ok %}<span style="color:#059669;">OK</span>{% else %}<span style="color:#dc2626;">FAIL</span>{% endif %}
+      </td>
+      <td style="padding:10px;border:1px solid #e2e8f0;font-family:monospace;font-size:12px;white-space:pre-wrap;">{{ row.detail }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p style="margin-top:20px;">
+  <a href="{{ change_url }}" class="button">Try change page again</a>
+</p>
+{% endblock %}

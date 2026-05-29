@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin error — Mission Hiring Hall</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; color: #0f172a; background: #f8fafc; line-height: 1.5; }
+    h1 { color: #b91c1c; margin-bottom: 8px; font-size: 1.35rem; }
+    .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .label { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .value { font-family: ui-monospace, monospace; font-size: 14px; word-break: break-word; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px; overflow: auto; font-size: 12px; max-height: 420px; }
+    a { color: #0f766e; }
+    .hint { color: #475569; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Admin page failed</h1>
+  <p class="hint">This detail is shown because you are logged in as a superuser. It is also written to the Azure log stream.</p>
+
+  <div class="panel">
+    <div class="label">Request</div>
+    <div class="value">{{ method }} {{ path }}</div>
+  </div>
+
+  <div class="panel">
+    <div class="label">Exception</div>
+    <div class="value"><strong>{{ exc_type }}</strong>: {{ exc_message }}</div>
+  </div>
+
+  {% if hint %}
+  <div class="panel">
+    <div class="label">Likely cause</div>
+    <div class="value">{{ hint }}</div>
+  </div>
+  {% endif %}
+
+  <div class="panel">
+    <div class="label">Traceback</div>
+    <pre>{{ traceback }}</pre>
+  </div>
+
+  <p>
+    <a href="javascript:history.back()">← Go back</a>
+    {% if diagnostics_url %}
+    · <a href="{{ diagnostics_url }}">Run client diagnostics</a>
+    {% endif %}
+    · <a href="/admin/">Admin home</a>
+  </p>
+</body>
+</html>

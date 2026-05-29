@@ -58,8 +58,8 @@
   <p><a href="{{ resume_download_url }}" target="_blank" class="button">📥 Download resume (on client record)</a></p>
   {% endif %}
 
-  <h2>Files on record ({{ documents|length }})</h2>
-  {% if documents %}
+  <h2>Files on record ({{ document_rows|length }})</h2>
+  {% if document_rows %}
   <table class="file-table">
     <thead>
       <tr>
@@ -70,12 +70,12 @@
       </tr>
     </thead>
     <tbody>
-      {% for doc in documents %}
+      {% for row in document_rows %}
       <tr>
-        <td>{{ doc.get_doc_type_display }}</td>
-        <td>{{ doc.title }}</td>
-        <td>{{ doc.created_at|date:"M j, Y" }}{% if doc.uploaded_by %} · {{ doc.uploaded_by }}{% endif %}</td>
-        <td><a href="{% url 'document-download' doc.pk %}" target="_blank">Download</a></td>
+        <td>{{ row.doc.get_doc_type_display }}</td>
+        <td>{{ row.doc.title }}</td>
+        <td>{{ row.doc.created_at|date:"M j, Y" }}{% if row.doc.uploaded_by %} · {{ row.doc.uploaded_by }}{% endif %}</td>
+        <td><a href="{{ row.download_url }}" target="_blank">Download</a></td>
       </tr>
       {% endfor %}
     </tbody>

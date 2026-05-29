@@ -1,7 +1,7 @@
 from django.contrib import admin
-from django.utils.html import format_html
+from django.db import connection
+from django.utils.html import format_html, format_html_join
 from django.urls import reverse
-from django.utils.safestring import mark_safe
 from django.conf import settings
 from django.http import HttpResponse
 from django.template.loader import render_to_string
@@ -11,6 +11,9 @@ import csv
 import io
 import logging
 import os
+import traceback
+
+admin_diag_logger = logging.getLogger('config.admin_errors')
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.core.mail import send_mail
@@ -26,6 +29,8 @@ from .models_extensions import (
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 
 # Document checklist on client profile (no blob calls until download).
+CASE_NOTE_INLINE_LIMIT = 40
+
 CLIENT_DOC_CHECKLIST = (
     ('resume', 'Resume'),
     ('id', 'Government ID'),
@@ -40,6 +45,24 @@ CLIENT_DOC_CHECKLIST = (
 def _staff_display_name(user):
     """Display name used for case notes, client credit, and audit fields."""
     return (user.get_full_name() or '').strip() or user.username
+
+
+_CASENOTE_NOTE_DATE_COLUMN = None
+
+
+def _casenote_note_date_column_exists():
+    """True when migration 0029 has been applied (avoids 500s during deploy lag)."""
+    global _CASENOTE_NOTE_DATE_COLUMN
+    if _CASENOTE_NOTE_DATE_COLUMN is not None:
+        return _CASENOTE_NOTE_DATE_COLUMN
+    try:
+        table = CaseNote._meta.db_table
+        with connection.cursor() as cursor:
+            description = connection.introspection.get_table_description(cursor, table)
+        _CASENOTE_NOTE_DATE_COLUMN = any(col.name == 'note_date' for col in description)
+    except Exception:
+        _CASENOTE_NOTE_DATE_COLUMN = False
+    return _CASENOTE_NOTE_DATE_COLUMN
 
 
 def _current_week_bounds():
@@ -117,14 +140,38 @@ class WorkAssignmentInline(admin.TabularInline):
 class CaseNoteInline(admin.TabularInline):
     """Inline admin for displaying case notes as a timestamped list on Client admin page"""
     model = CaseNote
-    extra = 0  # Don't show empty forms by default - use "Add another Case Note" button
+    extra = 0
     readonly_fields = ['overdue_indicator', 'entered_at_display']
     fields = ['note_date', 'note_type', 'content', 'next_steps', 'follow_up_date', 'overdue_indicator', 'entered_at_display']
     ordering = ['-note_date', '-created_at']
     can_delete = True
     verbose_name = 'Case Note'
-    verbose_name_plural = 'Case Notes Timeline (Each row = ONE separate entry; set Note date for retroactive entry)'
-    
+    verbose_name_plural = 'Recent case notes (set Note date for retroactive entry)'
+
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))
+        if not _casenote_note_date_column_exists():
+            return [field for field in fields if field != 'note_date']
+        return fields
+
+    def get_ordering(self, request):
+        if _casenote_note_date_column_exists():
+            return ['-note_date', '-created_at']
+        return ['-created_at']
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if not _casenote_note_date_column_exists():
+            qs = qs.defer('note_date')
+        if _casenote_note_date_column_exists():
+            qs = qs.order_by('-note_date', '-created_at')
+        else:
+            qs = qs.order_by('-created_at')
+        recent_pks = list(qs.values_list('pk', flat=True)[:CASE_NOTE_INLINE_LIMIT])
+        if not recent_pks:
+            return qs.none()
+        return qs.filter(pk__in=recent_pks)
+
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
         if obj and obj.pk:
@@ -167,43 +214,6 @@ class CaseNoteInline(admin.TabularInline):
                 )
         return format_html('<span style="color: #10b981;">✓</span>')
     overdue_indicator.short_description = 'Status'
-    
-    def formatted_timestamp(self, obj):
-        """Display formatted timestamp with relative time"""
-        if not obj or not obj.pk or not obj.created_at:
-            return format_html('<em style="color: #999;">New note</em>')
-        
-        # Format: "Jan 15, 2025 at 2:30 PM"
-        formatted = obj.created_at.strftime('%b %d, %Y at %I:%M %p')
-        
-        # Add relative time
-        now = timezone.now()
-        if obj.created_at.tzinfo:
-            diff = now - obj.created_at
-        else:
-            # Handle naive datetime
-            diff = timezone.make_aware(now) - timezone.make_aware(obj.created_at)
-        
-        if diff.days > 0:
-            relative = f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
-        elif diff.seconds >= 3600:
-            hours = diff.seconds // 3600
-            relative = f"{hours} hour{'s' if hours > 1 else ''} ago"
-        elif diff.seconds >= 60:
-            minutes = diff.seconds // 60
-            relative = f"{minutes} minute{'s' if minutes > 1 else ''} ago"
-        else:
-            relative = "just now"
-        
-        return format_html(
-            '<div style="line-height: 1.4;">'
-            '<strong style="color: #1976d2; display: block; font-size: 13px;">{}</strong>'
-            '<small style="color: #64748b; font-size: 11px;">{}</small>'
-            '</div>',
-            formatted,
-            relative
-        )
-    formatted_timestamp.short_description = 'Timestamp'
 
     def has_add_permission(self, request, obj=None):
         """Allow adding new case notes"""
@@ -221,6 +231,18 @@ class CaseNoteAdmin(admin.ModelAdmin):
     search_fields = ['client__first_name', 'client__last_name', 'content', 'staff_member']
     date_hierarchy = 'note_date'
     readonly_fields = ['created_at', 'updated_at', 'staff_member_display']
+
+    def get_date_hierarchy(self, request):
+        if _casenote_note_date_column_exists():
+            return 'note_date'
+        return 'created_at'
+
+    def get_list_filter(self, request):
+        filters = list(super().get_list_filter(request))
+        if not _casenote_note_date_column_exists():
+            return [f for f in filters if f != 'note_date']
+        return filters
+
     list_per_page = 50
     
     fieldsets = (
@@ -433,6 +455,7 @@ class ClientAdmin(admin.ModelAdmin):
         'created_at',
         'updated_at',
         'case_notes_count',
+        'case_notes_manage_link',
         'masked_ssn',
         'documents_checklist',
         'documents_hub_link',
@@ -460,8 +483,80 @@ class ClientAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.client_documents_view),
                 name='clients_client_documents',
             ),
+            path(
+                '<path:object_id>/diagnostics/',
+                self.admin_site.admin_view(self.client_change_diagnostics_view),
+                name='clients_client_diagnostics',
+            ),
         ]
         return custom_urls + urls
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        try:
+            return super().change_view(request, object_id, form_url, extra_context)
+        except Exception:
+            admin_diag_logger.exception(
+                'ClientAdmin.change_view failed for client_id=%s path=%s',
+                object_id,
+                request.path,
+            )
+            raise
+
+    def client_change_diagnostics_view(self, request, object_id):
+        """Superuser-only: run change-page steps in isolation to find 500 cause."""
+        from django.shortcuts import get_object_or_404
+        from django.template.response import TemplateResponse
+        from django.core.exceptions import PermissionDenied
+
+        if not request.user.is_superuser:
+            raise PermissionDenied
+
+        client = get_object_or_404(Client, pk=object_id)
+        self._current_request = request
+        checks = []
+
+        def run_check(label, fn):
+            try:
+                result = fn()
+                detail = result if isinstance(result, str) else repr(result)
+                if len(detail) > 500:
+                    detail = detail[:500] + '…'
+                checks.append({'label': label, 'ok': True, 'detail': detail or '(empty)'})
+            except Exception as exc:
+                checks.append({
+                    'label': label,
+                    'ok': False,
+                    'detail': f'{type(exc).__name__}: {exc}\n{traceback.format_exc()[-800:]}',
+                })
+
+        run_check('note_date column in database', _casenote_note_date_column_exists)
+        run_check('load client row', lambda: f'{client.full_name} / status={client.status}')
+        run_check('case notes count', lambda: client.casenotes.count())
+        run_check(
+            'case note inline formset',
+            lambda: CaseNoteInline(self, self.admin_site).get_formset(request, client).queryset.count(),
+        )
+        run_check(
+            'work assignment inline formset',
+            lambda: WorkAssignmentInline(self, self.admin_site).get_formset(request, client).queryset.count(),
+        )
+        run_check('documents_checklist', lambda: 'rendered' if self.documents_checklist(client) else 'empty')
+        run_check('documents_hub_link', lambda: 'rendered' if self.documents_hub_link(client) else 'empty')
+        run_check('resume_download_link', lambda: 'rendered' if self.resume_download_link(client) else 'empty')
+        run_check('case_notes_manage_link', lambda: 'rendered' if self.case_notes_manage_link(client) else 'empty')
+        run_check('worker_portal_summary', lambda: 'rendered' if self.worker_portal_summary(client) else 'empty')
+        run_check('masked_ssn / ssn field', lambda: str(self.masked_ssn(client))[:80])
+        run_check('get_fieldsets', lambda: len(self.get_fieldsets(request, client)))
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': f'Diagnostics — {client.full_name}',
+            'client': client,
+            'checks': checks,
+            'change_url': reverse('admin:clients_client_change', args=[client.pk]),
+            'opts': self.model._meta,
+        }
+        return TemplateResponse(request, 'admin/clients/client_change_diagnostics.html', context)
 
     def get_inline_instances(self, request, obj=None):
         """
@@ -550,6 +645,10 @@ class ClientAdmin(admin.ModelAdmin):
         ('Referral & Notes', {
             'fields': ('referral_source', 'additional_notes')
         }),
+        ('Case Notes', {
+            'fields': ('case_notes_manage_link',),
+            'description': 'Only the most recent notes are listed below. Use the link to edit dates on older notes.',
+        }),
         ('Documents', {
             'fields': ('documents_checklist', 'documents_hub_link', 'resume', 'resume_download_link'),
             'description': 'Checklist only on this page — open Documents hub to upload or download (files load on demand).',
@@ -583,6 +682,27 @@ class ClientAdmin(admin.ModelAdmin):
             present.add('resume')
         return present
 
+    def case_notes_manage_link(self, obj):
+        if not obj or not obj.pk:
+            return format_html('<span style="color:#999;">Save client first</span>')
+        total = obj.casenotes.count()
+        url = reverse('admin:clients_casenote_changelist') + f'?client__id__exact={obj.pk}'
+        add_url = reverse('admin:clients_client_add_case_note', args=[obj.pk])
+        return format_html(
+            '<p style="margin:0 0 8px;">'
+            '<a href="{}" class="button">View all {} case notes</a> '
+            '<a href="{}" class="button" style="margin-left:8px;">+ Quick add note</a>'
+            '</p>'
+            '<p style="margin:0;color:#64748b;font-size:12px;">'
+            'Edit <strong>Note date</strong> on any row for retroactive entry. '
+            'Only the {} most recent notes appear in the section below.</p>',
+            url,
+            total,
+            add_url,
+            min(total, CASE_NOTE_INLINE_LIMIT),
+        )
+    case_notes_manage_link.short_description = 'All case notes'
+
     def documents_checklist(self, obj):
         if not obj or not obj.pk:
             return format_html('<span style="color:#999;">Save client first</span>')
@@ -590,20 +710,23 @@ class ClientAdmin(admin.ModelAdmin):
         rows = []
         for code, label in CLIENT_DOC_CHECKLIST:
             if code in present:
-                icon = '<span style="color:#059669;font-weight:700;">✓</span>'
+                icon = format_html('<span style="color:#059669;font-weight:700;">✓</span>')
                 status = 'On file'
             else:
-                icon = '<span style="color:#dc2626;font-weight:700;">○</span>'
+                icon = format_html('<span style="color:#dc2626;font-weight:700;">○</span>')
                 status = 'Missing'
-            rows.append(
-                f'<tr><td style="padding:6px 10px;">{icon}</td>'
-                f'<td style="padding:6px 10px;"><strong>{label}</strong></td>'
-                f'<td style="padding:6px 10px;color:#64748b;">{status}</td></tr>'
-            )
+            rows.append((icon, label, status))
+        table_rows = format_html_join(
+            '',
+            '<tr><td style="padding:6px 10px;">{}</td>'
+            '<td style="padding:6px 10px;"><strong>{}</strong></td>'
+            '<td style="padding:6px 10px;color:#64748b;">{}</td></tr>',
+            rows,
+        )
         return format_html(
             '<table style="width:100%;max-width:420px;border-collapse:collapse;background:#f8fafc;'
             'border:1px solid #e2e8f0;border-radius:8px;">{}</table>',
-            mark_safe(''.join(rows)),
+            table_rows,
         )
     documents_checklist.short_description = 'Document checklist'
 
@@ -662,14 +785,19 @@ class ClientAdmin(admin.ModelAdmin):
             {'code': code, 'label': label, 'present': code in present}
             for code, label in CLIENT_DOC_CHECKLIST
         ]
-        documents = client.documents.exclude(file='').order_by('-created_at')
+        document_rows = []
+        for doc in client.documents.exclude(file='').order_by('-created_at'):
+            document_rows.append({
+                'doc': doc,
+                'download_url': reverse('document-download', kwargs={'pk': doc.pk}),
+            })
 
         context = {
             **self.admin_site.each_context(request),
             'title': f'Documents — {client.full_name}',
             'client': client,
             'checklist': checklist,
-            'documents': documents,
+            'document_rows': document_rows,
             'doc_type_choices': Document.DOC_TYPE_CHOICES,
             'opts': self.model._meta,
             'resume_download_url': reverse('client-resume-download', kwargs={'pk': client.pk}) if client.resume else None,
