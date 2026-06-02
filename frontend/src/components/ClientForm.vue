@@ -138,12 +138,9 @@
             </div>
 
               <!-- Validation message -->
-              <p v-if="!form.training_interest && formAttempted" class="text-red-600 text-sm">
-                Please select a program to continue
-              </p>
-            </div>
-
-            <!-- Pit Stop section is shown later, after main application fields -->
+            <p v-if="!form.training_interest && formAttempted" class="text-red-600 text-sm">
+              Please select a program to continue
+            </p>
           </div>
 
           <!-- Personal Information Section -->

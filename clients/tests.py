@@ -66,15 +66,14 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(response.data[0]['id'], self.site.id)
 
     def test_worker_can_clock_in_without_work_site(self):
-        """Worker portal no longer sends work_site_id — punch still records and
-        geo lat/long are still saved for audit. Geofence check is skipped."""
+        """Portal omits work_site_id — nearest in-range PitStop is auto-assigned."""
         response = self.api.post(
             '/api/worker/time-punch/',
             {
                 'action': 'clock_in',
                 'geolocation': (
-                    '{"status":"captured","latitude":37.7800,'
-                    '"longitude":-122.4100,"accuracy":18,'
+                    '{"status":"captured","latitude":37.7749,'
+                    '"longitude":-122.4194,"accuracy":18,'
                     '"timestamp":"2026-05-28T19:00:00Z"}'
                 ),
             },
@@ -84,13 +83,26 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(response.status_code, 201)
         punch = WorkerTimePunch.objects.get()
         self.assertEqual(punch.worker_account, self.worker)
-        self.assertIsNone(punch.work_site)
+        self.assertEqual(punch.work_site, self.site)
         self.assertEqual(punch.clock_in_geo_status, 'captured')
-        # lat/long must still land in the DB for staff audit even without a site.
         self.assertIsNotNone(punch.clock_in_latitude)
         self.assertIsNotNone(punch.clock_in_longitude)
-        # Without a site we grade on format/precision only, which passes here.
         self.assertTrue(punch.clock_in_geo_basic_ok)
+        self.assertIn('Within geofence', punch.clock_in_geo_basic_note)
+
+    def test_worker_clock_in_denied_location_fails_geofence(self):
+        response = self.api.post(
+            '/api/worker/time-punch/',
+            {
+                'action': 'clock_in',
+                'geolocation': '{"status":"denied","error":"Permission denied"}',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        punch = WorkerTimePunch.objects.get()
+        self.assertFalse(punch.clock_in_geo_basic_ok)
+        self.assertIn('denied', punch.clock_in_geo_basic_note)
 
     def test_worker_can_clock_in_with_geolocation(self):
         response = self.api.post(
@@ -564,3 +576,117 @@ class ClientAdminChangeViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'View all 45 case notes')
         self.assertContains(response, 'Only the 40 most recent notes')
+
+
+class ClientStaffAutoAssignTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.case_manager = User.objects.create_user(
+            username='cmaria',
+            password='testpass123',
+            first_name='Maria',
+            last_name='Lopez',
+            role='case_manager',
+            is_staff=True,
+        )
+        self.admin_user = User.objects.create_user(
+            username='adminrole',
+            password='testpass123',
+            first_name='Admin',
+            last_name='User',
+            role='admin',
+            is_staff=True,
+        )
+        self.client_record = Client.objects.create(
+            first_name='Assign',
+            last_name='Test',
+            phone='4155550001',
+            email='assign@example.com',
+            gender='M',
+            training_interest='general',
+            status='active',
+            staff_name='Original Manager',
+        )
+        self.api = APIClient()
+
+    def test_admin_save_model_reassigns_on_update(self):
+        from django.test import RequestFactory
+        from clients.admin import ClientAdmin
+
+        request = RequestFactory().get('/')
+        request.user = self.case_manager
+        admin = ClientAdmin(Client, AdminSite())
+        obj = Client.objects.get(pk=self.client_record.pk)
+        admin.save_model(request, obj, form=None, change=True)
+        obj.save()
+        obj.refresh_from_db()
+        self.assertEqual(obj.staff_name, 'Maria Lopez')
+
+    def test_admin_save_model_skips_admin_role(self):
+        from django.test import RequestFactory
+        from clients.admin import ClientAdmin
+
+        request = RequestFactory().get('/')
+        request.user = self.admin_user
+        admin = ClientAdmin(Client, AdminSite())
+        obj = Client.objects.get(pk=self.client_record.pk)
+        admin.save_model(request, obj, form=None, change=True)
+        obj.status = 'completed'
+        obj.save()
+        obj.refresh_from_db()
+        self.assertEqual(obj.staff_name, 'Original Manager')
+
+    def test_api_update_reassigns_case_manager(self):
+        self.api.force_authenticate(self.case_manager)
+        response = self.api.patch(
+            f'/api/clients/{self.client_record.pk}/',
+            {'status': 'active', 'additional_notes': 'Follow-up call'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.client_record.refresh_from_db()
+        self.assertEqual(self.client_record.staff_name, 'Maria Lopez')
+
+
+class ClientOutcomesReportTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_superuser(
+            username='reportadmin',
+            password='testpass123',
+            email='reports@example.com',
+        )
+        self.django_client = DjangoTestClient()
+        self.django_client.force_login(self.staff)
+        old = Client.objects.create(
+            first_name='Old',
+            last_name='Client',
+            phone='4155551001',
+            gender='M',
+            training_interest='general',
+            status='active',
+        )
+        old.created_at = timezone.now() - timedelta(days=400)
+        old.save(update_fields=['created_at'])
+
+    def test_outcomes_without_created_range_includes_all_clients(self):
+        Client.objects.create(
+            first_name='New',
+            last_name='Client',
+            phone='4155551002',
+            gender='M',
+            training_interest='general',
+            status='active',
+        )
+        url = reverse('client-outcomes-report-csv')
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        rows = [line for line in body.strip().split('\n') if line]
+        self.assertEqual(len(rows), Client.objects.count() + 1)
+
+    def test_outcomes_package_zip_downloads(self):
+        url = reverse('client-outcomes-package')
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/zip')

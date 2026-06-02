@@ -18,6 +18,7 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.utils import timezone
+from .time_display import format_display_datetime
 from .models import Client, CaseNote, Document, PitStopApplication, JobPlacement
 from .models_extensions import (
     WorkSite,
@@ -43,7 +44,8 @@ CLIENT_DOC_CHECKLIST = (
 
 def _staff_display_name(user):
     """Display name used for case notes, client credit, and audit fields."""
-    return (user.get_full_name() or '').strip() or user.username
+    from .staff_utils import staff_display_name
+    return staff_display_name(user)
 
 
 _CASENOTE_NOTE_DATE_COLUMN = None
@@ -156,7 +158,7 @@ class CaseNoteInline(admin.TabularInline):
             return format_html('<em style="color:#999;">—</em>')
         return format_html(
             '<span style="color:#64748b;font-size:11px;" title="When saved in system">Entered {}</span>',
-            obj.created_at.strftime('%m/%d/%Y %I:%M %p'),
+            format_display_datetime(obj.created_at, '%m/%d/%Y %I:%M %p'),
         )
     entered_at_display.short_description = 'System'
     
@@ -300,8 +302,8 @@ class CaseNoteAdmin(admin.ModelAdmin):
                 note.follow_up_date.strftime('%Y-%m-%d') if note.follow_up_date else '',
                 followup_status,
                 note.note_date.strftime('%Y-%m-%d') if note.note_date else '',
-                note.created_at.strftime('%Y-%m-%d %H:%M:%S') if note.created_at else '',
-                note.updated_at.strftime('%Y-%m-%d %H:%M:%S') if note.updated_at else '',
+                format_display_datetime(note.created_at, '%Y-%m-%d %H:%M:%S') if note.created_at else '',
+                format_display_datetime(note.updated_at, '%Y-%m-%d %H:%M:%S') if note.updated_at else '',
             ])
         
         self.message_user(request, f'✅ Exported {queryset.count()} case note(s) to CSV')
@@ -550,8 +552,12 @@ class ClientAdmin(admin.ModelAdmin):
         formset.save_m2m()
 
     def save_model(self, request, obj, form, change):
-        """Credit new admin-created clients to the logged-in staff member."""
-        if not change and not (obj.staff_name or '').strip():
+        """Credit clients to the logged-in staff member (non-admin); kiosk/public excluded."""
+        from .staff_utils import apply_staff_assignment_to_client, staff_skips_client_auto_assign
+
+        if change:
+            apply_staff_assignment_to_client(obj, request.user)
+        elif not (obj.staff_name or '').strip() and not staff_skips_client_auto_assign(request.user):
             obj.staff_name = _staff_display_name(request.user)
         super().save_model(request, obj, form, change)
     
@@ -1565,7 +1571,7 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         return format_html(
             '<a href="{}">{} · {}</a>',
             url,
-            punch.clock_in_at.strftime('%b %d, %Y %I:%M %p'),
+            format_display_datetime(punch.clock_in_at),
             site_name,
         )
 
@@ -1667,9 +1673,53 @@ class WorkerAccountAdmin(admin.ModelAdmin):
 class WorkSiteAdmin(admin.ModelAdmin):
     """PitStop work sites used for geofenced clock in/out."""
 
-    list_display = ['name', 'neighborhood', 'site_type', 'latitude', 'longitude', 'is_active']
+    list_display = [
+        'name',
+        'neighborhood',
+        'site_type',
+        'gps_status',
+        'latitude',
+        'longitude',
+        'is_active',
+    ]
     list_filter = ['is_active', 'site_type', 'neighborhood']
     search_fields = ['name', 'address', 'neighborhood', 'supervisor_name', 'supervisor_email']
+    fieldsets = (
+        (None, {
+            'fields': (
+                'name',
+                'site_type',
+                'address',
+                'neighborhood',
+                'is_active',
+            ),
+        }),
+        ('Geofence GPS', {
+            'fields': ('latitude', 'longitude'),
+            'description': (
+                'Set coordinates to the center of the PitStop (map pin at the curb/table). '
+                'Workers are validated within ~200 yards of any active PitStop with coordinates.'
+            ),
+        }),
+        ('Supervisor & shifts', {
+            'classes': ('collapse',),
+            'fields': (
+                'supervisor_name',
+                'supervisor_phone',
+                'supervisor_email',
+                'typical_start_time',
+                'typical_end_time',
+                'available_time_slots',
+                'max_workers_per_shift',
+            ),
+        }),
+    )
+
+    def gps_status(self, obj):
+        if obj.latitude is not None and obj.longitude is not None:
+            return format_html('<span style="color: #15803d; font-weight: 700;">✓ GPS set</span>')
+        return format_html('<span style="color: #b91c1c; font-weight: 700;">⚠ Missing GPS</span>')
+    gps_status.short_description = 'Geofence'
 
 
 @admin.register(ClientTextMessage)
@@ -1787,8 +1837,10 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
     )
 
     def get_readonly_fields(self, request, obj=None):
+        # auto_now_add fields must be readonly or Django raises FieldError on the change form
+        auto_fields = ['clock_in_server_received_at']
         if request.user.is_superuser:
-            return ['hours_display']
+            return ['hours_display'] + auto_fields
         return [f.name for f in WorkerTimePunch._meta.fields] + ['hours_display']
 
     def has_delete_permission(self, request, obj=None):

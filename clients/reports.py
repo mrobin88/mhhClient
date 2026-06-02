@@ -7,8 +7,6 @@ import re
 import zipfile
 from datetime import date, datetime, timedelta
 from html import escape
-from zoneinfo import ZoneInfo
-
 from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import render
@@ -22,7 +20,9 @@ from .notifications import followup_stage
 
 
 # Accountants read these reports in local time, but the DB stores UTC.
-REPORT_DISPLAY_TZ = ZoneInfo(getattr(settings, 'WORKER_PORTAL_DISPLAY_TZ', 'America/Los_Angeles'))
+from .time_display import display_tz as _display_tz
+
+REPORT_DISPLAY_TZ = _display_tz()
 
 
 def _staff_aliases(user):
@@ -678,109 +678,318 @@ class WorkAssignmentsReportCSVView(LoginRequiredMixin, View):
         return response
 
 
-class ClientOutcomesReportCSVView(LoginRequiredMixin, View):
-    """
-    Export client-level outcomes report for OEWD/state reporting.
-    GET parameters:
-      - case_manager
-      - program
-      - demographic
-      - status
-      - start_date (YYYY-MM-DD, client created range)
-      - end_date (YYYY-MM-DD, client created range)
-      - mine=1 (limit to current logged-in staff aliases)
-    """
+def _created_range_requested(request):
+    return request.GET.get('created_range') in {'1', 'true', 'True'}
 
-    def get(self, request):
-        case_manager = (request.GET.get('case_manager') or '').strip()
-        program = (request.GET.get('program') or '').strip()
-        demographic = (request.GET.get('demographic') or '').strip()
-        client_status = (request.GET.get('status') or '').strip()
-        start_date = (request.GET.get('start_date') or '').strip()
-        end_date = (request.GET.get('end_date') or '').strip()
-        mine = request.GET.get('mine')
 
-        clients = Client.objects.all().order_by('-created_at')
-        if mine in {'1', 'true', 'True'}:
-            clients = clients.filter(staff_name__in=_staff_aliases(request.user))
-        elif case_manager:
-            clients = clients.filter(staff_name__icontains=case_manager)
-        if program:
-            clients = clients.filter(training_interest=program)
-        if demographic:
-            clients = clients.filter(demographic_info=demographic)
-        if client_status:
-            clients = clients.filter(status=client_status)
+def _clients_for_outcomes_report(request):
+    """
+    Client queryset for outcomes exports.
+    By default includes ALL clients. Pass created_range=1 plus dates to limit by created_at.
+    """
+    case_manager = (request.GET.get('case_manager') or '').strip()
+    program = (request.GET.get('program') or '').strip()
+    demographic = (request.GET.get('demographic') or '').strip()
+    client_status = (request.GET.get('status') or '').strip()
+    mine = request.GET.get('mine')
+
+    clients = Client.objects.annotate(
+        case_notes_total=Count('casenotes'),
+        documents_on_file=Count('documents'),
+    )
+    if mine in {'1', 'true', 'True'}:
+        clients = clients.filter(staff_name__in=_staff_aliases(request.user))
+    elif case_manager:
+        clients = clients.filter(staff_name__icontains=case_manager)
+    if program:
+        clients = clients.filter(training_interest=program)
+    if demographic:
+        clients = clients.filter(demographic_info=demographic)
+    if client_status:
+        clients = clients.filter(status=client_status)
+
+    if _created_range_requested(request):
+        start_date = (request.GET.get('created_start') or request.GET.get('start_date') or '').strip()
+        end_date = (request.GET.get('created_end') or request.GET.get('end_date') or '').strip()
         if start_date:
             clients = clients.filter(created_at__date__gte=start_date)
         if end_date:
             clients = clients.filter(created_at__date__lte=end_date)
 
+    return clients.order_by('-updated_at')
+
+
+CLIENT_OUTCOMES_HEADERS = [
+    'Client ID',
+    'Client Name',
+    'Phone',
+    'Email',
+    'Case Manager',
+    'Case Manager Assigned',
+    'Program',
+    'Demographic Group',
+    'Language',
+    'Employment Status',
+    'Client Status',
+    'Created At',
+    'Last Updated',
+    'Program Start',
+    'Program Completed',
+    'Job Placed',
+    'Job Placement Date',
+    'Has Resume',
+    'Documents On File',
+    'Total Case Notes',
+    'Last Case Note Date',
+    'Follow-up Overdue Bucket',
+]
+
+
+def _worst_followup_bucket(notes, today=None):
+    today = today or date.today()
+    overdue_bucket = 'no_followup'
+    rank = {
+        'no_followup': 0,
+        'current': 1,
+        'overdue_under_30': 2,
+        'overdue_30_plus': 3,
+        'overdue_60_plus': 4,
+        'overdue_90_plus': 5,
+    }
+    for note in notes:
+        stage = followup_stage(note.follow_up_date, today=today)
+        if rank.get(stage, 0) > rank.get(overdue_bucket, 0):
+            overdue_bucket = stage
+    return overdue_bucket
+
+
+def _write_client_outcomes_csv(writer, clients):
+    today = date.today()
+    notes_by_client = {}
+    for client in clients.prefetch_related('casenotes'):
+        notes_by_client[client.id] = list(client.casenotes.all().order_by('-note_date', '-created_at'))
+
+    writer.writerow(CLIENT_OUTCOMES_HEADERS)
+    for client in clients:
+        notes = notes_by_client.get(client.id, [])
+        last_note = notes[0] if notes else None
+        writer.writerow([
+            client.id,
+            client.full_name,
+            client.phone or '',
+            client.email or '',
+            client.staff_name or '',
+            'Yes' if (client.staff_name or '').strip() else 'No',
+            client.get_training_interest_display(),
+            client.get_demographic_info_display(),
+            client.get_language_display(),
+            client.get_employment_status_display(),
+            client.get_status_display(),
+            client.created_at.strftime('%Y-%m-%d') if client.created_at else '',
+            client.updated_at.strftime('%Y-%m-%d') if client.updated_at else '',
+            client.program_start_date.isoformat() if client.program_start_date else '',
+            client.program_completed_date.isoformat() if client.program_completed_date else '',
+            'Yes' if client.job_placed else 'No',
+            client.job_placement_date.isoformat() if client.job_placement_date else '',
+            'Yes' if client.resume else 'No',
+            getattr(client, 'documents_on_file', 0) or 0,
+            getattr(client, 'case_notes_total', len(notes)),
+            last_note.note_date.strftime('%Y-%m-%d') if last_note and last_note.note_date else '',
+            _worst_followup_bucket(notes, today=today),
+        ])
+
+
+def _build_client_outcomes_summary_html(clients, request):
+    metrics = _client_metrics_snapshot_for_queryset(clients)
+    unassigned = clients.filter(Q(staff_name__isnull=True) | Q(staff_name='')).count()
+    no_notes = clients.filter(case_notes_total=0).count()
+    created_filter = 'Yes (created date range applied)' if _created_range_requested(request) else 'No (all clients in system)'
+
+    rows = []
+    for client in clients[:500]:
+        rows.append(
+            f'<tr><td>{client.id}</td><td>{escape(client.full_name)}</td>'
+            f'<td>{escape(client.staff_name or "—")}</td><td>{escape(client.get_status_display())}</td>'
+            f'<td>{getattr(client, "case_notes_total", 0)}</td></tr>'
+        )
+    if not rows:
+        rows.append('<tr><td colspan="5">No clients matched these filters.</td></tr>')
+    more = ''
+    if clients.count() > 500:
+        more = f'<p class="meta">Showing first 500 of {clients.count()} clients. Open the CSV in the package for the full list.</p>'
+
+    return f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Client Outcomes Summary</title>
+<style>
+body {{ font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }}
+h1,h2 {{ margin-bottom: 8px; }}
+.meta {{ color: #475569; margin-bottom: 14px; line-height: 1.45; }}
+table {{ border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 12px; }}
+th,td {{ border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }}
+th {{ background: #f1f5f9; }}
+.box {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 14px; }}
+@media print {{ @page {{ margin: 0.5in; }} }}
+</style></head><body>
+<h1>Client Outcomes Summary</h1>
+<p class="meta">Generated {metrics['generated_at']}. Created-date filter: {created_filter}.</p>
+<div class="box">
+  <strong>Topline</strong><br>
+  Clients in this export: <strong>{metrics['total_clients']}</strong><br>
+  Active: <strong>{metrics['active_clients']}</strong><br>
+  Missing case manager: <strong>{unassigned}</strong><br>
+  No case notes on file: <strong>{no_notes}</strong>
+</div>
+<p class="meta"><strong>Tip:</strong> Use the CSV in this package for Excel. Print this page for a quick staff meeting handout.</p>
+{more}
+<h2>Client list (snapshot)</h2>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>Case Manager</th><th>Status</th><th>Notes</th></tr></thead>
+  <tbody>{''.join(rows)}</tbody>
+</table>
+</body></html>"""
+
+
+class ClientOutcomesReportCSVView(LoginRequiredMixin, View):
+    """
+    Export client-level outcomes report for OEWD/state reporting.
+    Includes all clients unless created_range=1 with optional date bounds.
+    """
+
+    def get(self, request):
+        clients = _clients_for_outcomes_report(request)
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = (
             f'attachment; filename="client_outcomes_{date.today().isoformat()}.csv"'
         )
         writer = csv.writer(response)
-        writer.writerow([
-            'Client ID',
-            'Client Name',
-            'Case Manager',
-            'Program',
-            'Demographic Group',
-            'Language',
-            'Employment Status',
-            'Client Status',
-            'Program Start',
-            'Program Completed',
-            'Job Placed',
-            'Job Placement Date',
-            'Total Case Notes',
-            'Last Case Note At',
-            'Follow-up Overdue Bucket',
+        _write_client_outcomes_csv(writer, clients)
+        return response
+
+
+class ClientOutcomesPackageView(LoginRequiredMixin, View):
+    """ZIP: outcomes CSV + printable HTML summary (easier than raw CSV alone)."""
+
+    def get(self, request):
+        clients = _clients_for_outcomes_report(request)
+        csv_io = io.StringIO()
+        _write_client_outcomes_csv(csv.writer(csv_io), clients)
+        html = _build_client_outcomes_summary_html(clients, request)
+        readme = (
+            'Client Outcomes Package\n'
+            '========================\n'
+            '1) Open client_outcomes.csv in Excel or Google Sheets.\n'
+            '2) Print client_outcomes_summary.html for a quick snapshot.\n'
+            f'Total clients in this export: {clients.count()}\n'
+            'Note: By default this includes ALL clients. Use Reports Hub checkbox '
+            '"Only clients created in date range" to narrow.\n'
+        )
+
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('README.txt', readme)
+            zf.writestr(f'client_outcomes_{date.today().isoformat()}.csv', csv_io.getvalue())
+            zf.writestr('client_outcomes_summary.html', html)
+        out.seek(0)
+        response = HttpResponse(out.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = (
+            f'attachment; filename="client_outcomes_package_{date.today().isoformat()}.zip"'
+        )
+        return response
+
+
+class ManagerOperationsPackageView(LoginRequiredMixin, View):
+    """
+    One-click manager bundle: outcomes package + follow-up scorecard + PitStop hours.
+    """
+
+    def get(self, request):
+        clients = _clients_for_outcomes_report(request)
+        since_days = int(request.GET.get('since_days', '90') or 90)
+        since_date = date.today() - timedelta(days=since_days)
+
+        outcomes_csv = io.StringIO()
+        _write_client_outcomes_csv(csv.writer(outcomes_csv), clients)
+        outcomes_html = _build_client_outcomes_summary_html(clients, request)
+
+        score_io = io.StringIO()
+        score_writer = csv.writer(score_io)
+        score_writer.writerow([
+            'Staff Member', 'Total Notes', 'Follow-up Notes', 'Clients Touched',
+            'Overdue 30+', 'Overdue 60+', 'Overdue 90+', 'Credits', 'Mark',
         ])
-
-        today = date.today()
-        notes_by_client = {
-            c.id: list(c.casenotes.all().order_by('-created_at'))
-            for c in clients.prefetch_related('casenotes')
-        }
-
-        for client in clients:
-            notes = notes_by_client.get(client.id, [])
-            last_note = notes[0] if notes else None
-            overdue_bucket = 'no_followup'
-            for note in notes:
-                stage = followup_stage(note.follow_up_date, today=today)
-                # Keep worst-stage bucket encountered
-                rank = {
-                    'no_followup': 0,
-                    'current': 1,
-                    'overdue_under_30': 2,
-                    'overdue_30_plus': 3,
-                    'overdue_60_plus': 4,
-                    'overdue_90_plus': 5,
+        notes = CaseNote.objects.filter(note_date__gte=since_date).select_related('client')
+        if request.GET.get('mine') in {'1', 'true', 'True'}:
+            notes = notes.filter(staff_member__in=_staff_aliases(request.user))
+        scorecard = {}
+        for note in notes:
+            key = (note.staff_member or 'Unassigned').strip() or 'Unassigned'
+            if key not in scorecard:
+                scorecard[key] = {
+                    'total_notes': 0, 'follow_up_notes': 0, 'clients_touched': set(),
+                    'overdue_30_plus': 0, 'overdue_60_plus': 0, 'overdue_90_plus': 0,
                 }
-                if rank.get(stage, 0) > rank.get(overdue_bucket, 0):
-                    overdue_bucket = stage
-
-            writer.writerow([
-                client.id,
-                client.full_name,
-                client.staff_name or '',
-                client.get_training_interest_display(),
-                client.get_demographic_info_display(),
-                client.get_language_display(),
-                client.get_employment_status_display(),
-                client.get_status_display(),
-                client.program_start_date.isoformat() if client.program_start_date else '',
-                client.program_completed_date.isoformat() if client.program_completed_date else '',
-                'Yes' if client.job_placed else 'No',
-                client.job_placement_date.isoformat() if client.job_placement_date else '',
-                len(notes),
-                last_note.note_date.strftime('%Y-%m-%d') if last_note and last_note.note_date else '',
-                overdue_bucket,
+            row = scorecard[key]
+            row['total_notes'] += 1
+            if note.note_type == 'follow_up':
+                row['follow_up_notes'] += 1
+            row['clients_touched'].add(note.client_id)
+            stage = followup_stage(note.follow_up_date)
+            if stage == 'overdue_30_plus':
+                row['overdue_30_plus'] += 1
+            elif stage == 'overdue_60_plus':
+                row['overdue_60_plus'] += 1
+            elif stage == 'overdue_90_plus':
+                row['overdue_90_plus'] += 1
+        for staff_member, row in sorted(scorecard.items(), key=lambda item: item[0].lower()):
+            credits = (
+                (row['follow_up_notes'] * 3) + row['total_notes']
+                - (row['overdue_30_plus'] * 2) - (row['overdue_60_plus'] * 3)
+                - (row['overdue_90_plus'] * 4)
+            )
+            mark = 'A' if credits >= 80 else 'B' if credits >= 50 else 'C' if credits >= 25 else 'D'
+            score_writer.writerow([
+                staff_member, row['total_notes'], row['follow_up_notes'], len(row['clients_touched']),
+                row['overdue_30_plus'], row['overdue_60_plus'], row['overdue_90_plus'], credits, mark,
             ])
 
+        pitstop_io = io.StringIO()
+        start_date = (request.GET.get('start_date') or '').strip()
+        end_date = (request.GET.get('end_date') or '').strip()
+        if not start_date:
+            start_date = (date.today() - timedelta(days=14)).isoformat()
+        if not end_date:
+            end_date = date.today().isoformat()
+        punches = WorkerTimePunch.objects.select_related(
+            'worker_account__client', 'work_site'
+        ).order_by('-clock_in_at')
+        punches = punches.filter(clock_in_at__date__gte=start_date, clock_in_at__date__lte=end_date)
+        write_pitstop_hours_csv(pitstop_io, punches)
+
+        start_here = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Manager Package</title>
+<style>body{{font-family:Arial,sans-serif;margin:28px;color:#0f172a;line-height:1.5}}
+h1{{margin-bottom:6px}}.step{{margin:10px 0;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px}}
+</style></head><body>
+<h1>Manager Operations Package</h1>
+<p>Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}. Unzip this folder, then:</p>
+<div class="step"><strong>1.</strong> Open <code>client_outcomes.csv</code> in Excel — full caseload ({clients.count()} clients).</div>
+<div class="step"><strong>2.</strong> Print <code>client_outcomes_summary.html</code> for a one-page meeting snapshot.</div>
+<div class="step"><strong>3.</strong> Review <code>staff_followup_scorecard.csv</code> (last {since_days} days).</div>
+<div class="step"><strong>4.</strong> Review <code>pitstop_hours.csv</code> for clocked time (uses activity date range from Reports Hub).</div>
+</body></html>"""
+
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('START_HERE.html', start_here)
+            zf.writestr(f'client_outcomes_{date.today().isoformat()}.csv', outcomes_csv.getvalue())
+            zf.writestr('client_outcomes_summary.html', outcomes_html)
+            zf.writestr('staff_followup_scorecard.csv', score_io.getvalue())
+            zf.writestr('pitstop_hours.csv', pitstop_io.getvalue())
+        out.seek(0)
+        response = HttpResponse(out.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = (
+            f'attachment; filename="manager_operations_package_{date.today().isoformat()}.zip"'
+        )
         return response
 
 

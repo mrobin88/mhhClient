@@ -163,7 +163,8 @@ function startCooldown() {
 function formatDateTime(iso: string | null | undefined) {
   if (!iso) return ''
   const d = new Date(iso)
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',

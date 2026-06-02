@@ -155,10 +155,11 @@
 
     <section class="filters">
       <h2>Selectors</h2>
-      <p>These filters automatically apply to matching report links below.</p>
+      <p><strong>Activity dates</strong> apply to PitStop hours. <strong>Client outcomes</strong> include your full caseload unless you check the box below.</p>
       <div class="row">
-        <label>Start date <input id="startDate" type="date" value="{{ start_of_month }}"></label>
-        <label>End date <input id="endDate" type="date" value="{{ today }}"></label>
+        <label>Activity start <input id="startDate" type="date" value="{{ start_of_month }}"></label>
+        <label>Activity end <input id="endDate" type="date" value="{{ today }}"></label>
+        <label class="toggle"><input id="createdRangeOnly" type="checkbox"> Only clients <em>created</em> in activity date range (outcomes / inventory)</label>
         <label>Program
           <select id="program">
             <option value="">All programs</option>
@@ -203,10 +204,16 @@
     </section>
 
     <section class="grid">
+      <div class="card" style="border-color:#0f766e;background:#f0fdfa;">
+        <div class="title">📦 Manager package (recommended)</div>
+        <div class="desc">ZIP with outcomes CSV, printable summary, follow-up scorecard, and PitStop hours. Open START_HERE.html first.</div>
+        <a class="btn" id="managerPackageZip" href="/api/reports/manager-operations-package/" target="_blank">Download ZIP</a>
+      </div>
       <div class="card">
         <div class="title">🧾 Client Outcomes</div>
-        <div class="desc">Case manager, program, demographics, and outcome tracking.</div>
-        <a class="btn" id="clientOutcomesCsv" href="/api/reports/client-outcomes/" target="_blank">Download CSV</a>
+        <div class="desc">Full caseload export — case manager, notes, job placement, missing-data flags.</div>
+        <a class="btn" id="clientOutcomesPackage" href="/api/reports/client-outcomes-package/" target="_blank">Download ZIP (CSV + print)</a>
+        <a class="btn secondary" id="clientOutcomesCsv" href="/api/reports/client-outcomes/" target="_blank">CSV only</a>
       </div>
       <div class="card">
         <div class="title">💼 Job Placements</div>
@@ -258,6 +265,7 @@
     const staffNameEl = document.getElementById('staffName');
     const mineOnlyEl = document.getElementById('mineOnly');
     const clientLookupEl = document.getElementById('clientLookup');
+    const createdRangeOnlyEl = document.getElementById('createdRangeOnly');
 
     const buildUrl = (base, params) => {
       const url = new URL(base, window.location.origin);
@@ -268,26 +276,38 @@
     };
 
     const applyLinks = () => {
-      const common = {
+      const activityDates = {
         start_date: startEl.value || '',
         end_date: endEl.value || ''
       };
+      const createdRange = createdRangeOnlyEl.checked ? { created_range: '1', ...activityDates } : {};
       const mine = mineOnlyEl.checked ? '1' : '';
-      document.getElementById('clientOutcomesCsv').href = buildUrl('/api/reports/client-outcomes/', {
-        ...common,
+      const outcomeParams = {
         program: programEl.value || '',
         status: clientStatusEl.value || '',
         case_manager: staffNameEl.value || '',
-        mine
+        mine,
+        ...createdRange
+      };
+      document.getElementById('managerPackageZip').href = buildUrl('/api/reports/manager-operations-package/', {
+        ...outcomeParams,
+        ...activityDates,
+        since_days: sinceDaysEl.value || '90'
       });
+      document.getElementById('clientOutcomesPackage').href = buildUrl('/api/reports/client-outcomes-package/', outcomeParams);
+      document.getElementById('clientOutcomesCsv').href = buildUrl('/api/reports/client-outcomes/', outcomeParams);
       document.getElementById('jobPlacementsCsv').href = buildUrl('/api/reports/job-placements/', {
-        ...common,
+        ...activityDates,
+        ...createdRange,
         work_type: workTypeEl.value || '',
         logged_by: staffNameEl.value || '',
         mine
       });
-      document.getElementById('workforceZip').href = buildUrl('/api/reports/workforce-inventory-package/', common);
-      document.getElementById('calloutsCsv').href = buildUrl('/api/reports/callouts/', common);
+      document.getElementById('workforceZip').href = buildUrl('/api/reports/workforce-inventory-package/', {
+        ...activityDates,
+        ...createdRange
+      });
+      document.getElementById('calloutsCsv').href = buildUrl('/api/reports/callouts/', activityDates);
       document.getElementById('followupCsv').href = buildUrl('/api/reports/staff-followup-scorecard/', {
         since_days: sinceDaysEl.value || '90',
         mine
@@ -299,14 +319,14 @@
       document.getElementById('clientFileZip').href = buildUrl('/api/reports/client-file-package/', {
         client_lookup: clientLookupEl.value || ''
       });
-      document.getElementById('pitstopHoursCsv').href = buildUrl('/api/reports/pitstop-hours/', common);
+      document.getElementById('pitstopHoursCsv').href = buildUrl('/api/reports/pitstop-hours/', activityDates);
       document.getElementById('pitstopHoursCsvComplete').href = buildUrl('/api/reports/pitstop-hours/', {
-        ...common,
+        ...activityDates,
         only_complete: '1'
       });
     };
 
-    [startEl, endEl, programEl, clientStatusEl, workTypeEl, sinceDaysEl, staffNameEl, mineOnlyEl, clientLookupEl]
+    [startEl, endEl, programEl, clientStatusEl, workTypeEl, sinceDaysEl, staffNameEl, mineOnlyEl, clientLookupEl, createdRangeOnlyEl]
       .forEach((el) => el.addEventListener('change', applyLinks));
     [staffNameEl, clientLookupEl].forEach((el) => el.addEventListener('input', applyLinks));
     applyLinks();

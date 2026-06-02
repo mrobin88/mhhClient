@@ -4,8 +4,6 @@ Worker Portal API — focused on worker clock in/out with geolocation.
 import json
 import math
 from datetime import datetime, timedelta, timezone as dt_timezone
-from zoneinfo import ZoneInfo
-
 from django.conf import settings
 from django.db.models import DurationField, ExpressionWrapper, F, Sum
 from django.utils import timezone
@@ -35,6 +33,7 @@ from .serializers import (
     WorkerTimePunchSerializer,
 )
 from .throttles import WorkerPunchThrottle
+from .time_display import display_tz
 
 class WorkerSession:
     """DB-backed worker portal session (multi-process safe)."""
@@ -160,31 +159,6 @@ def _parse_geo_payload(geo):
     return default
 
 
-def _basic_geo_validation(geo_payload):
-    """
-    Lightweight checks to flag obviously bad/suspicious location payloads.
-    """
-    status_value = geo_payload.get('status')
-    if status_value != WorkerTimePunch.GEO_STATUS_CAPTURED:
-        return False, f"No captured location ({status_value})"
-
-    lat = geo_payload.get('latitude')
-    lng = geo_payload.get('longitude')
-    acc = geo_payload.get('accuracy')
-
-    if lat is None or lng is None:
-        return False, 'Missing latitude/longitude'
-    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
-        return False, 'Latitude/longitude out of range'
-    if abs(lat) < 0.0001 and abs(lng) < 0.0001:
-        return False, 'Coordinate is near 0,0'
-    if acc is None:
-        return False, 'Missing GPS accuracy value'
-    if acc > 500:
-        return False, f'Low precision ({acc:.0f}m)'
-    return True, f'Captured with accuracy {acc:.0f}m'
-
-
 def _distance_meters(lat1, lon1, lat2, lon2):
     radius = 6371000.0
     lat1_r, lon1_r = math.radians(lat1), math.radians(lon1)
@@ -195,29 +169,73 @@ def _distance_meters(lat1, lon1, lat2, lon2):
     return 2 * radius * math.asin(math.sqrt(a))
 
 
-def _site_geo_validation(site, geo_payload):
-    if not site:
-        return False, 'Select a PitStop location first', None
-    if site.latitude is None or site.longitude is None:
-        return False, 'Site geolocation is not configured. Ask staff to set site coordinates.', None
-    if geo_payload.get('status') != WorkerTimePunch.GEO_STATUS_CAPTURED:
-        return False, f'No captured location ({geo_payload.get("status")})', None
-    if geo_payload.get('latitude') is None or geo_payload.get('longitude') is None:
-        return False, 'Missing worker location coordinates', None
-    distance = _distance_meters(
-        float(geo_payload['latitude']),
-        float(geo_payload['longitude']),
-        float(site.latitude),
-        float(site.longitude),
+def _pitstop_sites_with_coordinates():
+    return WorkSite.objects.filter(
+        is_active=True,
+        site_type='pitstop',
+        latitude__isnull=False,
+        longitude__isnull=False,
     )
-    # Default to ~200 yards (183m) unless explicitly overridden in env.
+
+
+def _pitstop_geofence_validation(geo_payload, preferred_site=None):
+    """Match worker GPS to any active PitStop within the geofence radius.
+
+    Returns (matched_site, ok, note, distance_meters). matched_site is the
+    nearest in-range site; preferred_site is used when it is also in range.
+    """
+    if geo_payload.get('status') != WorkerTimePunch.GEO_STATUS_CAPTURED:
+        return None, False, f'No captured location ({geo_payload.get("status")})', None
+    if geo_payload.get('latitude') is None or geo_payload.get('longitude') is None:
+        return None, False, 'Missing worker location coordinates', None
+
+    sites = list(_pitstop_sites_with_coordinates())
+    if not sites:
+        return preferred_site, False, 'No PitStop sites have GPS coordinates configured.', None
+
+    lat = float(geo_payload['latitude'])
+    lng = float(geo_payload['longitude'])
     max_distance = int(getattr(settings, 'WORKER_CLOCK_GEOFENCE_METERS', 183))
-    if distance > max_distance:
-        return False, f'Outside site geofence ({distance:.0f}m > {max_distance}m)', distance
-    return True, f'Within geofence ({distance:.0f}m)', distance
+
+    in_range = []
+    nearest_site = None
+    nearest_distance = None
+    for site in sites:
+        distance = _distance_meters(lat, lng, float(site.latitude), float(site.longitude))
+        if nearest_distance is None or distance < nearest_distance:
+            nearest_distance = distance
+            nearest_site = site
+        if distance <= max_distance:
+            in_range.append((distance, site))
+
+    if not in_range:
+        label = nearest_site.name if nearest_site else 'site'
+        return (
+            preferred_site,
+            False,
+            f'Outside all PitStop geofences (nearest {label} {nearest_distance:.0f}m > {max_distance}m)',
+            nearest_distance,
+        )
+
+    in_range.sort(key=lambda item: item[0])
+    matched_site = in_range[0][1]
+    matched_distance = in_range[0][0]
+    if preferred_site:
+        for distance, site in in_range:
+            if site.pk == preferred_site.pk:
+                matched_site = site
+                matched_distance = distance
+                break
+
+    return (
+        matched_site,
+        True,
+        f'Within geofence at {matched_site.name} ({matched_distance:.0f}m)',
+        matched_distance,
+    )
 
 
-WORKER_LOCAL_TZ = ZoneInfo(getattr(settings, 'WORKER_PORTAL_DISPLAY_TZ', 'America/Los_Angeles'))
+WORKER_LOCAL_TZ = display_tz()
 
 
 def _local_day_bounds(now=None):
@@ -464,7 +482,7 @@ def _handle_lunch_action(action, open_punch, geo, now):
 @permission_classes([AllowAny])
 @throttle_classes([WorkerPunchThrottle])
 def worker_time_punch(request):
-    """Worker clock in/out with geolocation validated against selected PitStop site."""
+    """Worker clock in/out with geolocation validated against any active PitStop site."""
     account, err = _require_worker(request)
     if err:
         return err
@@ -504,12 +522,12 @@ def worker_time_punch(request):
         return site_err
 
     geo = _parse_geo_payload(request.data.get('geolocation'))
-    # When a site is provided, gate on the geofence. Without a site we still
-    # record lat/long and grade it on format/precision only.
-    if site is not None:
-        geo_basic_ok, geo_basic_note, _geo_distance = _site_geo_validation(site, geo)
-    else:
-        geo_basic_ok, geo_basic_note = _basic_geo_validation(geo)
+    matched_site, geo_basic_ok, geo_basic_note, _geo_distance = _pitstop_geofence_validation(
+        geo,
+        preferred_site=site,
+    )
+    if action == 'clock_in' and matched_site and geo_basic_ok:
+        site = matched_site
     now = timezone.now()
 
     open_punch = (

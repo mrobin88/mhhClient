@@ -71,9 +71,7 @@
    ```
 
 ## 📚 **Documentation**
-- **Case Notes Guide**: [CASE_NOTES_GUIDE.md](CASE_NOTES_GUIDE.md) - How to use the case notes system
-- **Staff Tools Adoption Guide**: [STAFF_TOOLS_ADOPTION_GUIDE.md](STAFF_TOOLS_ADOPTION_GUIDE.md) - Non-technical guide for staff usage, reporting selectors, and hosting recommendations
-- **Project Specs**: [MISSION_HIRING_HALL_SPECS.md](MISSION_HIRING_HALL_SPECS.md) - Complete project specifications
+- **Staff how-to (front of house)**: [STAFF_GUIDE.md](STAFF_GUIDE.md) — why we use the system and daily workflows for staff and managers
 
 ## 🔧 **Project Structure**
 

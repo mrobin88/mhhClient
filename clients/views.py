@@ -209,6 +209,16 @@ class ClientViewSet(viewsets.ModelViewSet):
                     'Failed to save supporting document %s for Client %s: %s',
                     doc_type, client.pk, exc
                 )
+
+    def perform_update(self, serializer):
+        """Assign updated client to processing staff (non-admin); not used for kiosk/public."""
+        from .staff_utils import apply_staff_assignment_to_client
+
+        client = serializer.instance
+        if apply_staff_assignment_to_client(client, self.request.user):
+            serializer.save(staff_name=client.staff_name)
+        else:
+            serializer.save()
     
     @action(detail=False, methods=['get'])
     def export_csv(self, request):
