@@ -167,9 +167,16 @@ class WorkAssignment(models.Model):
         return self.status == 'called_out' and not self.replacement_found
 
 
+def worker_punch_map_upload_to(instance, filename):
+    """Store map snapshots under worker account id (no geofence validation)."""
+    safe_name = (filename or 'map.png').split('/')[-1][:120]
+    account_id = instance.worker_account_id or 'unknown'
+    return f'worker_punches/{account_id}/{safe_name}'
+
+
 class WorkerTimePunch(models.Model):
     """
-    Worker clock in/out records with optional geolocation verification.
+    Worker clock in/out records with optional map snapshot for visual reference.
     """
 
     GEO_STATUS_CAPTURED = 'captured'
@@ -247,6 +254,29 @@ class WorkerTimePunch(models.Model):
         help_text='Basic validation check for clock-out location payload.',
     )
     clock_out_geo_basic_note = models.CharField(max_length=200, blank=True)
+
+    clock_in_location_label = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text='Approximate address or cross streets at clock-in (display only).',
+    )
+    clock_out_location_label = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text='Approximate address or cross streets at clock-out (display only).',
+    )
+    clock_in_map_image = models.ImageField(
+        upload_to=worker_punch_map_upload_to,
+        null=True,
+        blank=True,
+        help_text='Static map snapshot at clock-in (visual reference only).',
+    )
+    clock_out_map_image = models.ImageField(
+        upload_to=worker_punch_map_upload_to,
+        null=True,
+        blank=True,
+        help_text='Static map snapshot at clock-out (visual reference only).',
+    )
 
     # Unpaid meal break (single lunch per shift). Paid 10-minute rest breaks are
     # not tracked because they do not affect net paid hours. lat/long captured

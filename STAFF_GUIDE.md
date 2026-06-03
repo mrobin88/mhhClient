@@ -80,8 +80,10 @@ Workers use the **worker portal** — not the staff admin.
 
 1. Staff creates a **worker account** for the client (admin list action).  
 2. Worker logs in with **phone + PIN** (last 4 digits of phone unless changed).  
-3. Worker picks their **PitStop site**, then **clocks in** and **clocks out** (location is used to confirm they are at the site).  
+3. Worker **clocks in** and **clocks out** (optional map snapshot + cross-street label saved for reference — no geofence).  
 4. Staff review hours under **Admin → Worker time punches** or **PitStop Hours** report.
+
+**Staff workspace (new):** https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff/ — same username/password as Admin; search clients and add quick case notes from a phone-friendly UI.
 
 **We do not schedule shifts in this system anymore.** No assignment grid on the client page — only clock punches.
 

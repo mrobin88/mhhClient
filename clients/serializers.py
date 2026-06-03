@@ -211,6 +211,8 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
     duration_minutes = serializers.SerializerMethodField()
     assignment_label = serializers.SerializerMethodField()
     work_site_name = serializers.CharField(source='work_site.name', read_only=True)
+    clock_in_map_url = serializers.SerializerMethodField()
+    clock_out_map_url = serializers.SerializerMethodField()
     is_on_lunch = serializers.ReadOnlyField()
     lunch_minutes = serializers.ReadOnlyField()
     net_hours = serializers.ReadOnlyField()
@@ -227,10 +229,10 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
             'clock_out_at',
             'clock_in_server_received_at',
             'clock_out_server_received_at',
-            'clock_in_geo_basic_ok',
-            'clock_in_geo_basic_note',
-            'clock_out_geo_basic_ok',
-            'clock_out_geo_basic_note',
+            'clock_in_location_label',
+            'clock_out_location_label',
+            'clock_in_map_url',
+            'clock_out_map_url',
             'lunch_start_at',
             'lunch_end_at',
             'is_on_lunch',
@@ -239,6 +241,20 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
             'is_open',
             'duration_minutes',
         ]
+
+    def _map_url(self, image_field):
+        if not image_field:
+            return None
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(image_field.url)
+        return image_field.url
+
+    def get_clock_in_map_url(self, obj):
+        return self._map_url(obj.clock_in_map_image)
+
+    def get_clock_out_map_url(self, obj):
+        return self._map_url(obj.clock_out_map_image)
 
     def get_is_open(self, obj):
         return obj.clock_out_at is None

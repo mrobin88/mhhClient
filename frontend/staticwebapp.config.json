@@ -6,6 +6,10 @@
       "/worker/",
       "/worker/*",
       "/worker.html",
+      "/staff",
+      "/staff/",
+      "/staff/*",
+      "/staff.html",
       "/assets/*",
       "*.css",
       "*.js",
@@ -21,6 +25,10 @@
     {
       "route": "/worker.html",
       "serve": "/worker/index.html"
+    },
+    {
+      "route": "/staff.html",
+      "serve": "/staff/index.html"
     },
     {
       "route": "/checkin.html",

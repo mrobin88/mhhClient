@@ -36,7 +36,6 @@
         </div>
       </div>
 
-      <!-- Lunch: End lunch takes over while on break; Start lunch shows once per shift -->
       <button
         v-if="isOnLunch"
         type="button"
@@ -90,17 +89,6 @@ import {
 } from '@heroicons/vue/24/outline'
 import { workerFetch } from '../api'
 
-type GeoStatus = 'captured' | 'denied' | 'unavailable' | 'timeout' | 'error' | 'skipped'
-
-interface GeoPayload {
-  status: GeoStatus
-  latitude?: number
-  longitude?: number
-  accuracy?: number
-  error?: string
-  timestamp?: string
-}
-
 interface ActivePunch {
   id: number
   clock_in_at: string
@@ -109,8 +97,16 @@ interface ActivePunch {
   is_on_lunch: boolean
 }
 
+interface LocationReference {
+  label: string
+  mapBlob: Blob | null
+  latitude?: number
+  longitude?: number
+}
+
 const PUNCH_COOLDOWN_MS = 2500
 const LIVE_TICK_MS = 30_000
+const OSM_STATIC_MAP = 'https://staticmap.openstreetmap.de/staticmap.php'
 
 const activePunch = ref<ActivePunch | null>(null)
 const todayHours = ref(0)
@@ -172,40 +168,74 @@ function formatDateTime(iso: string | null | undefined) {
   })
 }
 
-function geoErrorPayload(geolocationError: GeolocationPositionError): GeoPayload {
-  if (geolocationError.code === geolocationError.PERMISSION_DENIED) {
-    return { status: 'denied', error: 'Permission denied by browser' }
-  }
-  if (geolocationError.code === geolocationError.POSITION_UNAVAILABLE) {
-    return { status: 'unavailable', error: 'Position unavailable' }
-  }
-  if (geolocationError.code === geolocationError.TIMEOUT) {
-    return { status: 'timeout', error: 'Location request timed out' }
-  }
-  return { status: 'error', error: geolocationError.message || 'Location lookup failed' }
-}
-
-function captureGeolocation(): Promise<GeoPayload> {
+function captureCoordinates(): Promise<{ latitude: number; longitude: number } | null> {
   return new Promise((resolve) => {
     if (!('geolocation' in navigator)) {
-      resolve({ status: 'unavailable', error: 'Geolocation not supported' })
+      resolve(null)
       return
     }
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve({
-          status: 'captured',
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-          timestamp: new Date(position.timestamp).toISOString(),
         })
       },
-      (positionError) => resolve(geoErrorPayload(positionError)),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
     )
   })
+}
+
+async function reverseGeocodeLabel(latitude: number, longitude: number): Promise<string> {
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/reverse')
+    url.searchParams.set('format', 'json')
+    url.searchParams.set('lat', String(latitude))
+    url.searchParams.set('lon', String(longitude))
+    url.searchParams.set('zoom', '18')
+    const resp = await fetch(url.toString(), {
+      headers: { Accept: 'application/json' },
+    })
+    if (!resp.ok) return ''
+    const data = await resp.json()
+    return String(data.display_name || '').slice(0, 300)
+  } catch {
+    return ''
+  }
+}
+
+async function fetchMapSnapshot(latitude: number, longitude: number): Promise<Blob | null> {
+  const params = new URLSearchParams({
+    center: `${latitude},${longitude}`,
+    zoom: '16',
+    size: '400x200',
+    markers: `${latitude},${longitude}`,
+  })
+  try {
+    const resp = await fetch(`${OSM_STATIC_MAP}?${params.toString()}`)
+    if (!resp.ok) return null
+    return await resp.blob()
+  } catch {
+    return null
+  }
+}
+
+async function buildLocationReference(): Promise<LocationReference> {
+  const coords = await captureCoordinates()
+  if (!coords) {
+    return { label: '', mapBlob: null }
+  }
+  const [label, mapBlob] = await Promise.all([
+    reverseGeocodeLabel(coords.latitude, coords.longitude),
+    fetchMapSnapshot(coords.latitude, coords.longitude),
+  ])
+  return {
+    label,
+    mapBlob,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+  }
 }
 
 async function loadClockContext() {
@@ -236,17 +266,22 @@ async function submitAction(action: 'clock_in' | 'clock_out' | 'start_lunch' | '
   error.value = ''
   message.value = ''
   try {
-    // Geolocation is still captured and stored server-side for audit (clock and
-    // lunch alike); the worker UI just doesn't bind it to a specific site since
-    // assignments aren't given out through the portal.
-    const geolocation = await captureGeolocation()
+    const form = new FormData()
+    form.append('action', action)
+
+    if (action === 'clock_in' || action === 'clock_out') {
+      const location = await buildLocationReference()
+      if (location.label) form.append('location_label', location.label)
+      if (location.mapBlob) form.append('map_snapshot', location.mapBlob, 'map_snapshot.png')
+      if (location.latitude != null && location.longitude != null) {
+        form.append('map_latitude', String(location.latitude))
+        form.append('map_longitude', String(location.longitude))
+      }
+    }
+
     const resp = await workerFetch('/api/worker/time-punch/', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action,
-        geolocation,
-      }),
+      body: form,
     })
     if (resp.status === 429) {
       error.value = 'Too many requests. Wait a moment and try again.'

@@ -31,6 +31,15 @@ from .worker_views import (
     worker_time_punch,
 )
 from .kiosk_views import KioskCheckInLookupView, KioskCheckInSubmitView, KioskDocumentUploadView
+from .staff_views import (
+    staff_csrf,
+    staff_session,
+    staff_login,
+    staff_logout,
+    staff_clients,
+    staff_client_detail,
+    staff_client_notes,
+)
 
 router = DefaultRouter()
 router.register(r'clients', ClientViewSet)
@@ -68,4 +77,13 @@ urlpatterns = [
     path('kiosk/check-in/lookup/', KioskCheckInLookupView.as_view(), name='kiosk-check-in-lookup'),
     path('kiosk/check-in/submit/', KioskCheckInSubmitView.as_view(), name='kiosk-check-in-submit'),
     path('kiosk/check-in/upload-document/', KioskDocumentUploadView.as_view(), name='kiosk-check-in-upload-document'),
+
+    # Staff SPA (Django session auth)
+    path('staff/csrf/', staff_csrf, name='staff-csrf'),
+    path('staff/session/', staff_session, name='staff-session'),
+    path('staff/login/', staff_login, name='staff-login'),
+    path('staff/logout/', staff_logout, name='staff-logout'),
+    path('staff/clients/', staff_clients, name='staff-clients'),
+    path('staff/clients/<int:pk>/', staff_client_detail, name='staff-client-detail'),
+    path('staff/clients/<int:pk>/notes/', staff_client_notes, name='staff-client-notes'),
 ]

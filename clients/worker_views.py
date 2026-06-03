@@ -1,9 +1,8 @@
 """
-Worker Portal API — focused on worker clock in/out with geolocation.
+Worker Portal API — worker clock in/out with optional map snapshot reference.
 """
 import json
-import math
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import timedelta
 from django.conf import settings
 from django.db.models import DurationField, ExpressionWrapper, F, Sum
 from django.utils import timezone
@@ -16,7 +15,7 @@ from rest_framework.decorators import (
     permission_classes,
     throttle_classes,
 )
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -34,6 +33,7 @@ from .serializers import (
 )
 from .throttles import WorkerPunchThrottle
 from .time_display import display_tz
+from .worker_map_utils import fetch_static_map_image
 
 class WorkerSession:
     """DB-backed worker portal session (multi-process safe)."""
@@ -105,134 +105,59 @@ def _require_worker(request):
     return account, None
 
 
-def _parse_client_timestamp(value):
-    if not value:
-        return None
-    dt = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
-    if timezone.is_naive(dt):
-        dt = timezone.make_aware(dt, timezone=dt_timezone.utc)
-    return dt
-
-
-def _parse_geo_payload(geo):
-    default = {
-        'status': WorkerTimePunch.GEO_STATUS_SKIPPED,
-        'error': '',
-        'latitude': None,
-        'longitude': None,
-        'accuracy': None,
-        'client_reported_at': None,
-    }
-    if isinstance(geo, str):
-        try:
-            geo = json.loads(geo)
-        except json.JSONDecodeError:
-            geo = {'status': WorkerTimePunch.GEO_STATUS_ERROR, 'error': 'Invalid geolocation payload'}
-    if not isinstance(geo, dict):
-        return default
-
-    status_value = str(geo.get('status') or WorkerTimePunch.GEO_STATUS_SKIPPED).strip().lower()
-    allowed = {choice[0] for choice in WorkerTimePunch.GEO_STATUS_CHOICES}
-    default['status'] = status_value if status_value in allowed else WorkerTimePunch.GEO_STATUS_ERROR
-    default['error'] = str(geo.get('error') or '')[:200]
-
+def _parse_optional_coordinates(request):
+    """Optional map center coords (for server-side static map only, not validated)."""
+    lat = request.data.get('map_latitude')
+    lng = request.data.get('map_longitude')
+    if lat is None or lng is None:
+        geo_raw = request.data.get('geolocation')
+        if isinstance(geo_raw, str):
+            try:
+                geo_raw = json.loads(geo_raw)
+            except json.JSONDecodeError:
+                geo_raw = None
+        if isinstance(geo_raw, dict):
+            lat = geo_raw.get('latitude')
+            lng = geo_raw.get('longitude')
     try:
-        lat = geo.get('latitude')
-        lng = geo.get('longitude')
-        acc = geo.get('accuracy')
-        default['latitude'] = None if lat is None else float(lat)
-        default['longitude'] = None if lng is None else float(lng)
-        default['accuracy'] = None if acc is None else float(acc)
+        if lat is None or lng is None:
+            return None, None
+        return float(lat), float(lng)
     except (TypeError, ValueError):
-        default['status'] = WorkerTimePunch.GEO_STATUS_ERROR
-        if not default['error']:
-            default['error'] = 'Invalid geolocation payload'
-        default['latitude'] = None
-        default['longitude'] = None
-        default['accuracy'] = None
-
-    try:
-        default['client_reported_at'] = _parse_client_timestamp(geo.get('timestamp'))
-    except Exception:
-        default['client_reported_at'] = None
-
-    return default
+        return None, None
 
 
-def _distance_meters(lat1, lon1, lat2, lon2):
-    radius = 6371000.0
-    lat1_r, lon1_r = math.radians(lat1), math.radians(lon1)
-    lat2_r, lon2_r = math.radians(lat2), math.radians(lon2)
-    d_lat = lat2_r - lat1_r
-    d_lon = lon2_r - lon1_r
-    a = math.sin(d_lat / 2) ** 2 + math.cos(lat1_r) * math.cos(lat2_r) * math.sin(d_lon / 2) ** 2
-    return 2 * radius * math.asin(math.sqrt(a))
+def _parse_location_reference(request):
+    """Map snapshot file + human-readable label from clock in/out POST."""
+    label = str(request.data.get('location_label') or '').strip()[:300]
+    map_file = request.FILES.get('map_snapshot')
+    latitude, longitude = _parse_optional_coordinates(request)
+    return {
+        'label': label,
+        'map_file': map_file,
+        'latitude': latitude,
+        'longitude': longitude,
+    }
 
 
-def _pitstop_sites_with_coordinates():
-    return WorkSite.objects.filter(
-        is_active=True,
-        site_type='pitstop',
-        latitude__isnull=False,
-        longitude__isnull=False,
-    )
+def _attach_location_snapshot(punch, prefix, location_ref):
+    """Save label and map image on clock-in or clock-out (no validation)."""
+    label_field = f'{prefix}_location_label'
+    map_field = f'{prefix}_map_image'
+    setattr(punch, label_field, location_ref.get('label') or '')
 
+    uploaded = location_ref.get('map_file')
+    if uploaded:
+        getattr(punch, map_field).save(uploaded.name, uploaded, save=False)
+        return
 
-def _pitstop_geofence_validation(geo_payload, preferred_site=None):
-    """Match worker GPS to any active PitStop within the geofence radius.
-
-    Returns (matched_site, ok, note, distance_meters). matched_site is the
-    nearest in-range site; preferred_site is used when it is also in range.
-    """
-    if geo_payload.get('status') != WorkerTimePunch.GEO_STATUS_CAPTURED:
-        return None, False, f'No captured location ({geo_payload.get("status")})', None
-    if geo_payload.get('latitude') is None or geo_payload.get('longitude') is None:
-        return None, False, 'Missing worker location coordinates', None
-
-    sites = list(_pitstop_sites_with_coordinates())
-    if not sites:
-        return preferred_site, False, 'No PitStop sites have GPS coordinates configured.', None
-
-    lat = float(geo_payload['latitude'])
-    lng = float(geo_payload['longitude'])
-    max_distance = int(getattr(settings, 'WORKER_CLOCK_GEOFENCE_METERS', 183))
-
-    in_range = []
-    nearest_site = None
-    nearest_distance = None
-    for site in sites:
-        distance = _distance_meters(lat, lng, float(site.latitude), float(site.longitude))
-        if nearest_distance is None or distance < nearest_distance:
-            nearest_distance = distance
-            nearest_site = site
-        if distance <= max_distance:
-            in_range.append((distance, site))
-
-    if not in_range:
-        label = nearest_site.name if nearest_site else 'site'
-        return (
-            preferred_site,
-            False,
-            f'Outside all PitStop geofences (nearest {label} {nearest_distance:.0f}m > {max_distance}m)',
-            nearest_distance,
-        )
-
-    in_range.sort(key=lambda item: item[0])
-    matched_site = in_range[0][1]
-    matched_distance = in_range[0][0]
-    if preferred_site:
-        for distance, site in in_range:
-            if site.pk == preferred_site.pk:
-                matched_site = site
-                matched_distance = distance
-                break
-
-    return (
-        matched_site,
-        True,
-        f'Within geofence at {matched_site.name} ({matched_distance:.0f}m)',
-        matched_distance,
-    )
+    lat = location_ref.get('latitude')
+    lng = location_ref.get('longitude')
+    if lat is None or lng is None:
+        return
+    content = fetch_static_map_image(lat, lng)
+    if content:
+        getattr(punch, map_field).save(content.name, content, save=False)
 
 
 WORKER_LOCAL_TZ = display_tz()
@@ -355,7 +280,7 @@ def worker_assignments(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def worker_work_sites(request):
-    """Active PitStop sites used by iPads for clock in/out geolocation validation."""
+    """Active PitStop sites (optional reference; clock flow does not require selection)."""
     _, err = _require_worker(request)
     if err:
         return err
@@ -412,7 +337,7 @@ def worker_shift_interests(request):
     )
 
 
-def _handle_lunch_action(action, open_punch, geo, now):
+def _handle_lunch_action(action, open_punch, now):
     """Start or end the single unpaid lunch break on the worker's open punch."""
     if not open_punch:
         return Response(
@@ -430,15 +355,7 @@ def _handle_lunch_action(action, open_punch, geo, now):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         open_punch.lunch_start_at = now
-        open_punch.lunch_start_latitude = geo['latitude']
-        open_punch.lunch_start_longitude = geo['longitude']
-        open_punch.save(
-            update_fields=[
-                'lunch_start_at',
-                'lunch_start_latitude',
-                'lunch_start_longitude',
-            ]
-        )
+        open_punch.save(update_fields=['lunch_start_at'])
         return Response(
             {
                 'message': 'Lunch started.',
@@ -461,15 +378,7 @@ def _handle_lunch_action(action, open_punch, geo, now):
             status=status.HTTP_400_BAD_REQUEST,
         )
     open_punch.lunch_end_at = now
-    open_punch.lunch_end_latitude = geo['latitude']
-    open_punch.lunch_end_longitude = geo['longitude']
-    open_punch.save(
-        update_fields=[
-            'lunch_end_at',
-            'lunch_end_latitude',
-            'lunch_end_longitude',
-        ]
-    )
+    open_punch.save(update_fields=['lunch_end_at'])
     return Response(
         {
             'message': f'Lunch ended ({open_punch.lunch_minutes} min).',
@@ -480,9 +389,10 @@ def _handle_lunch_action(action, open_punch, geo, now):
 
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 @throttle_classes([WorkerPunchThrottle])
 def worker_time_punch(request):
-    """Worker clock in/out with geolocation validated against any active PitStop site."""
+    """Worker clock in/out; optional map snapshot + location label (no geofence)."""
     account, err = _require_worker(request)
     if err:
         return err
@@ -521,13 +431,7 @@ def worker_time_punch(request):
     if site_err:
         return site_err
 
-    geo = _parse_geo_payload(request.data.get('geolocation'))
-    matched_site, geo_basic_ok, geo_basic_note, _geo_distance = _pitstop_geofence_validation(
-        geo,
-        preferred_site=site,
-    )
-    if action == 'clock_in' and matched_site and geo_basic_ok:
-        site = matched_site
+    location_ref = _parse_location_reference(request) if action in {'clock_in', 'clock_out'} else None
     now = timezone.now()
 
     open_punch = (
@@ -538,7 +442,7 @@ def worker_time_punch(request):
     )
 
     if action in {'start_lunch', 'end_lunch'}:
-        return _handle_lunch_action(action, open_punch, geo, now)
+        return _handle_lunch_action(action, open_punch, now)
 
     if action == 'clock_in':
         if open_punch:
@@ -553,15 +457,12 @@ def worker_time_punch(request):
             worker_account=account,
             work_site=site,
             clock_in_at=now,
-            clock_in_client_reported_at=geo['client_reported_at'],
-            clock_in_latitude=geo['latitude'],
-            clock_in_longitude=geo['longitude'],
-            clock_in_accuracy_meters=geo['accuracy'],
-            clock_in_geo_status=geo['status'],
-            clock_in_geo_error=geo['error'],
-            clock_in_geo_basic_ok=geo_basic_ok,
-            clock_in_geo_basic_note=geo_basic_note,
         )
+        if location_ref:
+            _attach_location_snapshot(punch, 'clock_in', location_ref)
+            punch.save(
+                update_fields=['clock_in_location_label', 'clock_in_map_image'],
+            )
         clock_in_message = f'Clocked in at {site.name}.' if site else 'Clocked in.'
         return Response(
             {
@@ -588,28 +489,11 @@ def worker_time_punch(request):
 
     open_punch.clock_out_at = now
     open_punch.clock_out_server_received_at = now
-    open_punch.clock_out_client_reported_at = geo['client_reported_at']
-    open_punch.clock_out_latitude = geo['latitude']
-    open_punch.clock_out_longitude = geo['longitude']
-    open_punch.clock_out_accuracy_meters = geo['accuracy']
-    open_punch.clock_out_geo_status = geo['status']
-    open_punch.clock_out_geo_error = geo['error']
-    open_punch.clock_out_geo_basic_ok = geo_basic_ok
-    open_punch.clock_out_geo_basic_note = geo_basic_note
-    open_punch.save(
-        update_fields=[
-            'clock_out_at',
-            'clock_out_server_received_at',
-            'clock_out_client_reported_at',
-            'clock_out_latitude',
-            'clock_out_longitude',
-            'clock_out_accuracy_meters',
-            'clock_out_geo_status',
-            'clock_out_geo_error',
-            'clock_out_geo_basic_ok',
-            'clock_out_geo_basic_note',
-        ]
-    )
+    update_fields = ['clock_out_at', 'clock_out_server_received_at']
+    if location_ref:
+        _attach_location_snapshot(open_punch, 'clock_out', location_ref)
+        update_fields.extend(['clock_out_location_label', 'clock_out_map_image'])
+    open_punch.save(update_fields=update_fields)
     clock_out_message = (
         f'Clocked out from {open_punch.work_site.name}.'
         if open_punch.work_site

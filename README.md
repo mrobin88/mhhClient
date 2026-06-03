@@ -5,6 +5,7 @@
 ## 🌟 **Live System**
 - **Frontend**: https://blue-glacier-0c5f06410.3.azurestaticapps.net/
 - **Lobby check-in (visit note)**: https://blue-glacier-0c5f06410.3.azurestaticapps.net/checkin (`/checkin.html` redirects here)
+- **Staff workspace**: https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff/ (same login as Admin)
 - **Backend API**: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/
 - **Admin Interface**: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/admin/
 

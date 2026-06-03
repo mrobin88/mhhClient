@@ -22,6 +22,7 @@ def api_info(request):
                     'title': 'Admin and Operations',
                     'items': [
                         {'name': 'Staff Admin', 'path': '/admin/', 'description': 'Manage clients, workers, staffing, and documents.'},
+                        {'name': 'Staff SPA', 'path': 'https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff/', 'description': 'Mobile-friendly staff workspace (same login as admin).'},
                         {'name': 'Reports Hub', 'path': '/api/reports/', 'description': 'Download filtered CSV and ZIP exports.'},
                         {'name': 'Health Check', 'path': '/health', 'description': 'Service heartbeat for platform monitoring.'},
                     ],

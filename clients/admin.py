@@ -1777,7 +1777,7 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
         'clock_in_at',
         'clock_out_at',
         'hours_display',
-        'geo_summary',
+        'location_reference',
     ]
     list_filter = [
         'work_site',
@@ -1804,14 +1804,14 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
                 'hours_display',
             ),
         }),
-        ('Geofence', {
+        ('Location reference', {
             'fields': (
-                'clock_in_geo_basic_ok',
-                'clock_in_geo_basic_note',
-                'clock_out_geo_basic_ok',
-                'clock_out_geo_basic_note',
+                'clock_in_location_label',
+                'clock_in_map_preview',
+                'clock_out_location_label',
+                'clock_out_map_preview',
             ),
-            'description': 'Out-of-range or unconfigured sites surface here. Adjust site coordinates in Work Sites if false positives appear.',
+            'description': 'Map snapshots and labels are visual references only (no geofence validation).',
         }),
         ('Raw audit (advanced)', {
             'classes': ('collapse',),
@@ -1839,9 +1839,10 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
         # auto_now_add fields must be readonly or Django raises FieldError on the change form
         auto_fields = ['clock_in_server_received_at']
+        previews = ['clock_in_map_preview', 'clock_out_map_preview']
         if request.user.is_superuser:
-            return ['hours_display'] + auto_fields
-        return [f.name for f in WorkerTimePunch._meta.fields] + ['hours_display']
+            return ['hours_display'] + previews + auto_fields
+        return [f.name for f in WorkerTimePunch._meta.fields] + ['hours_display'] + previews
 
     def has_delete_permission(self, request, obj=None):
         return bool(request.user and request.user.is_superuser)
@@ -1853,21 +1854,39 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
         return f'{seconds / 3600:.2f}'
     hours_display.short_description = 'Hours'
 
-    def geo_summary(self, obj):
+    def _map_preview(self, image_field):
+        if not image_field:
+            return '—'
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener">'
+            '<img src="{}" alt="Map snapshot" style="max-width:220px;border-radius:6px;border:1px solid #e2e8f0;" />'
+            '</a>',
+            image_field.url,
+            image_field.url,
+        )
+
+    def clock_in_map_preview(self, obj):
+        return self._map_preview(obj.clock_in_map_image if obj else None)
+    clock_in_map_preview.short_description = 'Clock-in map'
+
+    def clock_out_map_preview(self, obj):
+        return self._map_preview(obj.clock_out_map_image if obj else None)
+    clock_out_map_preview.short_description = 'Clock-out map'
+
+    def location_reference(self, obj):
         if not obj:
             return '—'
-        clock_in_ok = bool(obj.clock_in_geo_basic_ok)
-        clock_out_ok = bool(obj.clock_out_geo_basic_ok) if obj.clock_out_at else True
-        if clock_in_ok and clock_out_ok:
-            return format_html('<span style="color: #15803d; font-weight: 700;">✓ Geofence</span>')
-        notes = []
-        if not clock_in_ok and obj.clock_in_geo_basic_note:
-            notes.append(f'In: {obj.clock_in_geo_basic_note}')
-        if obj.clock_out_at and not clock_out_ok and obj.clock_out_geo_basic_note:
-            notes.append(f'Out: {obj.clock_out_geo_basic_note}')
-        detail = ' / '.join(notes) or 'Out of range or not captured'
-        return format_html('<span style="color: #b91c1c; font-weight: 700;">⚠ {}</span>', detail[:140])
-    geo_summary.short_description = 'Geofence'
+        parts = []
+        if obj.clock_in_location_label or obj.clock_in_map_image:
+            label = obj.clock_in_location_label or 'Map saved'
+            parts.append(f'In: {label}')
+        if obj.clock_out_at and (obj.clock_out_location_label or obj.clock_out_map_image):
+            label = obj.clock_out_location_label or 'Map saved'
+            parts.append(f'Out: {label}')
+        if not parts:
+            return format_html('<span style="color:#64748b;">No location snapshot</span>')
+        return format_html('<span style="color:#334155;">{}</span>', ' · '.join(parts)[:160])
+    location_reference.short_description = 'Location'
 
     @admin.action(description='Export selected punches to PitStop Hours CSV')
     def export_pitstop_hours_csv(self, request, queryset):

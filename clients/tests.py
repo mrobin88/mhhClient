@@ -65,67 +65,51 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['id'], self.site.id)
 
-    def test_worker_can_clock_in_without_work_site(self):
-        """Portal omits work_site_id — nearest in-range PitStop is auto-assigned."""
+    @patch('clients.worker_views.fetch_static_map_image')
+    def test_worker_can_clock_in_with_location_snapshot(self, map_mock):
+        from django.core.files.base import ContentFile
+
+        map_mock.return_value = ContentFile(b'fakepng', name='map.png')
         response = self.api.post(
             '/api/worker/time-punch/',
             {
                 'action': 'clock_in',
-                'geolocation': (
-                    '{"status":"captured","latitude":37.7749,'
-                    '"longitude":-122.4194,"accuracy":18,'
-                    '"timestamp":"2026-05-28T19:00:00Z"}'
-                ),
+                'location_label': 'Mission St & 16th St',
+                'map_latitude': '37.7749',
+                'map_longitude': '-122.4194',
             },
-            format='json',
+            format='multipart',
         )
 
         self.assertEqual(response.status_code, 201)
         punch = WorkerTimePunch.objects.get()
         self.assertEqual(punch.worker_account, self.worker)
-        self.assertEqual(punch.work_site, self.site)
-        self.assertEqual(punch.clock_in_geo_status, 'captured')
-        self.assertIsNotNone(punch.clock_in_latitude)
-        self.assertIsNotNone(punch.clock_in_longitude)
-        self.assertTrue(punch.clock_in_geo_basic_ok)
-        self.assertIn('Within geofence', punch.clock_in_geo_basic_note)
+        self.assertEqual(punch.clock_in_location_label, 'Mission St & 16th St')
+        self.assertTrue(bool(punch.clock_in_map_image))
+        self.assertIsNone(punch.clock_out_at)
 
-    def test_worker_clock_in_denied_location_fails_geofence(self):
+    def test_worker_can_clock_in_without_location(self):
         response = self.api.post(
             '/api/worker/time-punch/',
-            {
-                'action': 'clock_in',
-                'geolocation': '{"status":"denied","error":"Permission denied"}',
-            },
-            format='json',
+            {'action': 'clock_in'},
+            format='multipart',
         )
         self.assertEqual(response.status_code, 201)
         punch = WorkerTimePunch.objects.get()
-        self.assertFalse(punch.clock_in_geo_basic_ok)
-        self.assertIn('denied', punch.clock_in_geo_basic_note)
+        self.assertEqual(punch.clock_in_location_label, '')
 
-    def test_worker_can_clock_in_with_geolocation(self):
+    def test_worker_can_clock_in_with_explicit_work_site(self):
         response = self.api.post(
             '/api/worker/time-punch/',
             {
                 'action': 'clock_in',
                 'work_site_id': self.site.pk,
-                'geolocation': (
-                    '{"status":"captured","latitude":37.7749,'
-                    '"longitude":-122.4194,"accuracy":25,'
-                    '"timestamp":"2026-05-13T20:00:00Z"}'
-                ),
             },
-            format='json',
+            format='multipart',
         )
-
         self.assertEqual(response.status_code, 201)
         punch = WorkerTimePunch.objects.get()
-        self.assertEqual(punch.worker_account, self.worker)
         self.assertEqual(punch.work_site, self.site)
-        self.assertEqual(punch.clock_in_geo_status, 'captured')
-        self.assertTrue(punch.clock_in_geo_basic_ok)
-        self.assertIsNone(punch.clock_out_at)
 
     def test_worker_clock_context_includes_active_punch(self):
         WorkerTimePunch.objects.create(
@@ -208,8 +192,6 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(response.status_code, 200)
         punch.refresh_from_db()
         self.assertIsNotNone(punch.clock_out_at)
-        self.assertEqual(punch.clock_out_geo_status, 'captured')
-        self.assertTrue(punch.clock_out_geo_basic_ok)
 
     def test_worker_lunch_flow_subtracts_from_net_hours(self):
         # Clock in 8h ago.
@@ -233,7 +215,6 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(start.status_code, 200)
         punch.refresh_from_db()
         self.assertTrue(punch.is_on_lunch)
-        self.assertIsNotNone(punch.lunch_start_latitude)
 
         # Can't clock out while on lunch.
         blocked = self.api.post(
@@ -370,7 +351,7 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.content.decode('utf-8')
         self.assertIn('Hours', body)
-        self.assertIn('Geofence', body)
+        self.assertIn('Location', body)
 
 
 class ClientAdminTextMissingDocumentsTests(TestCase):
@@ -690,3 +671,51 @@ class ClientOutcomesReportTests(TestCase):
         response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/zip')
+
+
+class StaffSpaApiTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='case_mgr',
+            password='staffpass123',
+            email='cm@example.com',
+            role='case_manager',
+        )
+        self.client_record = Client.objects.create(
+            first_name='Maria',
+            last_name='Lopez',
+            phone='4155559090',
+            gender='F',
+            training_interest='general',
+            status='active',
+        )
+        self.http = DjangoTestClient()
+
+    def test_staff_login_and_client_search(self):
+        login_resp = self.http.post(
+            '/api/staff/login/',
+            data={'username': 'case_mgr', 'password': 'staffpass123'},
+            content_type='application/json',
+        )
+        self.assertEqual(login_resp.status_code, 200)
+
+        list_resp = self.http.get('/api/staff/clients/?q=Lopez')
+        self.assertEqual(list_resp.status_code, 200)
+        payload = list_resp.json()
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]['full_name'], 'Maria Lopez')
+
+    def test_staff_quick_case_note(self):
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.post(
+            f'/api/staff/clients/{self.client_record.pk}/notes/',
+            data={
+                'note_date': '2026-05-28',
+                'note_type': 'general',
+                'content': 'Visited today for intake follow-up.',
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.client_record.case_notes.count(), 1)
