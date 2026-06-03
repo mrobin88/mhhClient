@@ -39,6 +39,10 @@ from .staff_views import (
     staff_clients,
     staff_client_detail,
     staff_client_notes,
+    staff_password_reset,
+    staff_password_reset_confirm,
+    staff_messages,
+    staff_messages_unread_count,
 )
 
 router = DefaultRouter()
@@ -86,4 +90,8 @@ urlpatterns = [
     path('staff/clients/', staff_clients, name='staff-clients'),
     path('staff/clients/<int:pk>/', staff_client_detail, name='staff-client-detail'),
     path('staff/clients/<int:pk>/notes/', staff_client_notes, name='staff-client-notes'),
+    path('staff/password-reset/', staff_password_reset, name='staff-password-reset'),
+    path('staff/password-reset/confirm/', staff_password_reset_confirm, name='staff-password-reset-confirm'),
+    path('staff/messages/', staff_messages, name='staff-messages'),
+    path('staff/messages/unread-count/', staff_messages_unread_count, name='staff-messages-unread-count'),
 ]

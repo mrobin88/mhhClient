@@ -1,30 +1,32 @@
 <template>
   <section class="space-y-3">
-    <div class="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-      <h2 class="font-semibold text-lg">Clients</h2>
+    <div class="staff-card p-4">
+      <h2 class="font-bold text-lg mb-3">Find a client</h2>
       <input
         v-model="query"
         type="search"
-        placeholder="Search name or phone"
-        class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
+        placeholder="Name or phone"
+        class="staff-input"
         @input="debouncedSearch"
       />
     </div>
 
-    <p v-if="loading" class="text-sm text-slate-500 text-center py-6">Loading…</p>
-    <p v-else-if="error" class="text-sm text-red-700">{{ error }}</p>
-    <p v-else-if="clients.length === 0" class="text-sm text-slate-500 text-center py-6">No clients found.</p>
+    <SkeletonClientList v-if="loading" />
+    <div v-else-if="error" class="staff-card p-4 text-center space-y-3">
+      <p class="text-sm text-stone-600">{{ error }}</p>
+      <button type="button" class="staff-btn staff-btn-secondary" @click="search">Try again</button>
+    </div>
+    <p v-else-if="clients.length === 0" class="text-sm text-stone-500 text-center py-8">No clients found.</p>
 
     <ul v-else class="space-y-2">
       <li v-for="client in clients" :key="client.id">
         <button
           type="button"
-          class="w-full text-left bg-white rounded-xl border border-slate-200 px-4 py-3 hover:border-slate-400"
-          @click="$emit('select', client.id)"
+          class="staff-card w-full text-left px-4 py-3 hover:border-orange-300 transition-colors"
+          @click="router.push({ name: 'ClientDetail', params: { id: client.id } })"
         >
           <p class="font-semibold">{{ client.full_name }}</p>
-          <p class="text-sm text-slate-600">{{ client.phone }} · {{ client.status }}</p>
-          <p v-if="client.staff_name" class="text-xs text-slate-500 mt-0.5">{{ client.staff_name }}</p>
+          <p class="text-sm text-stone-600">{{ client.phone }} · {{ client.status }}</p>
         </button>
       </li>
     </ul>
@@ -33,18 +35,19 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { staffFetch } from '../api'
-
-defineEmits<{ (e: 'select', id: number): void }>()
+import { friendlyError, networkErrorMessage } from '../utils/errors'
+import SkeletonClientList from './SkeletonClientList.vue'
 
 interface ClientRow {
   id: number
   full_name: string
   phone: string
   status: string
-  staff_name?: string
 }
 
+const router = useRouter()
 const query = ref('')
 const clients = ref<ClientRow[]>([])
 const loading = ref(false)
@@ -58,13 +61,14 @@ async function search() {
     const params = new URLSearchParams()
     if (query.value.trim()) params.set('q', query.value.trim())
     const resp = await staffFetch(`/api/staff/clients/?${params.toString()}`)
+    const body = await resp.json().catch(() => null)
     if (!resp.ok) {
-      error.value = 'Could not load clients.'
+      error.value = friendlyError(body, 'Could not load clients.')
       return
     }
-    clients.value = await resp.json()
-  } catch {
-    error.value = 'No connection.'
+    clients.value = body
+  } catch (e) {
+    error.value = networkErrorMessage(e)
   } finally {
     loading.value = false
   }

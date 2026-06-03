@@ -1,48 +1,55 @@
 <template>
   <section class="space-y-3">
-    <button type="button" class="text-sm text-slate-600 underline" @click="$emit('back')">
-      ← Back to search
+    <button type="button" class="text-sm font-semibold text-orange-600" @click="router.back()">
+      ← Back
     </button>
 
-    <p v-if="loading" class="text-sm text-slate-500 py-6 text-center">Loading…</p>
-    <p v-else-if="error" class="text-sm text-red-700">{{ error }}</p>
+    <BulldozerLoader v-if="loading" label="Loading client…" />
+    <div v-else-if="error" class="staff-card p-4 text-center space-y-3">
+      <p class="text-sm">{{ error }}</p>
+      <button type="button" class="staff-btn staff-btn-secondary" @click="load">Retry</button>
+    </div>
 
     <template v-else-if="client">
-      <div class="bg-white rounded-xl border border-slate-200 p-4 space-y-1">
+      <div class="staff-card p-4">
         <h2 class="text-lg font-bold">{{ client.full_name }}</h2>
-        <p class="text-sm text-slate-600">{{ client.phone }}</p>
-        <p class="text-sm text-slate-600">{{ client.status }} · {{ client.staff_name || 'Unassigned' }}</p>
-        <p v-if="client.address" class="text-xs text-slate-500 pt-1">{{ client.address }}, {{ client.city }}</p>
+        <p class="text-sm text-stone-600">{{ client.phone }}</p>
+        <p class="text-sm text-stone-600">{{ client.status }} · {{ client.staff_name || 'Unassigned' }}</p>
       </div>
 
-      <div class="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+      <div class="staff-card p-4 space-y-3 relative">
+        <div
+          v-if="noteBusy"
+          class="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center z-10"
+        >
+          <BulldozerLoader label="Saving note…" />
+        </div>
         <h3 class="font-semibold">Quick case note</h3>
         <textarea
           v-model="noteContent"
-          rows="3"
+          rows="4"
+          class="staff-input"
           placeholder="What happened today?"
-          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
         />
         <button
           type="button"
-          class="w-full rounded-lg bg-slate-900 text-white font-semibold py-2.5 disabled:opacity-60"
+          class="staff-btn staff-btn-primary w-full"
           :disabled="noteBusy || !noteContent.trim()"
           @click="saveNote"
         >
-          {{ noteBusy ? 'Saving…' : 'Save note' }}
+          Save note
         </button>
-        <p v-if="noteMessage" class="text-sm text-green-700">{{ noteMessage }}</p>
       </div>
 
-      <div class="bg-white rounded-xl border border-slate-200 p-4 space-y-2">
+      <div class="staff-card p-4 space-y-2">
         <h3 class="font-semibold">Recent notes</h3>
-        <p v-if="notes.length === 0" class="text-sm text-slate-500">No notes yet.</p>
+        <p v-if="notes.length === 0" class="text-sm text-stone-500">No notes yet.</p>
         <article
           v-for="note in notes"
           :key="note.id"
-          class="border-t border-slate-100 pt-2 first:border-0 first:pt-0"
+          class="border-t border-stone-100 pt-2 first:border-0 first:pt-0"
         >
-          <p class="text-xs text-slate-500">{{ note.note_date }} · {{ note.staff_member }}</p>
+          <p class="text-xs text-stone-500">{{ note.note_date }} · {{ note.staff_member }}</p>
           <p class="text-sm whitespace-pre-wrap">{{ note.content }}</p>
         </article>
       </div>
@@ -52,10 +59,15 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { staffFetch } from '../api'
+import { friendlyError, networkErrorMessage } from '../utils/errors'
+import { useToast } from '../composables/useToast'
+import BulldozerLoader from './BulldozerLoader.vue'
 
-const props = defineProps<{ clientId: number }>()
-defineEmits<{ (e: 'back'): void }>()
+const route = useRoute()
+const router = useRouter()
+const toast = useToast()
 
 interface ClientDetail {
   id: number
@@ -63,8 +75,6 @@ interface ClientDetail {
   phone: string
   status: string
   staff_name?: string
-  address?: string
-  city?: string
 }
 
 interface CaseNote {
@@ -80,15 +90,17 @@ const loading = ref(true)
 const error = ref('')
 const noteContent = ref('')
 const noteBusy = ref(false)
-const noteMessage = ref('')
+
+const clientId = () => Number(route.params.id)
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
+    const id = clientId()
     const [clientResp, notesResp] = await Promise.all([
-      staffFetch(`/api/staff/clients/${props.clientId}/`),
-      staffFetch(`/api/staff/clients/${props.clientId}/notes/`),
+      staffFetch(`/api/staff/clients/${id}/`),
+      staffFetch(`/api/staff/clients/${id}/notes/`),
     ])
     if (!clientResp.ok) {
       error.value = 'Client not found.'
@@ -96,8 +108,8 @@ async function load() {
     }
     client.value = await clientResp.json()
     notes.value = notesResp.ok ? await notesResp.json() : []
-  } catch {
-    error.value = 'No connection.'
+  } catch (e) {
+    error.value = networkErrorMessage(e)
   } finally {
     loading.value = false
   }
@@ -106,33 +118,32 @@ async function load() {
 async function saveNote() {
   if (!noteContent.value.trim()) return
   noteBusy.value = true
-  noteMessage.value = ''
   try {
-    const today = new Date().toISOString().slice(0, 10)
-    const resp = await staffFetch(`/api/staff/clients/${props.clientId}/notes/`, {
+    const resp = await staffFetch(`/api/staff/clients/${clientId()}/notes/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        note_date: today,
+        note_date: new Date().toISOString().slice(0, 10),
         note_type: 'general',
         content: noteContent.value.trim(),
       }),
     })
+    const body = await resp.json().catch(() => null)
     if (!resp.ok) {
-      noteMessage.value = 'Could not save note.'
+      toast.error(friendlyError(body, 'Could not save your note.'))
       return
     }
     noteContent.value = ''
-    noteMessage.value = 'Note saved.'
-    const notesResp = await staffFetch(`/api/staff/clients/${props.clientId}/notes/`)
+    toast.success('Case note saved.')
+    const notesResp = await staffFetch(`/api/staff/clients/${clientId()}/notes/`)
     notes.value = notesResp.ok ? await notesResp.json() : notes.value
-  } catch {
-    noteMessage.value = 'No connection.'
+  } catch (e) {
+    toast.error(networkErrorMessage(e))
   } finally {
     noteBusy.value = false
   }
 }
 
 onMounted(load)
-watch(() => props.clientId, load)
+watch(() => route.params.id, load)
 </script>

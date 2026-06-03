@@ -83,7 +83,7 @@ Workers use the **worker portal** — not the staff admin.
 3. Worker **clocks in** and **clocks out** (optional map snapshot + cross-street label saved for reference — no geofence).  
 4. Staff review hours under **Admin → Worker time punches** or **PitStop Hours** report.
 
-**Staff workspace (new):** https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff/ — same username/password as Admin; search clients and add quick case notes from a phone-friendly UI.
+**Staff workspace:** https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff/ — same username/password as Admin. Mobile-friendly: client search, case notes, client SMS threads, training/skill notes, forgot-password email reset.
 
 **We do not schedule shifts in this system anymore.** No assignment grid on the client page — only clock punches.
 

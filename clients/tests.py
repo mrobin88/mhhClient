@@ -719,3 +719,12 @@ class StaffSpaApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(self.client_record.case_notes.count(), 1)
+
+    def test_staff_password_reset_always_acknowledges(self):
+        response = self.http.post(
+            '/api/staff/password-reset/',
+            data={'email': 'nobody@example.com'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('message', response.json())

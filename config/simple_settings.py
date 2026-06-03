@@ -278,6 +278,10 @@ WORKER_SHORT_SHIFT_HOURS = float(os.getenv('WORKER_SHORT_SHIFT_HOURS', '7.0'))
 
 # Admin base URL for email links
 ADMIN_BASE_URL = os.getenv('ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net')
+STAFF_APP_BASE_URL = os.getenv(
+    'STAFF_APP_BASE_URL',
+    'https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff',
+)
 
 LOGGING = {
     'version': 1,
