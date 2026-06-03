@@ -16,8 +16,9 @@ export async function ensureCsrfToken(): Promise<string> {
   }
   const resp = await fetch(getApiUrl('/api/staff/csrf/'), { credentials: 'include' })
   const body = await resp.json().catch(() => null)
-  csrfToken = body?.csrfToken || ''
-  return csrfToken
+  const token = String(body?.csrfToken ?? '')
+  csrfToken = token
+  return token
 }
 
 export async function staffFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
