@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { staffFetch } from '../api'
+import { setCsrfToken, staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import BulldozerLoader from './BulldozerLoader.vue'
 
@@ -114,6 +114,7 @@ async function submit() {
       error.value = 'Signed in but session did not start. Try again.'
       return
     }
+    if (body.csrfToken) setCsrfToken(body.csrfToken)
     emit('logged-in', body.user)
     const redirect = typeof router.currentRoute.value.query.redirect === 'string'
       ? router.currentRoute.value.query.redirect

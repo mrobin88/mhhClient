@@ -13,7 +13,7 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
-from rest_framework.authentication import SessionAuthentication
+from .staff_auth import StaffSessionAuthentication
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -46,7 +46,7 @@ def staff_csrf(request):
 
 
 @api_view(['GET'])
-@authentication_classes([SessionAuthentication])
+@authentication_classes([StaffSessionAuthentication])
 @permission_classes([AllowAny])
 def staff_session(request):
     user = request.user
@@ -68,11 +68,15 @@ def staff_login(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
     login(request, user)
-    return Response({'authenticated': True, 'user': _staff_payload(user)})
+    return Response({
+        'authenticated': True,
+        'user': _staff_payload(user),
+        'csrfToken': get_token(request),
+    })
 
 
 @api_view(['POST'])
-@authentication_classes([SessionAuthentication])
+@authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_logout(request):
     logout(request)
@@ -80,7 +84,7 @@ def staff_logout(request):
 
 
 @api_view(['GET'])
-@authentication_classes([SessionAuthentication])
+@authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_clients(request):
     if not request.user.is_staff:
@@ -105,7 +109,7 @@ def staff_clients(request):
 
 
 @api_view(['GET', 'PATCH'])
-@authentication_classes([SessionAuthentication])
+@authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_client_detail(request, pk):
     if not request.user.is_staff:
@@ -130,7 +134,7 @@ def staff_client_detail(request, pk):
 
 
 @api_view(['GET', 'POST'])
-@authentication_classes([SessionAuthentication])
+@authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_client_notes(request, pk):
     if not request.user.is_staff:
@@ -229,7 +233,7 @@ def staff_password_reset_confirm(request):
 
 
 @api_view(['GET'])
-@authentication_classes([SessionAuthentication])
+@authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_messages_unread_count(request):
     if not request.user.is_staff:
@@ -245,7 +249,7 @@ def staff_messages_unread_count(request):
 
 
 @api_view(['GET'])
-@authentication_classes([SessionAuthentication])
+@authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_messages(request):
     """Client SMS threads for staff messaging hub (poll for updates)."""

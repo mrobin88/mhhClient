@@ -1,24 +1,23 @@
 import { getApiUrl } from '../config/api'
 
-function getCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
-  return match ? decodeURIComponent(match[1]) : null
-}
-
 let csrfToken: string | null = null
 
-export async function ensureCsrfToken(): Promise<string> {
-  if (csrfToken) return csrfToken
-  const fromCookie = getCookie('csrftoken')
-  if (fromCookie) {
-    csrfToken = fromCookie
-    return csrfToken
-  }
+/** CSRF cookie lives on the API host — never read document.cookie on the static app. */
+export async function refreshCsrfToken(): Promise<string> {
   const resp = await fetch(getApiUrl('/api/staff/csrf/'), { credentials: 'include' })
   const body = await resp.json().catch(() => null)
   const token = String(body?.csrfToken ?? '')
   csrfToken = token
   return token
+}
+
+export function setCsrfToken(token: string) {
+  csrfToken = token || null
+}
+
+async function ensureCsrfToken(): Promise<string> {
+  if (csrfToken) return csrfToken
+  return refreshCsrfToken()
 }
 
 export async function staffFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
