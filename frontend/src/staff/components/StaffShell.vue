@@ -8,7 +8,7 @@
       <div class="flex items-center gap-2 min-w-0">
         <span class="text-xl" aria-hidden="true">⛑️</span>
         <div class="min-w-0">
-          <p class="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Mission Hiring Hall</p>
+          <p class="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">MHH Staff</p>
           <p class="font-bold text-sm truncate">{{ user?.display_name }}</p>
         </div>
       </div>
@@ -38,12 +38,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { clearStaffSession, staffFetch } from '../api'
 import ToastStack from './ToastStack.vue'
 
-export interface StaffUser {
-  id: number
-  username: string
-  display_name: string
-  role: string
-}
+import type { StaffUser } from '../types'
 
 const props = defineProps<{
   user: StaffUser | null

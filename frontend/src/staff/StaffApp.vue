@@ -1,6 +1,6 @@
 <template>
   <StaffShell :user="user" @logout="onLogout">
-    <RouterView @logged-in="loadSession" />
+    <RouterView @logged-in="onLoggedIn" />
   </StaffShell>
 </template>
 
@@ -8,20 +8,25 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { staffFetch } from './api'
-import StaffShell, { type StaffUser } from './components/StaffShell.vue'
+import StaffShell from './components/StaffShell.vue'
+import type { StaffUser } from './types'
 
 const router = useRouter()
 const user = ref<StaffUser | null>(null)
 
+function onLoggedIn(loggedInUser: StaffUser) {
+  user.value = loggedInUser
+}
+
 async function loadSession() {
   const resp = await staffFetch('/api/staff/session/')
-  if (!resp.ok) {
+  const body = await resp.json().catch(() => null)
+  if (!resp.ok || !body?.authenticated) {
     user.value = null
     return false
   }
-  const body = await resp.json()
-  user.value = body.authenticated ? body.user : null
-  return Boolean(user.value)
+  user.value = body.user
+  return true
 }
 
 function onLogout() {

@@ -2,8 +2,8 @@
   <div class="min-h-screen flex flex-col justify-center px-4 py-10 max-w-md mx-auto">
     <div class="text-center mb-8">
       <p class="text-5xl mb-3" aria-hidden="true">⛑️</p>
-      <h1 class="text-2xl font-bold text-stone-900">Staff workspace</h1>
-      <p class="text-stone-600 mt-2 text-base">Mission Hiring Hall — case management on the go</p>
+      <h1 class="text-2xl font-bold text-stone-900">Staff sign in</h1>
+      <p class="text-stone-600 mt-2 text-base">Find clients and add notes — simpler than Admin.</p>
     </div>
 
     <form v-show="!busy" class="staff-card p-6 sm:p-8 space-y-5" @submit.prevent="submit">
@@ -69,7 +69,9 @@ import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import BulldozerLoader from './BulldozerLoader.vue'
 
-const emit = defineEmits<{ (e: 'logged-in'): void }>()
+import type { StaffUser } from '../types'
+
+const emit = defineEmits<{ (e: 'logged-in', user: StaffUser): void }>()
 const router = useRouter()
 
 const username = ref('')
@@ -108,7 +110,11 @@ async function submit() {
       error.value = friendlyError(body, 'Invalid username or password. Please try again.')
       return
     }
-    emit('logged-in')
+    if (!body?.user) {
+      error.value = 'Signed in but session did not start. Try again.'
+      return
+    }
+    emit('logged-in', body.user)
     const redirect = typeof router.currentRoute.value.query.redirect === 'string'
       ? router.currentRoute.value.query.redirect
       : '/clients'

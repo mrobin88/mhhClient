@@ -85,11 +85,18 @@ csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '')
 if csrf_origins:
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins.split(',') if o.strip()]
 else:
-    # Defaults suitable for production deployment
+    # Defaults suitable for production deployment (no wildcards — Django requires exact origins)
     CSRF_TRUSTED_ORIGINS = [
         'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net',
-        'https://*.azurestaticapps.net',
+        'https://blue-glacier-0c5f06410.3.azurestaticapps.net',
     ]
+
+# Staff SPA on azurestaticapps.net calls API on azurewebsites.net — cookies must be cross-site.
+if not DEBUG:
+    SESSION_COOKIE_SAMESITE = 'None'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SECURE = True
 
 ROOT_URLCONF = 'config.urls'
 

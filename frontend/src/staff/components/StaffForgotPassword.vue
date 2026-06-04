@@ -4,7 +4,7 @@
       <p class="text-4xl mb-2" aria-hidden="true">🔑</p>
       <h1 class="text-xl font-bold">Reset your password</h1>
       <p class="text-stone-600 mt-2 text-sm">
-        Enter the email on your staff account. We will send reset instructions if it matches.
+        Enter the email on your staff account. We will email reset steps if it matches.
       </p>
     </div>
 

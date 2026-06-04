@@ -47,11 +47,11 @@ def staff_csrf(request):
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def staff_session(request):
     user = request.user
-    if not user.is_staff:
-        return Response({'authenticated': False}, status=status.HTTP_403_FORBIDDEN)
+    if not user.is_authenticated or not user.is_staff:
+        return Response({'authenticated': False})
     return Response({'authenticated': True, 'user': _staff_payload(user)})
 
 
@@ -68,7 +68,7 @@ def staff_login(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
     login(request, user)
-    return Response({'user': _staff_payload(user)})
+    return Response({'authenticated': True, 'user': _staff_payload(user)})
 
 
 @api_view(['POST'])
