@@ -1,0 +1,172 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.doc-hub { max-width: 960px; margin: 20px auto; }
+.doc-hub h1 { margin-bottom: 8px; }
+.doc-hub .back { margin-bottom: 20px; display: inline-block; }
+.panel-block {
+  margin: 24px 0;
+  padding: 16px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+.panel-block h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: #334155;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+.checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.check-item {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.check-item.present { border-color: #86efac; background: #f0fdf4; }
+.check-item.missing { border-color: #fecaca; background: #fef2f2; }
+.check-item strong { display: block; font-size: 14px; }
+.summary-bar {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  font-size: 14px;
+}
+.confirm-box {
+  margin: 24px 0;
+  padding: 16px 18px;
+  border: 1px dashed #94a3b8;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.confirm-box label { font-weight: 600; cursor: pointer; }
+.confirm-meta { margin-top: 8px; font-size: 12px; color: #64748b; }
+.file-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.file-table th, .file-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+.upload-box {
+  margin-top: 28px;
+  padding: 20px;
+  border: 1px dashed #94a3b8;
+  border-radius: 10px;
+  background: #fff;
+}
+.upload-box h2 { margin-top: 0; font-size: 18px; }
+.upload-row { margin-bottom: 14px; }
+.upload-row label { display: block; font-weight: 600; margin-bottom: 6px; }
+.upload-row input, .upload-row select { width: 100%; max-width: 480px; padding: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="doc-hub">
+  <a href="{{ back_url }}" class="back">← Back to client profile</a>
+  <h1>CityBuild files — {{ client.full_name }}</h1>
+  <p style="color:#64748b;">Checklist uses database metadata only. Files download from Azure when you click Download.</p>
+
+  <div class="summary-bar">
+    <strong>{{ on_file_count }} / {{ total_count }}</strong> checklist items on file
+  </div>
+
+  {% for panel in panels %}
+  <div class="panel-block">
+    <h3>{{ panel.title }}</h3>
+    <div class="checklist-grid">
+      {% for item in panel.items %}
+      <div class="check-item {% if item.present %}present{% else %}missing{% endif %}">
+        <strong>{% if item.present %}✓{% else %}○{% endif %} {{ item.label }}</strong>
+        <span style="font-size:12px;color:#64748b;">{% if item.present %}On file{% else %}Missing{% endif %}</span>
+        {% if item.source == 'casenotes' and item.case_notes_count %}
+        <span style="display:block;font-size:11px;color:#64748b;margin-top:4px;">{{ item.case_notes_count }} note(s) in system</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="confirm-box">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_confirmation" />
+      <label>
+        <input type="checkbox" name="citybuild_confirmed" value="1" {% if client.citybuild_files_confirmed %}checked{% endif %} />
+        Submitted &amp; confirmed by (optional staff sign-off)
+      </label>
+      {% if client.citybuild_files_confirmed and client.citybuild_files_confirmed_by %}
+      <div class="confirm-meta">
+        Signed off by {{ client.citybuild_files_confirmed_by }}
+        {% if client.citybuild_files_confirmed_at %} · {{ client.citybuild_files_confirmed_at|date:"M j, Y g:i A" }}{% endif %}
+      </div>
+      {% else %}
+      <div class="confirm-meta">Not required — check when the file packet has been reviewed.</div>
+      {% endif %}
+      <p style="margin:12px 0 0;"><input type="submit" value="Save sign-off" class="default" /></p>
+    </form>
+  </div>
+
+  {% if resume_download_url %}
+  <p><a href="{{ resume_download_url }}" target="_blank" class="button">📥 Download resume (on client record)</a></p>
+  {% endif %}
+
+  <h2>Files on record ({{ document_rows|length }})</h2>
+  {% if document_rows %}
+  <table class="file-table">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Title</th>
+        <th>Uploaded</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in document_rows %}
+      <tr>
+        <td>{{ row.doc.get_doc_type_display }}</td>
+        <td>{{ row.doc.title }}</td>
+        <td>{{ row.doc.created_at|date:"M j, Y" }}{% if row.doc.uploaded_by %} · {{ row.doc.uploaded_by }}{% endif %}</td>
+        <td><a href="{{ row.download_url }}" target="_blank">Download</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:#64748b;">No supporting documents uploaded yet.</p>
+  {% endif %}
+
+  <div class="upload-box">
+    <h2>Upload a document</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="upload-row">
+        <label for="doc_type">Document type</label>
+        <select name="doc_type" id="doc_type" required>
+          {% for value, label in doc_type_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="upload-row">
+        <label for="title">Title (optional)</label>
+        <input type="text" name="title" id="title" placeholder="Defaults to file name" />
+      </div>
+      <div class="upload-row">
+        <label for="file">File</label>
+        <input type="file" name="file" id="file" required />
+      </div>
+      <input type="submit" value="Upload" class="default" />
+    </form>
+  </div>
+</div>
+{% endblock %}

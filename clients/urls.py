@@ -22,6 +22,7 @@ from .reports import (
     WorkforceInventoryPackageView,
     ClientFilePackageView,
     PitStopHoursReportCSVView,
+    CityBuildMissingDocsReportCSVView,
 )
 from .worker_views import (
     worker_login,
@@ -70,6 +71,11 @@ urlpatterns = [
     path('reports/workforce-inventory-package/', WorkforceInventoryPackageView.as_view(), name='workforce-inventory-package'),
     path('reports/client-file-package/', ClientFilePackageView.as_view(), name='client-file-package'),
     path('reports/pitstop-hours/', PitStopHoursReportCSVView.as_view(), name='pitstop-hours-report-csv'),
+    path(
+        'reports/citybuild-missing-docs/',
+        CityBuildMissingDocsReportCSVView.as_view(),
+        name='citybuild-missing-docs-report-csv',
+    ),
     
     # Worker Portal API (open shifts + cover interest)
     path('worker/login/', worker_login, name='worker-login'),

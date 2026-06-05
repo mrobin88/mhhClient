@@ -27,6 +27,12 @@ from .models_extensions import (
     ClientTextMessage,
 )
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
+from .citybuild_docs import (
+    CITYBUILD_UPLOAD_DOC_TYPES,
+    CITYBUILD_CHECKLIST_PANELS,
+    citybuild_item_present,
+    is_citybuild_client,
+)
 
 # Document checklist on client profile (no blob calls until download).
 CASE_NOTE_INLINE_LIMIT = 40
@@ -675,9 +681,83 @@ class ClientAdmin(admin.ModelAdmin):
         )
     case_notes_manage_link.short_description = 'All case notes'
 
+    def _citybuild_checklist_context(self, obj):
+        present = self._client_present_doc_types(obj)
+        has_resume = bool(obj.resume)
+        case_notes_count = obj.casenotes.count()
+        panels = []
+        on_file = 0
+        total = 0
+        for panel_title, items in CITYBUILD_CHECKLIST_PANELS:
+            panel_items = []
+            for code, label, source in items:
+                total += 1
+                present_item = citybuild_item_present(
+                    code, source, present, has_resume, case_notes_count,
+                )
+                if present_item:
+                    on_file += 1
+                panel_items.append({
+                    'code': code,
+                    'label': label,
+                    'source': source,
+                    'present': present_item,
+                    'case_notes_count': case_notes_count if source == 'casenotes' else 0,
+                })
+            panels.append({'title': panel_title, 'items': panel_items})
+        return {
+            'panels': panels,
+            'on_file_count': on_file,
+            'total_count': total,
+        }
+
     def documents_checklist(self, obj):
         if not obj or not obj.pk:
             return format_html('<span style="color:#999;">Save client first</span>')
+        if is_citybuild_client(obj):
+            ctx = self._citybuild_checklist_context(obj)
+            html_parts = []
+            for panel in ctx['panels']:
+                html_parts.append(format_html(
+                    '<tr><td colspan="3" style="padding:10px 10px 4px;font-size:11px;'
+                    'text-transform:uppercase;letter-spacing:.04em;color:#64748b;font-weight:700;">{}</td></tr>',
+                    panel['title'],
+                ))
+                for item in panel['items']:
+                    if item['present']:
+                        icon = '✓'
+                        color = '#059669'
+                        status = 'On file'
+                    else:
+                        icon = '○'
+                        color = '#dc2626'
+                        status = 'Missing'
+                    html_parts.append(format_html(
+                        '<tr><td style="padding:6px 10px;color:{};font-weight:700;">{}</td>'
+                        '<td style="padding:6px 10px;"><strong>{}</strong></td>'
+                        '<td style="padding:6px 10px;color:#64748b;">{}</td></tr>',
+                        color, icon, item['label'], status,
+                    ))
+            summary = format_html(
+                '<p style="margin:0 0 8px;font-size:13px;color:#334155;">'
+                '<strong>CityBuild:</strong> {} / {} on file</p>',
+                ctx['on_file_count'],
+                ctx['total_count'],
+            )
+            if obj.citybuild_files_confirmed:
+                summary = format_html(
+                    '{}<p style="margin:0 0 8px;font-size:12px;color:#64748b;">'
+                    'Confirmed by {}</p>',
+                    summary,
+                    obj.citybuild_files_confirmed_by or 'staff',
+                )
+            return format_html(
+                '{}{}<table style="width:100%;max-width:520px;border-collapse:collapse;background:#f8fafc;'
+                'border:1px solid #e2e8f0;border-radius:8px;">{}</table>',
+                summary,
+                '',
+                format_html_join('', '{}', ((part,) for part in html_parts)),
+            )
         present = self._client_present_doc_types(obj)
         rows = []
         for code, label in CLIENT_DOC_CHECKLIST:
@@ -706,13 +786,21 @@ class ClientAdmin(admin.ModelAdmin):
         if not obj or not obj.pk:
             return '—'
         url = reverse('admin:clients_client_documents', args=[obj.pk])
-        count = obj.documents.exclude(file='').count() + (1 if obj.resume else 0)
+        if is_citybuild_client(obj):
+            ctx = self._citybuild_checklist_context(obj)
+            label = 'CityBuild files hub'
+            count_label = f'{ctx["on_file_count"]} / {ctx["total_count"]} checklist items'
+        else:
+            label = 'Open documents hub'
+            file_count = obj.documents.exclude(file='').count() + (1 if obj.resume else 0)
+            count_label = f'{file_count} on file'
         return format_html(
-            '<a href="{}" class="button" style="padding:10px 16px;">📁 Open documents hub ({} on file)</a>'
+            '<a href="{}" class="button" style="padding:10px 16px;">📁 {} ({})</a>'
             '<p style="margin:8px 0 0;color:#64748b;font-size:12px;">'
             'Upload and download files there — nothing is pulled from Azure until you click download.</p>',
             url,
-            count,
+            label,
+            count_label,
         )
     documents_hub_link.short_description = 'Manage files'
 
@@ -737,6 +825,27 @@ class ClientAdmin(admin.ModelAdmin):
         staff_name = _staff_display_name(request.user)
 
         if request.method == 'POST':
+            if request.POST.get('action') == 'save_confirmation' and is_citybuild_client(client):
+                confirmed = request.POST.get('citybuild_confirmed') == '1'
+                client.citybuild_files_confirmed = confirmed
+                if confirmed:
+                    client.citybuild_files_confirmed_by = staff_name
+                    client.citybuild_files_confirmed_at = timezone.now()
+                else:
+                    client.citybuild_files_confirmed_by = ''
+                    client.citybuild_files_confirmed_at = None
+                client.save(update_fields=[
+                    'citybuild_files_confirmed',
+                    'citybuild_files_confirmed_by',
+                    'citybuild_files_confirmed_at',
+                    'updated_at',
+                ])
+                if confirmed:
+                    messages.success(request, 'CityBuild file packet sign-off saved.')
+                else:
+                    messages.info(request, 'CityBuild sign-off cleared.')
+                return redirect('admin:clients_client_documents', object_id)
+
             upload_file = request.FILES.get('file')
             if upload_file:
                 try:
@@ -752,11 +861,6 @@ class ClientAdmin(admin.ModelAdmin):
                     messages.error(request, f'Upload failed: {exc}')
             return redirect('admin:clients_client_documents', object_id)
 
-        present = self._client_present_doc_types(client)
-        checklist = [
-            {'code': code, 'label': label, 'present': code in present}
-            for code, label in CLIENT_DOC_CHECKLIST
-        ]
         document_rows = []
         for doc in client.documents.exclude(file='').order_by('-created_at'):
             document_rows.append({
@@ -764,16 +868,37 @@ class ClientAdmin(admin.ModelAdmin):
                 'download_url': reverse('document-download', kwargs={'pk': doc.pk}),
             })
 
-        context = {
+        base_context = {
             **self.admin_site.each_context(request),
-            'title': f'Documents — {client.full_name}',
             'client': client,
-            'checklist': checklist,
             'document_rows': document_rows,
-            'doc_type_choices': Document.DOC_TYPE_CHOICES,
             'opts': self.model._meta,
             'resume_download_url': reverse('client-resume-download', kwargs={'pk': client.pk}) if client.resume else None,
             'back_url': reverse('admin:clients_client_change', args=[client.pk]),
+        }
+
+        if is_citybuild_client(client):
+            ctx = self._citybuild_checklist_context(client)
+            context = {
+                **base_context,
+                'title': f'CityBuild files — {client.full_name}',
+                'panels': ctx['panels'],
+                'on_file_count': ctx['on_file_count'],
+                'total_count': ctx['total_count'],
+                'doc_type_choices': CITYBUILD_UPLOAD_DOC_TYPES,
+            }
+            return TemplateResponse(request, 'admin/clients/citybuild_client_documents.html', context)
+
+        present = self._client_present_doc_types(client)
+        checklist = [
+            {'code': code, 'label': label, 'present': code in present}
+            for code, label in CLIENT_DOC_CHECKLIST
+        ]
+        context = {
+            **base_context,
+            'title': f'Documents — {client.full_name}',
+            'checklist': checklist,
+            'doc_type_choices': Document.DOC_TYPE_CHOICES,
         }
         return TemplateResponse(request, 'admin/clients/client_documents.html', context)
     

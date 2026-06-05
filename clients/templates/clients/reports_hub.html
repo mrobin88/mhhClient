@@ -215,6 +215,12 @@
         <a class="btn" id="clientOutcomesPackage" href="/api/reports/client-outcomes-package/" target="_blank">Download ZIP (CSV + print)</a>
         <a class="btn secondary" id="clientOutcomesCsv" href="/api/reports/client-outcomes/" target="_blank">CSV only</a>
       </div>
+      <div class="card" style="border-color:#b45309;background:#fffbeb;">
+        <div class="title">🏗️ CityBuild Missing Docs</div>
+        <div class="desc">Every CityBuild / CityBuild Pro client — checklist on file vs missing (DB only, no blob reads). Honors case manager and status filters above.</div>
+        <a class="btn" id="citybuildMissingDocsCsv" href="/api/reports/citybuild-missing-docs/" target="_blank">Download CSV</a>
+        <a class="btn secondary" id="citybuildMissingDocsIncomplete" href="/api/reports/citybuild-missing-docs/?only_incomplete=1" target="_blank">Incomplete only</a>
+      </div>
       <div class="card">
         <div class="title">💼 Job Placements</div>
         <div class="desc">Placement, pay, work type, start date, and who logged it.</div>
@@ -296,6 +302,17 @@
       });
       document.getElementById('clientOutcomesPackage').href = buildUrl('/api/reports/client-outcomes-package/', outcomeParams);
       document.getElementById('clientOutcomesCsv').href = buildUrl('/api/reports/client-outcomes/', outcomeParams);
+      const citybuildParams = {
+        case_manager: staffNameEl.value || '',
+        status: clientStatusEl.value || '',
+        program: (programEl.value === 'citybuild' || programEl.value === 'citybuild_pro') ? programEl.value : '',
+        mine
+      };
+      document.getElementById('citybuildMissingDocsCsv').href = buildUrl('/api/reports/citybuild-missing-docs/', citybuildParams);
+      document.getElementById('citybuildMissingDocsIncomplete').href = buildUrl('/api/reports/citybuild-missing-docs/', {
+        ...citybuildParams,
+        only_incomplete: '1'
+      });
       document.getElementById('jobPlacementsCsv').href = buildUrl('/api/reports/job-placements/', {
         ...activityDates,
         ...createdRange,

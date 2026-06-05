@@ -78,42 +78,6 @@
 
                 <button
                   type="button"
-                  @click="form.training_interest = 'security'"
-                  :class="[
-                    'program-btn-compact',
-                    form.training_interest === 'security' ? 'program-btn-active' : 'program-btn-inactive'
-                  ]"
-                >
-                  <span class="mr-2">🛡️</span>
-                  <span>Security Guard Card</span>
-                </button>
-
-                <button
-                  type="button"
-                  @click="form.training_interest = 'construction'"
-                  :class="[
-                    'program-btn-compact',
-                    form.training_interest === 'construction' ? 'program-btn-active' : 'program-btn-inactive'
-                  ]"
-                >
-                  <span class="mr-2">🔨</span>
-                  <span>Construction On Ramp</span>
-                </button>
-
-                <button
-                  type="button"
-                  @click="form.training_interest = 'pit_stop'"
-                  :class="[
-                    'program-btn-compact',
-                    form.training_interest === 'pit_stop' ? 'program-btn-active' : 'program-btn-inactive'
-                  ]"
-                >
-                  <span class="mr-2">🚻</span>
-                  <span>Pit Stop Program</span>
-                </button>
-
-                <button
-                  type="button"
                   @click="form.training_interest = 'general'"
                   :class="[
                     'program-btn-compact',
@@ -121,19 +85,7 @@
                   ]"
                 >
                   <span class="mr-2">💼</span>
-                  <span>General Job Readiness</span>
-                </button>
-
-                <button
-                  type="button"
-                  @click="form.training_interest = 'other'"
-                  :class="[
-                    'program-btn-compact',
-                    form.training_interest === 'other' ? 'program-btn-active' : 'program-btn-inactive'
-                  ]"
-                >
-                  <span class="mr-2">✨</span>
-                  <span>Other Programs</span>
+                  <span>General Employment Assistance</span>
                 </button>
             </div>
 

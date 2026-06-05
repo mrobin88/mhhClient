@@ -512,6 +512,38 @@ class ClientAdminChangeViewTests(TestCase):
         self.assertContains(response, 'Download')
         self.assertContains(response, 'Government ID')
 
+    def test_citybuild_documents_hub_uses_panel_checklist(self):
+        self.client_record.training_interest = 'citybuild'
+        self.client_record.save(update_fields=['training_interest'])
+        Document.objects.create(
+            client=self.client_record,
+            title='TABE scan',
+            doc_type='cb_tabe',
+            file=SimpleUploadedFile('tabe.pdf', b'%PDF tabe'),
+            uploaded_by='admin',
+        )
+        url = reverse('admin:clients_client_documents', args=[self.client_record.pk])
+        with patch('clients.storage.blob_exists') as blob_exists_mock:
+            response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        blob_exists_mock.assert_not_called()
+        self.assertContains(response, 'CityBuild files')
+        self.assertContains(response, 'TABE (top page only)')
+        self.assertContains(response, 'Submitted &amp; confirmed by')
+
+    def test_citybuild_confirmation_checkbox_optional(self):
+        self.client_record.training_interest = 'citybuild'
+        self.client_record.save(update_fields=['training_interest'])
+        url = reverse('admin:clients_client_documents', args=[self.client_record.pk])
+        response = self.django_client.post(url, {
+            'action': 'save_confirmation',
+            'citybuild_confirmed': '1',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.client_record.refresh_from_db()
+        self.assertTrue(self.client_record.citybuild_files_confirmed)
+        self.assertEqual(self.client_record.citybuild_files_confirmed_by, 'admin')
+
     def test_case_note_inline_includes_editable_note_date(self):
         from clients.models import CaseNote
         CaseNote.objects.create(
@@ -671,6 +703,82 @@ class ClientOutcomesReportTests(TestCase):
         response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/zip')
+
+
+class CityBuildMissingDocsReportTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_superuser(
+            username='cbreport',
+            password='testpass123',
+            email='cbreport@example.com',
+        )
+        self.django_client = DjangoTestClient()
+        self.django_client.force_login(self.staff)
+        self.citybuild_client = Client.objects.create(
+            first_name='Build',
+            last_name='Candidate',
+            phone='4155552001',
+            gender='M',
+            training_interest='citybuild',
+            status='active',
+            staff_name='Maria',
+        )
+        Client.objects.create(
+            first_name='General',
+            last_name='Client',
+            phone='4155552002',
+            gender='M',
+            training_interest='general',
+            status='active',
+        )
+        from clients.models import Document
+        Document.objects.create(
+            client=self.citybuild_client,
+            title='TABE',
+            doc_type='cb_tabe',
+            file=SimpleUploadedFile('tabe.pdf', b'%PDF'),
+            uploaded_by='admin',
+        )
+
+    def test_citybuild_missing_docs_csv_lists_only_citybuild_clients(self):
+        url = reverse('citybuild-missing-docs-report-csv')
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        rows = [line for line in body.strip().split('\n') if line]
+        self.assertEqual(len(rows), 2)
+        self.assertIn('Build Candidate', body)
+        self.assertIn('TABE (top page only)', body)
+        self.assertNotIn('General Client', body)
+
+    def test_citybuild_missing_docs_incomplete_only_skips_complete_packets(self):
+        from clients.citybuild_docs import CITYBUILD_CHECKLIST_ITEMS
+        from clients.models import Document
+        for _panel, code, _label, source in CITYBUILD_CHECKLIST_ITEMS:
+            if source == 'document' and code:
+                Document.objects.create(
+                    client=self.citybuild_client,
+                    title=code,
+                    doc_type=code,
+                    file=SimpleUploadedFile(f'{code}.pdf', b'%PDF'),
+                    uploaded_by='admin',
+                )
+        self.citybuild_client.resume = SimpleUploadedFile('resume.pdf', b'%PDF')
+        self.citybuild_client.save()
+        from clients.models import CaseNote
+        CaseNote.objects.create(
+            client=self.citybuild_client,
+            staff_member='Maria',
+            note_type='general',
+            content='Intake note',
+        )
+        url = reverse('citybuild-missing-docs-report-csv') + '?only_incomplete=1'
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        rows = [line for line in body.strip().split('\n') if line]
+        self.assertEqual(len(rows), 1)
 
 
 class StaffSpaApiTests(TestCase):

@@ -66,8 +66,8 @@ class Client(models.Model):
         ('security', 'Security Guard Card Program'),
         ('construction', 'Construction On Ramp'),
         ('pit_stop', 'Pit Stop Program'),
-        ('general', 'General job readiness'),
-        ('other', 'Other training')
+        ('general', 'General Employment Assistance'),
+        ('other', 'Other training'),
     ]
     
     NEIGHBORHOOD_CHOICES = [
@@ -139,6 +139,14 @@ class Client(models.Model):
     job_title = models.CharField(max_length=100, blank=True, null=True, help_text="Job title/position client was placed in")
     job_company = models.CharField(max_length=100, blank=True, null=True, help_text="Company where client was placed")
     job_hourly_wage = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, help_text="Hourly wage for placed job")
+
+    # CityBuild file packet (optional staff sign-off — not required for intake)
+    citybuild_files_confirmed = models.BooleanField(
+        default=False,
+        help_text='Staff confirmed CityBuild file packet reviewed (optional).',
+    )
+    citybuild_files_confirmed_by = models.CharField(max_length=100, blank=True, default='')
+    citybuild_files_confirmed_at = models.DateTimeField(blank=True, null=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -300,6 +308,23 @@ class Document(models.Model):
         ('consent', 'Consent Form'),
         ('certificate', 'Certificate/Credential'),
         ('reference', 'Reference Letter'),
+        ('cb_application', 'CityBuild Application'),
+        ('cb_roi', 'Release of Information'),
+        ('cb_tabe', 'TABE (top page)'),
+        ('cb_parq', 'Par-Q / Doc Clearance'),
+        ('cb_iep', 'IEP'),
+        ('cb_ssn_card', 'Social Security Card'),
+        ('cb_drug_test', 'Drug Test'),
+        ('cb_safety', 'Safety Form'),
+        ('cb_covid_vax', 'COVID Vaccination'),
+        ('cb_po', 'PO'),
+        ('cb_besi', 'BESI'),
+        ('cb_jrt_eval', 'JRT Eval'),
+        ('cb_rights', 'Rights & Responsibilities'),
+        ('cb_lou', 'Letter of Understanding & Agreement'),
+        ('cb_interview', 'Interview Sheet'),
+        ('cb_emp_edu_verify', 'Employment & Education Verification'),
+        ('cb_support_svc', 'Supportive Service Determination'),
         ('other', 'Other Document'),
     ]
 

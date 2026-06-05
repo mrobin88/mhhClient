@@ -14,7 +14,12 @@ from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Count
 
-from .models import Client, CaseNote, JobPlacement
+from .models import Client, CaseNote, Document, JobPlacement
+from .citybuild_docs import (
+    CITYBUILD_CHECKLIST_ITEMS,
+    CITYBUILD_PROGRAMS,
+    evaluate_citybuild_packet,
+)
 from .models_extensions import WorkAssignment, WorkSite, WorkerTimePunch
 from .notifications import followup_stage
 
@@ -1404,5 +1409,137 @@ class TodaysAssignmentsCSVView(LoginRequiredMixin, View):
                 assignment.assignment_notes or ''
             ])
         
+        return response
+
+
+def _citybuild_clients_for_missing_docs_report(request):
+    """
+    CityBuild / CityBuild Pro clients for the missing-docs export.
+
+    Uses indexed filters on training_interest (single WHERE + optional staff/status).
+    """
+    case_manager = (request.GET.get('case_manager') or '').strip()
+    client_status = (request.GET.get('status') or '').strip()
+    program = (request.GET.get('program') or '').strip()
+    mine = request.GET.get('mine')
+
+    clients = Client.objects.filter(training_interest__in=CITYBUILD_PROGRAMS).annotate(
+        casenotes_count=Count('casenotes'),
+    )
+    if program in CITYBUILD_PROGRAMS:
+        clients = clients.filter(training_interest=program)
+    if mine in {'1', 'true', 'True'}:
+        clients = clients.filter(staff_name__in=_staff_aliases(request.user))
+    elif case_manager:
+        clients = clients.filter(staff_name__icontains=case_manager)
+    if client_status:
+        clients = clients.filter(status=client_status)
+    return clients.order_by('last_name', 'first_name', 'id')
+
+
+def _citybuild_doc_types_by_client_id(client_ids):
+    """
+    One SQL round-trip: map client_id -> set(doc_type) for uploaded documents.
+
+    Time: O(D) where D = document rows returned; grouping into sets is O(D).
+    """
+    doc_types_by_client = {}
+    if not client_ids:
+        return doc_types_by_client
+    rows = (
+        Document.objects.filter(client_id__in=client_ids)
+        .exclude(file='')
+        .values_list('client_id', 'doc_type')
+    )
+    for client_id, doc_type in rows:
+        doc_types_by_client.setdefault(client_id, set()).add(doc_type)
+    return doc_types_by_client
+
+
+CITYBUILD_MISSING_DOCS_SUMMARY_HEADERS = [
+    'Client ID',
+    'Client Name',
+    'Phone',
+    'Email',
+    'Case Manager',
+    'Program',
+    'Client Status',
+    'On File Count',
+    'Total Required',
+    'Missing Count',
+    'Missing Items',
+    'Files Confirmed',
+    'Confirmed By',
+    'Confirmed At',
+]
+
+
+def _write_citybuild_missing_docs_csv(writer, clients, only_incomplete=False):
+    """
+    Build the CityBuild missing-docs CSV.
+
+    Overall complexity (C = clients, D = their documents, K = checklist size ~22):
+      - 1 query for clients (+ COUNT annotation via JOIN)
+      - 1 query for all document types
+      - O(C * K) in Python to score each client (K is constant)
+
+    No Azure/blob access — metadata only, same as the admin checklist.
+    """
+    client_list = list(clients)
+    client_ids = [client.id for client in client_list]
+    doc_types_by_client = _citybuild_doc_types_by_client_id(client_ids)
+
+    item_labels = [label for _panel, _code, label, _source in CITYBUILD_CHECKLIST_ITEMS]
+    writer.writerow(CITYBUILD_MISSING_DOCS_SUMMARY_HEADERS + item_labels)
+
+    for client in client_list:
+        present_doc_types = doc_types_by_client.get(client.id, set())
+        packet = evaluate_citybuild_packet(
+            present_doc_types,
+            bool(client.resume),
+            getattr(client, 'casenotes_count', 0) or 0,
+        )
+        if only_incomplete and packet['missing_count'] == 0:
+            continue
+        writer.writerow([
+            client.id,
+            client.full_name,
+            client.phone or '',
+            client.email or '',
+            client.staff_name or '',
+            client.get_training_interest_display(),
+            client.get_status_display(),
+            packet['on_file'],
+            packet['total'],
+            packet['missing_count'],
+            '; '.join(packet['missing_labels']),
+            'Yes' if client.citybuild_files_confirmed else 'No',
+            client.citybuild_files_confirmed_by or '',
+            (
+                client.citybuild_files_confirmed_at.strftime('%Y-%m-%d %H:%M')
+                if client.citybuild_files_confirmed_at
+                else ''
+            ),
+            *[('Yes' if present else 'No') for _label, present in packet['items']],
+        ])
+
+
+class CityBuildMissingDocsReportCSVView(LoginRequiredMixin, View):
+    """
+    CSV of CityBuild checklist status for every CityBuild / CityBuild Pro client.
+
+    Pass only_incomplete=1 to hide clients with a complete file packet.
+    """
+
+    def get(self, request):
+        clients = _citybuild_clients_for_missing_docs_report(request)
+        only_incomplete = request.GET.get('only_incomplete') in {'1', 'true', 'True'}
+        response = HttpResponse(content_type='text/csv')
+        suffix = '_incomplete_only' if only_incomplete else ''
+        response['Content-Disposition'] = (
+            f'attachment; filename="citybuild_missing_docs_{date.today().isoformat()}{suffix}.csv"'
+        )
+        writer = csv.writer(response)
+        _write_citybuild_missing_docs_csv(writer, clients, only_incomplete=only_incomplete)
         return response
 
