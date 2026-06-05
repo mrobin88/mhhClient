@@ -233,6 +233,15 @@ class Client(models.Model):
             return 'other'
 
 
+class CityBuildFileChecklist(Client):
+    """Admin-only proxy: CityBuild clients and their file packet checklist."""
+
+    class Meta:
+        proxy = True
+        verbose_name = 'CityBuild file checklist'
+        verbose_name_plural = 'CityBuild file checklists'
+
+
 class CaseNote(models.Model):
     """Case notes for tracking client interactions and progress"""
     

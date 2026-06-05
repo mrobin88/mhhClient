@@ -108,6 +108,27 @@ def citybuild_item_present(code, source, present_doc_types, has_resume, case_not
     return code in present_doc_types
 
 
+def present_doc_types_for_client(client):
+    """Doc types on file for one client (DB only, no blob calls)."""
+    present = set(client.documents.exclude(file='').values_list('doc_type', flat=True))
+    if client.resume:
+        present.add('resume')
+    return present
+
+
+def citybuild_packet_for_client(client, casenotes_count=None):
+    """Checklist score for one CityBuild client."""
+    if casenotes_count is None:
+        casenotes_count = getattr(client, 'casenotes_count', None)
+    if casenotes_count is None:
+        casenotes_count = client.casenotes.count()
+    return evaluate_citybuild_packet(
+        present_doc_types_for_client(client),
+        bool(client.resume),
+        casenotes_count,
+    )
+
+
 def evaluate_citybuild_packet(present_doc_types, has_resume, case_notes_count):
     """
     Score one client against the CityBuild checklist.

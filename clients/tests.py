@@ -512,6 +512,25 @@ class ClientAdminChangeViewTests(TestCase):
         self.assertContains(response, 'Download')
         self.assertContains(response, 'Government ID')
 
+    def test_citybuild_client_change_uses_slim_files_section(self):
+        self.client_record.training_interest = 'citybuild'
+        self.client_record.save(update_fields=['training_interest'])
+        url = reverse('admin:clients_client_change', args=[self.client_record.pk])
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'CityBuild Files')
+        self.assertContains(response, 'CityBuild files hub')
+        self.assertNotContains(response, 'Panel 1')
+        self.assertNotContains(response, 'Upload client resume')
+
+    def test_citybuild_checklist_admin_changelist(self):
+        self.client_record.training_interest = 'citybuild'
+        self.client_record.save(update_fields=['training_interest'])
+        url = reverse('admin:clients_citybuildfilechecklist_changelist')
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Davis Example')
+
     def test_citybuild_documents_hub_uses_panel_checklist(self):
         self.client_record.training_interest = 'citybuild'
         self.client_record.save(update_fields=['training_interest'])

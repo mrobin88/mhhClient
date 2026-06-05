@@ -19,7 +19,7 @@ from django.contrib import messages
 from django.core.mail import send_mail
 from django.utils import timezone
 from .time_display import format_display_datetime
-from .models import Client, CaseNote, Document, PitStopApplication, JobPlacement
+from .models import Client, CaseNote, CityBuildFileChecklist, Document, PitStopApplication, JobPlacement
 from .models_extensions import (
     WorkSite,
     WorkerAccount,
@@ -28,9 +28,11 @@ from .models_extensions import (
 )
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 from .citybuild_docs import (
+    CITYBUILD_PROGRAMS,
     CITYBUILD_UPLOAD_DOC_TYPES,
     CITYBUILD_CHECKLIST_PANELS,
     citybuild_item_present,
+    citybuild_packet_for_client,
     is_citybuild_client,
 )
 
@@ -439,6 +441,7 @@ class ClientAdmin(admin.ModelAdmin):
         'masked_ssn',
         'documents_checklist',
         'documents_hub_link',
+        'citybuild_files_summary',
         'resume_download_link',
         'worker_portal_summary',
         'staff_name',
@@ -804,6 +807,33 @@ class ClientAdmin(admin.ModelAdmin):
         )
     documents_hub_link.short_description = 'Manage files'
 
+    def citybuild_files_summary(self, obj):
+        if not obj or not obj.pk or not is_citybuild_client(obj):
+            return '—'
+        packet = citybuild_packet_for_client(obj)
+        detail = (
+            f'{packet["missing_count"]} missing — use the hub below for the full panel checklist.'
+            if packet['missing_count']
+            else 'Packet complete — use the hub below to review files or optional sign-off.'
+        )
+        confirmed = ''
+        if obj.citybuild_files_confirmed:
+            confirmed = format_html(
+                '<br><span style="color:#64748b;">Signed off by {}</span>',
+                obj.citybuild_files_confirmed_by or 'staff',
+            )
+        return format_html(
+            '<p style="margin:0;line-height:1.5;color:#334155;">'
+            '<strong>{} / {} on file</strong><br>'
+            '<span style="color:#64748b;">{}</span>{}'
+            '</p>',
+            packet['on_file'],
+            packet['total'],
+            detail,
+            confirmed,
+        )
+    citybuild_files_summary.short_description = 'Checklist summary'
+
     def resume_download_link(self, obj):
         if not obj or not obj.resume:
             return format_html('<span style="color:#999;">No resume on file</span>')
@@ -844,6 +874,16 @@ class ClientAdmin(admin.ModelAdmin):
                     messages.success(request, 'CityBuild file packet sign-off saved.')
                 else:
                     messages.info(request, 'CityBuild sign-off cleared.')
+                return redirect('admin:clients_client_documents', object_id)
+
+            if request.POST.get('action') == 'upload_resume' and is_citybuild_client(client):
+                resume_file = request.FILES.get('resume')
+                if resume_file:
+                    client.resume = resume_file
+                    client.save(update_fields=['resume', 'updated_at'])
+                    messages.success(request, f'Resume uploaded for {client.full_name}.')
+                else:
+                    messages.error(request, 'Choose a resume file to upload.')
                 return redirect('admin:clients_client_documents', object_id)
 
             upload_file = request.FILES.get('file')
@@ -975,6 +1015,22 @@ class ClientAdmin(admin.ModelAdmin):
         """Superusers edit raw SSN; never mutate class-level fieldsets."""
         self._current_request = request
         fieldsets = list(super().get_fieldsets(request, obj))
+        if obj and is_citybuild_client(obj):
+            fieldsets = [
+                (
+                    'CityBuild Files',
+                    {
+                        'fields': ('citybuild_files_summary', 'documents_hub_link'),
+                        'description': (
+                            'Checklist, uploads, resume, and sign-off live in the CityBuild files hub — '
+                            'not on this page. Nothing is pulled from Azure until you download.'
+                        ),
+                    },
+                )
+                if title == 'Documents'
+                else (title, options)
+                for title, options in fieldsets
+            ]
         if obj and request.user.is_superuser:
             title, options = fieldsets[0]
             personal = list(options['fields'])
@@ -1255,6 +1311,70 @@ class ClientAdmin(admin.ModelAdmin):
         except Exception as exc:  # Guard against unexpected cascade/introspection errors
             messages.error(request, f"Delete failed due to: {exc}")
             return redirect('admin:index')
+
+
+@admin.register(CityBuildFileChecklist)
+class CityBuildFileChecklistAdmin(admin.ModelAdmin):
+    """
+    Sidebar home for CityBuild file packets — changelist only, hub for detail.
+    Add → upload a new Document (pick CityBuild doc type on the form).
+    """
+
+    list_display = [
+        'open_files_hub',
+        'training_interest',
+        'staff_name',
+        'status',
+        'citybuild_on_file_display',
+        'citybuild_missing_display',
+        'citybuild_confirmed_display',
+    ]
+    list_filter = ['training_interest', 'status', 'staff_name', 'citybuild_files_confirmed']
+    search_fields = ['first_name', 'last_name', 'phone', 'staff_name', 'email']
+    list_display_links = ('open_files_hub',)
+    ordering = ['last_name', 'first_name', 'id']
+    list_per_page = 25
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .filter(training_interest__in=CITYBUILD_PROGRAMS)
+            .annotate(casenotes_count=Count('casenotes'))
+            .prefetch_related('documents')
+        )
+
+    def has_add_permission(self, request):
+        return request.user.has_perm('clients.add_document')
+
+    def add_view(self, request, form_url='', extra_context=None):
+        return redirect(reverse('admin:clients_document_add'))
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        return redirect('admin:clients_client_documents', object_id=object_id)
+
+    def open_files_hub(self, obj):
+        url = reverse('admin:clients_client_documents', args=[obj.pk])
+        return format_html('<a href="{}"><strong>{}</strong></a>', url, obj.full_name)
+    open_files_hub.short_description = 'Client'
+
+    def citybuild_on_file_display(self, obj):
+        packet = citybuild_packet_for_client(obj)
+        return f'{packet["on_file"]} / {packet["total"]}'
+    citybuild_on_file_display.short_description = 'On file'
+
+    def citybuild_missing_display(self, obj):
+        packet = citybuild_packet_for_client(obj)
+        if not packet['missing_count']:
+            return format_html('<span style="color:#059669;font-weight:600;">Complete</span>')
+        return str(packet['missing_count'])
+    citybuild_missing_display.short_description = 'Missing'
+
+    def citybuild_confirmed_display(self, obj):
+        if obj.citybuild_files_confirmed:
+            return format_html('<span style="color:#059669;">Yes</span>')
+        return '—'
+    citybuild_confirmed_display.short_description = 'Signed off'
 
 
 @admin.register(Document)

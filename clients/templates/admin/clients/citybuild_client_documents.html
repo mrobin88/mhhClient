@@ -115,9 +115,23 @@
     </form>
   </div>
 
-  {% if resume_download_url %}
-  <p><a href="{{ resume_download_url }}" target="_blank" class="button">📥 Download resume (on client record)</a></p>
-  {% endif %}
+  <div class="upload-box" style="margin-top:20px;">
+    <h2>Resume</h2>
+    {% if resume_download_url %}
+    <p><a href="{{ resume_download_url }}" target="_blank" class="button">📥 Download resume on file</a></p>
+    {% else %}
+    <p style="color:#64748b;margin:0 0 12px;">No resume on file yet.</p>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="upload_resume" />
+      <div class="upload-row">
+        <label for="resume">Upload or replace resume</label>
+        <input type="file" name="resume" id="resume" required />
+      </div>
+      <input type="submit" value="Save resume" class="default" />
+    </form>
+  </div>
 
   <h2>Files on record ({{ document_rows|length }})</h2>
   {% if document_rows %}
