@@ -163,8 +163,8 @@
         <label>Program
           <select id="program">
             <option value="">All programs</option>
-            <option value="citybuild">CityBuild Academy</option>
-            <option value="citybuild_pro">CityBuild Pro | CAPSA</option>
+            <option value="citybuild">City Build Academy</option>
+            <option value="capsa">CAPSA</option>
             <option value="security">Security Guard Card Program</option>
             <option value="construction">Construction On Ramp</option>
             <option value="pit_stop">Pit Stop Program</option>
@@ -216,8 +216,8 @@
         <a class="btn secondary" id="clientOutcomesCsv" href="/api/reports/client-outcomes/" target="_blank">CSV only</a>
       </div>
       <div class="card" style="border-color:#b45309;background:#fffbeb;">
-        <div class="title">🏗️ CityBuild Missing Docs</div>
-        <div class="desc">Every CityBuild / CityBuild Pro client — checklist on file vs missing (DB only, no blob reads). Honors case manager and status filters above.</div>
+        <div class="title">🏗️ City Build Academy Missing Docs</div>
+        <div class="desc">City Build Academy clients only — checklist on file vs missing (DB only, no blob reads). Honors case manager and status filters above.</div>
         <a class="btn" id="citybuildMissingDocsCsv" href="/api/reports/citybuild-missing-docs/" target="_blank">Download CSV</a>
         <a class="btn secondary" id="citybuildMissingDocsIncomplete" href="/api/reports/citybuild-missing-docs/?only_incomplete=1" target="_blank">Incomplete only</a>
       </div>
@@ -237,20 +237,16 @@
         <a class="btn" id="clientFileZip" href="/api/reports/client-file-package/" target="_blank">Download ZIP</a>
       </div>
       <div class="card">
-        <div class="title">📬 Staff Follow-up Scorecard</div>
-        <div class="desc">Follow-up workload and overdue buckets by staff member.</div>
-        <a class="btn" id="followupCsv" href="/api/reports/staff-followup-scorecard/" target="_blank">Download CSV</a>
-        <a class="btn secondary" id="followupCsv30" href="/api/reports/staff-followup-scorecard/?since_days=30" target="_blank">Last 30 days</a>
-      </div>
-      <div class="card">
         <div class="title">⚠️ Call-outs</div>
         <div class="desc">Attendance risk and same-day coverage pressure.</div>
         <a class="btn" id="calloutsCsv" href="/api/reports/callouts/" target="_blank">Download CSV</a>
       </div>
       <div class="card">
-        <div class="title">⏱️ PitStop Hours</div>
-        <div class="desc">Clock in/out punches with hours, geofence status, and site. Honors start/end dates above.</div>
-        <a class="btn" id="pitstopHoursCsv" href="/api/reports/pitstop-hours/" target="_blank">Download CSV</a>
+        <div class="title">⏱️ Worker Clock-In Hours</div>
+        <div class="desc">PitStop / iPad portal punches — net paid hours with lunch deducted. Honors start/end dates above.</div>
+        <a class="btn" id="pitstopHoursPackage" href="/api/reports/pitstop-hours-package/" target="_blank">Download ZIP (print + CSV)</a>
+        <a class="btn secondary" id="pitstopHoursPrint" href="/api/reports/pitstop-hours/print/" target="_blank">Printable HTML</a>
+        <a class="btn secondary" id="pitstopHoursCsv" href="/api/reports/pitstop-hours/" target="_blank">CSV only</a>
         <a class="btn secondary" id="pitstopHoursCsvComplete" href="/api/reports/pitstop-hours/?only_complete=1" target="_blank">Completed only</a>
       </div>
     </section>
@@ -305,7 +301,7 @@
       const citybuildParams = {
         case_manager: staffNameEl.value || '',
         status: clientStatusEl.value || '',
-        program: (programEl.value === 'citybuild' || programEl.value === 'citybuild_pro') ? programEl.value : '',
+        program: programEl.value === 'citybuild' ? programEl.value : '',
         mine
       };
       document.getElementById('citybuildMissingDocsCsv').href = buildUrl('/api/reports/citybuild-missing-docs/', citybuildParams);
@@ -325,20 +321,18 @@
         ...createdRange
       });
       document.getElementById('calloutsCsv').href = buildUrl('/api/reports/callouts/', activityDates);
-      document.getElementById('followupCsv').href = buildUrl('/api/reports/staff-followup-scorecard/', {
-        since_days: sinceDaysEl.value || '90',
-        mine
-      });
-      document.getElementById('followupCsv30').href = buildUrl('/api/reports/staff-followup-scorecard/', {
-        since_days: '30',
-        mine
-      });
       document.getElementById('clientFileZip').href = buildUrl('/api/reports/client-file-package/', {
         client_lookup: clientLookupEl.value || ''
       });
-      document.getElementById('pitstopHoursCsv').href = buildUrl('/api/reports/pitstop-hours/', activityDates);
+      const pitstopHoursParams = { ...activityDates };
+      document.getElementById('pitstopHoursPackage').href = buildUrl('/api/reports/pitstop-hours-package/', pitstopHoursParams);
+      document.getElementById('pitstopHoursPrint').href = buildUrl('/api/reports/pitstop-hours/print/', {
+        ...pitstopHoursParams,
+        only_complete: '1'
+      });
+      document.getElementById('pitstopHoursCsv').href = buildUrl('/api/reports/pitstop-hours/', pitstopHoursParams);
       document.getElementById('pitstopHoursCsvComplete').href = buildUrl('/api/reports/pitstop-hours/', {
-        ...activityDates,
+        ...pitstopHoursParams,
         only_complete: '1'
       });
     };

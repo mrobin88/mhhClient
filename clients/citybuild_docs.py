@@ -1,6 +1,7 @@
-"""CityBuild Academy document checklist (metadata only — no blob calls)."""
+"""City Build Academy document checklist (metadata only — no blob calls)."""
 
-CITYBUILD_PROGRAMS = frozenset({'citybuild', 'citybuild_pro'})
+# Checklist applies to Academy only — not CAPSA.
+CITYBUILD_PROGRAMS = frozenset({'citybuild'})
 
 # (panel_title, items) where each item is (doc_type_code | None, label, source)
 # source: document | resume | casenotes

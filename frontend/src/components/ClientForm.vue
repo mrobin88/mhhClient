@@ -54,6 +54,18 @@
             <div class="program-stack">
                 <button
                   type="button"
+                  @click="form.training_interest = 'capsa'"
+                  :class="[
+                    'program-btn-compact',
+                    form.training_interest === 'capsa' ? 'program-btn-active' : 'program-btn-inactive'
+                  ]"
+                >
+                  <span class="mr-2">⚡</span>
+                  <span>CAPSA</span>
+                </button>
+
+                <button
+                  type="button"
                   @click="form.training_interest = 'citybuild'"
                   :class="[
                     'program-btn-compact',
@@ -61,19 +73,7 @@
                   ]"
                 >
                   <span class="mr-2">🏗️</span>
-                  <span>CityBuild Academy</span>
-                </button>
-
-                <button
-                  type="button"
-                  @click="form.training_interest = 'citybuild_pro'"
-                  :class="[
-                    'program-btn-compact',
-                    form.training_interest === 'citybuild_pro' ? 'program-btn-active' : 'program-btn-inactive'
-                  ]"
-                >
-                  <span class="mr-2">⚡</span>
-                  <span>CityBuild Pro | CAPSA</span>
+                  <span>City Build Academy</span>
                 </button>
 
                 <button
@@ -379,14 +379,31 @@
             </div>
           </div>
 
-          <!-- Resume Upload Section -->
+          <!-- Identification & Documents -->
           <div class="form-section">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="section-title font-semibold text-slate-800">Resume & Documents</h3>
+              <h3 class="section-title font-semibold text-slate-800">Identification & Documents</h3>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">
+                <span class="text-mission-600">*</span> Government ID
+                <span class="text-slate-400 text-sm ml-2">Driver's license, state ID, passport, or other photo ID</span>
+              </label>
+              <input
+                type="file"
+                class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-mission-100 file:text-mission-700 hover:file:bg-mission-200"
+                :accept="docAccept"
+                @change="(e) => handleDocUpload(e, 'id')"
+              />
+              <div v-if="docFiles.id" class="doc-filename mt-2">{{ docFiles.id.name }}</div>
+              <p v-if="!docFiles.id && formAttempted" class="text-red-600 text-sm mt-2">
+                A government ID upload is required to submit your application.
+              </p>
             </div>
             
-            <div class="form-group">
+            <div class="form-group mt-6">
               <label class="form-label">
                 Resume (Optional)
                 <span class="text-slate-400 text-sm ml-2">PDF, Word, or text files accepted</span>
@@ -420,13 +437,6 @@
                     <div class="doc-subtitle">Diploma or GED</div>
                     <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'hs_diploma')" />
                     <div v-if="docFiles.hs_diploma" class="doc-filename">{{ docFiles.hs_diploma.name }}</div>
-                  </div>
-
-                  <div class="doc-tile">
-                    <div class="doc-title">Identification</div>
-                    <div class="doc-subtitle">Any ID you have</div>
-                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'id')" />
-                    <div v-if="docFiles.id" class="doc-filename">{{ docFiles.id.name }}</div>
                   </div>
 
                   <div class="doc-tile">
@@ -914,6 +924,11 @@ async function handleSubmit() {
   isSubmitting.value = true
 
   try {
+    if (!docFiles.value.id) {
+      error.value = 'Please upload a photo of your government ID to continue.'
+      return
+    }
+
     const selectedFiles = [
       resumeFile.value,
       docFiles.value.sf_residency,
@@ -928,8 +943,6 @@ async function handleSubmit() {
       error.value = 'Total upload size is too large (max 20MB combined). Please remove one file or upload smaller files.'
       return
     }
-
-    // Create FormData for file upload
     const formData = new FormData()
     
     // Add form fields

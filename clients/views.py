@@ -117,6 +117,21 @@ class ClientViewSet(viewsets.ModelViewSet):
         if resume_error:
             return Response({'detail': resume_error}, status=status.HTTP_400_BAD_REQUEST)
 
+        id_upload = request.FILES.get('doc_id')
+        if not id_upload:
+            return Response(
+                {'detail': 'Government ID upload is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        id_error = _validate_uploaded_file(
+            id_upload,
+            allowed_extensions=ALLOWED_SUPPORTING_DOC_EXTENSIONS,
+            max_bytes=MAX_SUPPORTING_DOC_UPLOAD_BYTES,
+            label='Government ID',
+        )
+        if id_error:
+            return Response({'detail': id_error}, status=status.HTTP_400_BAD_REQUEST)
+
         for key, label in (
             ('doc_sf_residency', 'Proof of SF Residency'),
             ('doc_hs_diploma', 'High School Diploma / GED'),

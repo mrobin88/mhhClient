@@ -22,6 +22,8 @@ from .reports import (
     WorkforceInventoryPackageView,
     ClientFilePackageView,
     PitStopHoursReportCSVView,
+    PitStopHoursPrintableView,
+    PitStopHoursPackageView,
     CityBuildMissingDocsReportCSVView,
 )
 from .worker_views import (
@@ -71,6 +73,8 @@ urlpatterns = [
     path('reports/workforce-inventory-package/', WorkforceInventoryPackageView.as_view(), name='workforce-inventory-package'),
     path('reports/client-file-package/', ClientFilePackageView.as_view(), name='client-file-package'),
     path('reports/pitstop-hours/', PitStopHoursReportCSVView.as_view(), name='pitstop-hours-report-csv'),
+    path('reports/pitstop-hours/print/', PitStopHoursPrintableView.as_view(), name='pitstop-hours-printable'),
+    path('reports/pitstop-hours-package/', PitStopHoursPackageView.as_view(), name='pitstop-hours-package'),
     path(
         'reports/citybuild-missing-docs/',
         CityBuildMissingDocsReportCSVView.as_view(),

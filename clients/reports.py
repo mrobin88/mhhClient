@@ -1301,6 +1301,247 @@ def write_pitstop_hours_csv(stream, punches):
     return stream
 
 
+def _parse_pitstop_hours_report_params(request):
+    """Shared date/filter parsing for PitStop hours CSV, print, and package exports."""
+    today = date.today()
+    default_start = today - timedelta(days=14)
+    start_date_str = (request.GET.get('start_date') or default_start.isoformat()).strip()
+    end_date_str = (request.GET.get('end_date') or today.isoformat()).strip()
+    work_site_id = (request.GET.get('work_site_id') or '').strip()
+    worker_id = (request.GET.get('worker_id') or '').strip()
+    only_complete = request.GET.get('only_complete') in {'1', 'true', 'True'}
+    min_hours_raw = (request.GET.get('min_hours') or '').strip()
+
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return None, HttpResponse('Invalid start_date. Use YYYY-MM-DD.', status=400)
+    try:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return None, HttpResponse('Invalid end_date. Use YYYY-MM-DD.', status=400)
+
+    min_hours_value = None
+    if min_hours_raw:
+        try:
+            min_hours_value = float(min_hours_raw)
+        except ValueError:
+            return None, HttpResponse('Invalid min_hours. Use a decimal value.', status=400)
+
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'work_site_id': work_site_id,
+        'worker_id': worker_id,
+        'only_complete': only_complete,
+        'min_hours_value': min_hours_value,
+    }, None
+
+
+def _pitstop_punches_for_hours_report(params):
+    punches = (
+        WorkerTimePunch.objects.filter(
+            clock_in_at__date__gte=params['start_date'],
+            clock_in_at__date__lte=params['end_date'],
+        )
+        .select_related('worker_account__client', 'work_site')
+        .order_by('worker_account__client__last_name', 'worker_account__client__first_name', 'clock_in_at')
+    )
+    if params['work_site_id']:
+        punches = punches.filter(work_site_id=params['work_site_id'])
+    if params['worker_id']:
+        punches = punches.filter(worker_account_id=params['worker_id'])
+    if params['only_complete']:
+        punches = punches.exclude(clock_out_at__isnull=True)
+
+    punch_list = list(punches)
+    min_hours_value = params['min_hours_value']
+    if min_hours_value is not None:
+        punch_list = [
+            punch for punch in punch_list
+            if (_pitstop_punch_hours(punch) or 0) >= min_hours_value
+        ]
+    return punch_list
+
+
+def _pitstop_hours_worker_totals(punches):
+    """Roll up completed-shift net hours by worker for fiscal printouts."""
+    totals = {}
+    for punch in punches:
+        worker_client = getattr(punch.worker_account, 'client', None) if punch.worker_account else None
+        name = worker_client.full_name if worker_client else 'Unknown worker'
+        key = punch.worker_account_id or name
+        if key not in totals:
+            totals[key] = {
+                'name': name,
+                'shifts': 0,
+                'days': set(),
+                'gross_hours': 0.0,
+                'lunch_minutes': 0,
+                'net_hours': 0.0,
+                'open_shifts': 0,
+            }
+        row = totals[key]
+        day_label = _local_date(punch.clock_in_at)
+        if day_label:
+            row['days'].add(day_label)
+        if not punch.clock_out_at:
+            row['open_shifts'] += 1
+            continue
+        row['shifts'] += 1
+        row['gross_hours'] += _pitstop_punch_hours(punch) or 0
+        row['lunch_minutes'] += punch.lunch_minutes or 0
+        row['net_hours'] += punch.net_hours or 0
+    return sorted(totals.values(), key=lambda item: item['name'].lower())
+
+
+def _build_pitstop_hours_printable_html(punches, params):
+    totals = _pitstop_hours_worker_totals(punches)
+    grand_net = sum(row['net_hours'] for row in totals)
+    grand_gross = sum(row['gross_hours'] for row in totals)
+    completed_shifts = sum(row['shifts'] for row in totals)
+    open_shifts = sum(row['open_shifts'] for row in totals)
+
+    filter_notes = []
+    if params['only_complete']:
+        filter_notes.append('Completed shifts only')
+    if params['work_site_id']:
+        filter_notes.append(f'Work site ID {params["work_site_id"]}')
+    if params['worker_id']:
+        filter_notes.append(f'Worker ID {params["worker_id"]}')
+    if params['min_hours_value'] is not None:
+        filter_notes.append(f'Minimum gross hours {params["min_hours_value"]:.2f}')
+    filter_line = '; '.join(filter_notes) if filter_notes else 'All clock-in punches in date range'
+
+    summary_rows = []
+    for row in totals:
+        summary_rows.append(
+            f'<tr>'
+            f'<td>{escape(row["name"])}</td>'
+            f'<td style="text-align:center;">{len(row["days"])}</td>'
+            f'<td style="text-align:center;">{row["shifts"]}</td>'
+            f'<td style="text-align:right;">{row["gross_hours"]:.2f}</td>'
+            f'<td style="text-align:right;">{row["lunch_minutes"]}</td>'
+            f'<td style="text-align:right;"><strong>{row["net_hours"]:.2f}</strong></td>'
+            f'<td style="text-align:center;">{row["open_shifts"] or "—"}</td>'
+            f'</tr>'
+        )
+    if not summary_rows:
+        summary_rows.append('<tr><td colspan="7">No punches matched these filters.</td></tr>')
+
+    detail_rows = []
+    for punch in punches:
+        worker_client = getattr(punch.worker_account, 'client', None) if punch.worker_account else None
+        gross_hours = _pitstop_punch_hours(punch)
+        net_hours = punch.net_hours
+        detail_rows.append(
+            f'<tr>'
+            f'<td>{escape(worker_client.full_name if worker_client else "Unknown")}</td>'
+            f'<td>{_local_date(punch.clock_in_at)}</td>'
+            f'<td>{_local_time_12h(punch.clock_in_at)}</td>'
+            f'<td>{_local_time_12h(punch.clock_out_at) or "—"}</td>'
+            f'<td style="text-align:right;">{punch.lunch_minutes or "—"}</td>'
+            f'<td style="text-align:right;">{f"{gross_hours:.2f}" if gross_hours is not None else "—"}</td>'
+            f'<td style="text-align:right;">{f"{net_hours:.2f}" if net_hours is not None else "—"}</td>'
+            f'<td>{escape(punch.work_site.name if punch.work_site else "—")}</td>'
+            f'<td>{"Complete" if punch.clock_out_at else "Open"}</td>'
+            f'</tr>'
+        )
+    if not detail_rows:
+        detail_rows.append('<tr><td colspan="9">No punch detail rows.</td></tr>')
+
+    generated_at = datetime.now().astimezone(REPORT_DISPLAY_TZ).strftime('%Y-%m-%d %I:%M %p').lstrip('0')
+
+    return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Worker Hours — {params['start_date'].isoformat()} to {params['end_date'].isoformat()}</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }}
+    h1, h2 {{ margin-bottom: 8px; }}
+    .meta {{ color: #475569; margin-bottom: 14px; line-height: 1.45; }}
+    .box {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }}
+    table {{ border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 12px; }}
+    th, td {{ border: 1px solid #cbd5e1; padding: 7px 9px; vertical-align: top; }}
+    th {{ background: #f1f5f9; text-align: left; }}
+    tfoot td {{ font-weight: 700; background: #eef2ff; }}
+    .print-hint {{ color: #64748b; font-size: 12px; margin-top: 18px; }}
+    @media print {{
+      @page {{ margin: 0.5in; }}
+      .print-hint {{ display: none; }}
+    }}
+  </style>
+</head>
+<body>
+  <h1>Mission Hiring Hall — Worker Clock-In Hours</h1>
+  <div class="meta">
+    Pay period: <strong>{params['start_date'].isoformat()}</strong> through <strong>{params['end_date'].isoformat()}</strong><br>
+    Generated: {generated_at} (Pacific)<br>
+    Filters: {escape(filter_line)}
+  </div>
+
+  <div class="box">
+    <strong>Fiscal summary</strong><br>
+    Workers listed: <strong>{len(totals)}</strong> ·
+    Completed shifts: <strong>{completed_shifts}</strong> ·
+    Open shifts (not paid yet): <strong>{open_shifts}</strong><br>
+    Total gross hours: <strong>{grand_gross:.2f}</strong> ·
+    Total net paid hours: <strong>{grand_net:.2f}</strong>
+  </div>
+
+  <h2>By worker (for payroll review)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Worker</th>
+        <th>Days</th>
+        <th>Shifts</th>
+        <th>Gross hrs</th>
+        <th>Lunch (min)</th>
+        <th>Net paid hrs</th>
+        <th>Open</th>
+      </tr>
+    </thead>
+    <tbody>
+      {''.join(summary_rows)}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">Totals</td>
+        <td style="text-align:right;">{grand_gross:.2f}</td>
+        <td></td>
+        <td style="text-align:right;">{grand_net:.2f}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <h2>Shift detail</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Worker</th>
+        <th>Date</th>
+        <th>Clock in</th>
+        <th>Clock out</th>
+        <th>Lunch (min)</th>
+        <th>Gross</th>
+        <th>Net paid</th>
+        <th>Work site</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {''.join(detail_rows)}
+    </tbody>
+  </table>
+
+  <p class="print-hint">Use your browser print dialog (File → Print) to save as PDF for fiscal records.</p>
+</body>
+</html>"""
+
+
 class PitStopHoursReportCSVView(LoginRequiredMixin, View):
     """
     Export CSV of PitStop hours (clock in/out punches) for payroll-style review.
@@ -1314,59 +1555,64 @@ class PitStopHoursReportCSVView(LoginRequiredMixin, View):
     """
 
     def get(self, request):
-        today = date.today()
-        default_start = today - timedelta(days=14)
-        start_date_str = (request.GET.get('start_date') or default_start.isoformat()).strip()
-        end_date_str = (request.GET.get('end_date') or today.isoformat()).strip()
-        work_site_id = (request.GET.get('work_site_id') or '').strip()
-        worker_id = (request.GET.get('worker_id') or '').strip()
-        only_complete = request.GET.get('only_complete') in {'1', 'true', 'True'}
-        min_hours_raw = (request.GET.get('min_hours') or '').strip()
-
-        try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            return HttpResponse('Invalid start_date. Use YYYY-MM-DD.', status=400)
-        try:
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            return HttpResponse('Invalid end_date. Use YYYY-MM-DD.', status=400)
-
-        punches = (
-            WorkerTimePunch.objects.filter(
-                clock_in_at__date__gte=start_date,
-                clock_in_at__date__lte=end_date,
-            )
-            .select_related('worker_account__client', 'work_site')
-            .order_by('-clock_in_at')
-        )
-        if work_site_id:
-            punches = punches.filter(work_site_id=work_site_id)
-        if worker_id:
-            punches = punches.filter(worker_account_id=worker_id)
-        if only_complete:
-            punches = punches.exclude(clock_out_at__isnull=True)
-
-        min_hours_value = None
-        if min_hours_raw:
-            try:
-                min_hours_value = float(min_hours_raw)
-            except ValueError:
-                return HttpResponse('Invalid min_hours. Use a decimal value.', status=400)
-
-        if min_hours_value is not None:
-            kept = []
-            for punch in punches:
-                hours = _pitstop_punch_hours(punch)
-                if hours is not None and hours >= min_hours_value:
-                    kept.append(punch)
-            punches = kept
-
+        params, error = _parse_pitstop_hours_report_params(request)
+        if error:
+            return error
+        punches = _pitstop_punches_for_hours_report(params)
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = (
-            f'attachment; filename="pitstop_hours_{start_date.isoformat()}_to_{end_date.isoformat()}.csv"'
+            f'attachment; filename="pitstop_hours_{params["start_date"].isoformat()}_to_{params["end_date"].isoformat()}.csv"'
         )
         write_pitstop_hours_csv(response, punches)
+        return response
+
+
+class PitStopHoursPrintableView(LoginRequiredMixin, View):
+    """Print-friendly HTML hours report for fiscal / payroll review."""
+
+    def get(self, request):
+        params, error = _parse_pitstop_hours_report_params(request)
+        if error:
+            return error
+        punches = _pitstop_punches_for_hours_report(params)
+        html = _build_pitstop_hours_printable_html(punches, params)
+        return HttpResponse(html, content_type='text/html; charset=utf-8')
+
+
+class PitStopHoursPackageView(LoginRequiredMixin, View):
+    """ZIP with CSV + printable HTML for fiscal filing."""
+
+    def get(self, request):
+        params, error = _parse_pitstop_hours_report_params(request)
+        if error:
+            return error
+        punches = _pitstop_punches_for_hours_report(params)
+
+        csv_io = io.StringIO()
+        write_pitstop_hours_csv(csv_io, punches)
+        html = _build_pitstop_hours_printable_html(punches, params)
+        readme = (
+            'Worker Hours Package\n'
+            '====================\n'
+            '1) Open worker_hours_printable.html in your browser and print to PDF for fiscal.\n'
+            '2) Open worker_hours.csv in Excel for audit / pivot tables.\n'
+            f'Period: {params["start_date"].isoformat()} to {params["end_date"].isoformat()}\n'
+            f'Punch rows: {len(punches)}\n'
+        )
+
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('README.txt', readme)
+            zf.writestr(
+                f'worker_hours_{params["start_date"].isoformat()}_to_{params["end_date"].isoformat()}.csv',
+                csv_io.getvalue(),
+            )
+            zf.writestr('worker_hours_printable.html', html)
+        out.seek(0)
+        response = HttpResponse(out.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = (
+            f'attachment; filename="worker_hours_package_{params["start_date"].isoformat()}_to_{params["end_date"].isoformat()}.zip"'
+        )
         return response
 
 
@@ -1414,7 +1660,7 @@ class TodaysAssignmentsCSVView(LoginRequiredMixin, View):
 
 def _citybuild_clients_for_missing_docs_report(request):
     """
-    CityBuild / CityBuild Pro clients for the missing-docs export.
+    City Build Academy clients for the missing-docs export.
 
     Uses indexed filters on training_interest (single WHERE + optional staff/status).
     """
@@ -1526,7 +1772,7 @@ def _write_citybuild_missing_docs_csv(writer, clients, only_incomplete=False):
 
 class CityBuildMissingDocsReportCSVView(LoginRequiredMixin, View):
     """
-    CSV of CityBuild checklist status for every CityBuild / CityBuild Pro client.
+    CSV of City Build Academy checklist status for Academy clients only.
 
     Pass only_incomplete=1 to hide clients with a complete file packet.
     """

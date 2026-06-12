@@ -432,7 +432,7 @@ class CaseNoteAdmin(admin.ModelAdmin):
 class ClientAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'program_completed_date', 'job_placed', 'has_resume', 'case_notes_count', 'created_at']
     list_filter = ['status', 'training_interest', 'job_placed', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
-    search_fields = ['first_name', 'last_name', 'phone', 'job_title', 'job_company']
+    search_fields = ['first_name', 'last_name', 'phone', 'email', 'job_title', 'job_company']
     readonly_fields = [
         'created_at',
         'updated_at',
@@ -450,6 +450,15 @@ class ClientAdmin(admin.ModelAdmin):
     inlines = [CaseNoteInline]
     list_per_page = 25
     show_full_result_count = False
+
+    def get_search_results(self, request, queryset, search_term):
+        """Autocomplete from PitStop worker/application forms: PitStop clients only."""
+        queryset, use_distinct = super().get_search_results(request, queryset, search_term)
+        model_name = (request.GET.get('model_name') or '').lower()
+        field_name = (request.GET.get('field_name') or '').lower()
+        if field_name == 'client' and model_name in ('workeraccount', 'pitstopapplication'):
+            queryset = queryset.filter(training_interest='pit_stop')
+        return queryset, use_distinct
     
     def get_urls(self):
         """Add custom URL for quick case note addition"""
@@ -743,7 +752,7 @@ class ClientAdmin(admin.ModelAdmin):
                     ))
             summary = format_html(
                 '<p style="margin:0 0 8px;font-size:13px;color:#334155;">'
-                '<strong>CityBuild:</strong> {} / {} on file</p>',
+                '<strong>City Build Academy:</strong> {} / {} on file</p>',
                 ctx['on_file_count'],
                 ctx['total_count'],
             )
@@ -791,7 +800,7 @@ class ClientAdmin(admin.ModelAdmin):
         url = reverse('admin:clients_client_documents', args=[obj.pk])
         if is_citybuild_client(obj):
             ctx = self._citybuild_checklist_context(obj)
-            label = 'CityBuild files hub'
+            label = 'City Build Academy files hub'
             count_label = f'{ctx["on_file_count"]} / {ctx["total_count"]} checklist items'
         else:
             label = 'Open documents hub'
@@ -871,9 +880,9 @@ class ClientAdmin(admin.ModelAdmin):
                     'updated_at',
                 ])
                 if confirmed:
-                    messages.success(request, 'CityBuild file packet sign-off saved.')
+                    messages.success(request, 'City Build Academy file packet sign-off saved.')
                 else:
-                    messages.info(request, 'CityBuild sign-off cleared.')
+                    messages.info(request, 'City Build Academy sign-off cleared.')
                 return redirect('admin:clients_client_documents', object_id)
 
             if request.POST.get('action') == 'upload_resume' and is_citybuild_client(client):
@@ -921,7 +930,7 @@ class ClientAdmin(admin.ModelAdmin):
             ctx = self._citybuild_checklist_context(client)
             context = {
                 **base_context,
-                'title': f'CityBuild files — {client.full_name}',
+                'title': f'City Build Academy files — {client.full_name}',
                 'panels': ctx['panels'],
                 'on_file_count': ctx['on_file_count'],
                 'total_count': ctx['total_count'],
@@ -1018,11 +1027,11 @@ class ClientAdmin(admin.ModelAdmin):
         if obj and is_citybuild_client(obj):
             fieldsets = [
                 (
-                    'CityBuild Files',
+                    'City Build Academy Files',
                     {
                         'fields': ('citybuild_files_summary', 'documents_hub_link'),
                         'description': (
-                            'Checklist, uploads, resume, and sign-off live in the CityBuild files hub — '
+                            'Checklist, uploads, resume, and sign-off live in the City Build Academy files hub — '
                             'not on this page. Nothing is pulled from Azure until you download.'
                         ),
                     },
@@ -1316,8 +1325,8 @@ class ClientAdmin(admin.ModelAdmin):
 @admin.register(CityBuildFileChecklist)
 class CityBuildFileChecklistAdmin(admin.ModelAdmin):
     """
-    Sidebar home for CityBuild file packets — changelist only, hub for detail.
-    Add → upload a new Document (pick CityBuild doc type on the form).
+    Sidebar home for City Build Academy file packets — changelist only, hub for detail.
+    Add → upload a new Document (pick Academy doc type on the form).
     """
 
     list_display = [
@@ -1628,6 +1637,7 @@ class PitStopApplicationAdmin(admin.ModelAdmin):
     list_display = ['client', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'available_days_summary', 'created_at']
     list_filter = ['employment_desired', 'can_work_us', 'is_veteran', 'created_at']
     search_fields = ['client__first_name', 'client__last_name', 'position_applied_for']
+    autocomplete_fields = ['client']
     date_hierarchy = 'created_at'
     readonly_fields = ['created_at', 'updated_at', 'schedule_summary']
     
@@ -1720,13 +1730,14 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         'phone',
         'worker_status',
         'portal_access_display',
-        'availability_display',
         'weekly_hours_check',
         'last_punch_display',
     ]
-    list_filter = ['worker_status', 'is_active', 'is_available', 'created_at']
+    list_filter = ['worker_status', 'is_active', 'created_at']
     search_fields = ['client__first_name', 'client__last_name', 'phone']
+    autocomplete_fields = ['client']
     readonly_fields = [
+        'phone',
         'pin_hash',
         'last_login',
         'login_attempts',
@@ -1738,53 +1749,81 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         'related_records_links',
     ]
     inlines = []
-    
+
     fieldsets = (
-        ('Worker Information', {
-            'fields': ('client', 'phone', 'worker_status', 'is_available'),
-            'description': 'Phone is saved as digits only so workers can log in with their mobile keypad.',
-        }),
-        ('Portal access', {
-            'fields': ('is_active', 'last_login', 'login_attempts', 'locked_until'),
-            'description': 'Uncheck “Portal access” to block login. PIN reset: use action “Reset PIN to last 4 digits of phone”.',
+        ('Worker', {
+            'fields': ('client', 'phone', 'worker_status', 'is_active'),
+            'description': 'Portal access must be on for iPad login. PIN defaults to last 4 digits of phone.',
         }),
         ('Hours + clock logs', {
             'fields': ('weekly_hours_check', 'total_hours_display', 'last_punch_display', 'related_records_links'),
-            'description': 'Clock-in/out hours are geolocation validated against PitStop work sites.',
         }),
-        ('Account Management', {
-            'fields': ('created_by', 'created_at', 'notes', 'follow_up_notes')
-        }),
-        ('Security', {
-            'fields': ('pin_hash',),
+        ('Notes (optional)', {
             'classes': ('collapse',),
-            'description': 'PIN is hashed. Use list action to reset to last 4 digits of the stored phone number.'
+            'fields': ('notes', 'follow_up_notes', 'created_by', 'created_at'),
+        }),
+        ('Login audit', {
+            'classes': ('collapse',),
+            'fields': ('last_login', 'login_attempts', 'locked_until', 'pin_hash'),
         }),
     )
-    
+
+    add_fieldsets = (
+        (None, {
+            'fields': ('client',),
+            'description': (
+                'Type name or phone to search — PitStop clients only. '
+                'Portal access, phone, and PIN are set automatically when you save.'
+            ),
+        }),
+    )
+
     actions = [
-        'mark_applicant',
-        'mark_active_worker',
-        'mark_inactive_worker',
-        'set_available',
-        'set_unavailable',
-        'approve_accounts',
-        'deactivate_accounts',
+        'enable_portal_welcome',
+        'disable_portal',
         'reset_pins',
         'unlock_accounts',
     ]
+
+    def get_fieldsets(self, request, obj=None):
+        if obj is None:
+            return self.add_fieldsets
+        return self.fieldsets
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is None:
+            return []
+        return list(self.readonly_fields)
+
+    def save_model(self, request, obj, form, change):
+        if obj.client_id:
+            normalized = normalize_login_phone(obj.client.phone)
+            if normalized:
+                obj.phone = normalized
+            elif not obj.phone:
+                obj.phone = normalize_login_phone(obj.client.phone) or (obj.client.phone or '')
+        if not change:
+            if not obj.pin_hash:
+                obj.set_pin(default_worker_pin_from_phone(obj.phone))
+            obj.created_by = _staff_display_name(request.user)
+            obj.worker_status = WorkerAccount.STATUS_ACTIVE
+            obj.is_active = True
+        super().save_model(request, obj, form, change)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'client' and not request.path.endswith('/autocomplete/'):
+            kwargs['queryset'] = (
+                Client.objects.filter(training_interest='pit_stop')
+                .select_related()
+                .order_by('last_name', 'first_name', 'id')
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def portal_access_display(self, obj):
         if obj.is_active:
             return format_html('<span style="color: green; font-weight: bold;">✓ On</span>')
         return format_html('<span style="color: #999;">Off</span>')
     portal_access_display.short_description = 'Portal'
-
-    def availability_display(self, obj):
-        if obj.is_available:
-            return format_html('<span style="color: green; font-weight: bold;">Available</span>')
-        return format_html('<span style="color: #999;">Not available</span>')
-    availability_display.short_description = 'Availability'
 
     def current_week_hours(self, obj):
         return _format_hours(_weekly_hours_for_worker(obj))
@@ -1835,47 +1874,16 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         )
 
     related_records_links.short_description = 'Related records'
-    
-    def is_locked(self, obj):
-        """Show if account is currently locked"""
-        if obj.is_locked:
-            return format_html('<span style="color: red;">🔒 Locked</span>')
-        return format_html('<span style="color: green;">✓ Active</span>')
-    is_locked.short_description = 'Lock Status'
 
-    def mark_applicant(self, request, queryset):
-        updated = queryset.update(worker_status=WorkerAccount.STATUS_APPLICANT)
-        self.message_user(request, f'{updated} roster row(s) marked applicant.')
-    mark_applicant.short_description = 'Set status: Applicant'
-
-    def mark_active_worker(self, request, queryset):
-        updated = queryset.update(worker_status=WorkerAccount.STATUS_ACTIVE)
-        self.message_user(request, f'{updated} roster row(s) marked active worker.')
-    mark_active_worker.short_description = 'Set status: Active Worker'
-
-    def mark_inactive_worker(self, request, queryset):
-        updated = queryset.update(worker_status=WorkerAccount.STATUS_INACTIVE, is_available=False)
-        self.message_user(request, f'{updated} roster row(s) marked inactive.')
-    mark_inactive_worker.short_description = 'Set status: Inactive'
-
-    def set_available(self, request, queryset):
-        updated = queryset.update(is_available=True)
-        self.message_user(request, f'{updated} worker(s) marked available.')
-    set_available.short_description = 'Set availability: Available'
-
-    def set_unavailable(self, request, queryset):
-        updated = queryset.update(is_available=False)
-        self.message_user(request, f'{updated} worker(s) marked not available.')
-    set_unavailable.short_description = 'Set availability: Not available'
-    
-    def approve_accounts(self, request, queryset):
-        """Turn portal on and send welcome emails (same as checking Portal access for each row)."""
+    def enable_portal_welcome(self, request, queryset):
+        """Turn portal on and send welcome emails."""
         from .notifications import send_worker_welcome_email
 
         approved = 0
         emailed = 0
         for account in queryset.filter(is_active=False):
             account.is_active = True
+            account.worker_status = WorkerAccount.STATUS_ACTIVE
             account.save()
             approved += 1
             if send_worker_welcome_email(account):
@@ -1884,19 +1892,19 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         msg = f'{approved} account(s) enabled for portal.'
         if emailed:
             msg += f' {emailed} welcome email(s) sent.'
-        if approved > emailed and approved:
-            msg += f' {approved - emailed} skipped (no email on file).'
         if approved == 0:
             msg = 'No changes — selected accounts already had portal access on.'
         self.message_user(request, msg)
-    approve_accounts.short_description = 'Enable portal + send welcome email (if inactive)'
-    
-    def deactivate_accounts(self, request, queryset):
-        """Bulk disable worker portal logins."""
-        updated = queryset.update(is_active=False)
+    enable_portal_welcome.short_description = 'Enable portal + welcome email'
+
+    def disable_portal(self, request, queryset):
+        updated = queryset.update(
+            is_active=False,
+            worker_status=WorkerAccount.STATUS_INACTIVE,
+        )
         self.message_user(request, f'Portal login disabled for {updated} account(s).')
-    deactivate_accounts.short_description = 'Disable portal login'
-    
+    disable_portal.short_description = 'Disable portal login'
+
     def reset_pins(self, request, queryset):
         """Reset PINs to last four digits of the phone number (numeric)."""
         for account in queryset:
@@ -2036,6 +2044,7 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
         'worker_account__phone',
         'work_site__name',
     ]
+    autocomplete_fields = ['worker_account', 'work_site']
     date_hierarchy = 'clock_in_at'
     actions = ['export_pitstop_hours_csv']
 

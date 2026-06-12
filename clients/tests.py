@@ -324,6 +324,47 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(len(rows), 1)
         self.assertIn('Worker Name', rows[0])
 
+    def test_pitstop_hours_printable_html_for_fiscal_review(self):
+        clock_in = timezone.now().replace(microsecond=0) - timedelta(hours=5)
+        clock_out = clock_in + timedelta(hours=4, minutes=30)
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=clock_in,
+            clock_out_at=clock_out,
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+            clock_out_geo_status='captured',
+            clock_out_geo_basic_ok=True,
+        )
+        client = self._login_superuser()
+        response = client.get(reverse('pitstop-hours-printable') + '?only_complete=1')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/html; charset=utf-8')
+        body = response.content.decode('utf-8')
+        self.assertIn('Mission Hiring Hall', body)
+        self.assertIn('By worker (for payroll review)', body)
+        self.assertIn('Test Worker', body)
+        self.assertIn('4.50', body)
+
+    def test_pitstop_hours_package_zip_downloads(self):
+        clock_in = timezone.now().replace(microsecond=0) - timedelta(hours=3)
+        clock_out = clock_in + timedelta(hours=2)
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=clock_in,
+            clock_out_at=clock_out,
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+            clock_out_geo_status='captured',
+            clock_out_geo_basic_ok=True,
+        )
+        client = self._login_superuser()
+        response = client.get(reverse('pitstop-hours-package') + '?only_complete=1')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/zip')
+
     @override_settings(
         STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage',
         STORAGES={
@@ -518,10 +559,19 @@ class ClientAdminChangeViewTests(TestCase):
         url = reverse('admin:clients_client_change', args=[self.client_record.pk])
         response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'CityBuild Files')
-        self.assertContains(response, 'CityBuild files hub')
+        self.assertContains(response, 'City Build Academy Files')
+        self.assertContains(response, 'City Build Academy files hub')
         self.assertNotContains(response, 'Panel 1')
         self.assertNotContains(response, 'Upload client resume')
+
+    def test_capsa_client_change_has_no_academy_checklist(self):
+        self.client_record.training_interest = 'capsa'
+        self.client_record.save(update_fields=['training_interest'])
+        url = reverse('admin:clients_client_change', args=[self.client_record.pk])
+        response = self.django_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'City Build Academy Files')
+        self.assertNotContains(response, 'City Build Academy files hub')
 
     def test_citybuild_checklist_admin_changelist(self):
         self.client_record.training_interest = 'citybuild'
@@ -530,6 +580,45 @@ class ClientAdminChangeViewTests(TestCase):
         response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Davis Example')
+
+    def test_worker_account_add_uses_client_autocomplete(self):
+        self.client_record.training_interest = 'pit_stop'
+        self.client_record.save(update_fields=['training_interest'])
+        add_url = reverse('admin:clients_workeraccount_add')
+        response = self.django_client.get(add_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'autocomplete')
+        self.assertNotContains(response, 'is_available')
+
+        ac_response = self.django_client.get(
+            '/admin/autocomplete/',
+            {
+                'term': 'Davis',
+                'app_label': 'clients',
+                'model_name': 'workeraccount',
+                'field_name': 'client',
+            },
+        )
+        self.assertEqual(ac_response.status_code, 200)
+        self.assertContains(ac_response, 'Davis')
+
+        Client.objects.create(
+            first_name='General',
+            last_name='Only',
+            phone='4155558888',
+            gender='M',
+            training_interest='general',
+        )
+        ac_response = self.django_client.get(
+            '/admin/autocomplete/',
+            {
+                'term': 'Davis',
+                'app_label': 'clients',
+                'model_name': 'workeraccount',
+                'field_name': 'client',
+            },
+        )
+        self.assertNotContains(ac_response, 'General Only')
 
     def test_citybuild_documents_hub_uses_panel_checklist(self):
         self.client_record.training_interest = 'citybuild'
@@ -546,7 +635,7 @@ class ClientAdminChangeViewTests(TestCase):
             response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
         blob_exists_mock.assert_not_called()
-        self.assertContains(response, 'CityBuild files')
+        self.assertContains(response, 'City Build Academy files')
         self.assertContains(response, 'TABE (top page only)')
         self.assertContains(response, 'Submitted &amp; confirmed by')
 
@@ -751,6 +840,14 @@ class CityBuildMissingDocsReportTests(TestCase):
             training_interest='general',
             status='active',
         )
+        Client.objects.create(
+            first_name='Capsa',
+            last_name='Only',
+            phone='4155552003',
+            gender='M',
+            training_interest='capsa',
+            status='active',
+        )
         from clients.models import Document
         Document.objects.create(
             client=self.citybuild_client,
@@ -770,6 +867,7 @@ class CityBuildMissingDocsReportTests(TestCase):
         self.assertIn('Build Candidate', body)
         self.assertIn('TABE (top page only)', body)
         self.assertNotIn('General Client', body)
+        self.assertNotIn('Capsa Only', body)
 
     def test_citybuild_missing_docs_incomplete_only_skips_complete_packets(self):
         from clients.citybuild_docs import CITYBUILD_CHECKLIST_ITEMS
@@ -855,3 +953,48 @@ class StaffSpaApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertIn('message', response.json())
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
+class PublicClientRegistrationTests(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        self.api = APIClient()
+
+    def _registration_payload(self):
+        return {
+            'first_name': 'Public',
+            'last_name': 'Applicant',
+            'phone': '4155559090',
+            'gender': 'M',
+            'training_interest': 'capsa',
+            'sf_resident': 'yes',
+            'neighborhood': 'mission',
+            'demographic_info': 'other',
+            'language': 'en',
+            'highest_degree': 'hs',
+            'employment_status': 'unemployed',
+            'referral_source': 'walk_in',
+        }
+
+    def test_public_registration_requires_government_id(self):
+        response = self.api.post('/api/clients/', self._registration_payload(), format='multipart')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Government ID upload is required', response.json()['detail'])
+
+    def test_public_registration_accepts_required_government_id(self):
+        response = self.api.post(
+            '/api/clients/',
+            {
+                **self._registration_payload(),
+                'doc_id': SimpleUploadedFile('license.jpg', b'fakejpeg', content_type='image/jpeg'),
+            },
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, 201)
+        client = Client.objects.get(pk=response.json()['id'])
+        self.assertTrue(client.documents.filter(doc_type='id').exists())
