@@ -319,7 +319,7 @@ class Document(models.Model):
         ('reference', 'Reference Letter'),
         ('cb_application', 'CityBuild Application'),
         ('cb_roi', 'Release of Information'),
-        ('cb_tabe', 'TABE (top page)'),
+        ('cb_tabe', 'TABE'),
         ('cb_parq', 'Par-Q / Doc Clearance'),
         ('cb_iep', 'IEP'),
         ('cb_ssn_card', 'Social Security Card'),

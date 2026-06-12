@@ -4,183 +4,371 @@
 {% block extrastyle %}
 {{ block.super }}
 <style>
-.doc-hub { max-width: 960px; margin: 20px auto; }
-.doc-hub h1 { margin-bottom: 8px; }
-.doc-hub .back { margin-bottom: 20px; display: inline-block; }
-.panel-block {
-  margin: 24px 0;
-  padding: 16px 18px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #fff;
-}
-.panel-block h3 {
-  margin: 0 0 12px;
-  font-size: 15px;
-  color: #334155;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 8px;
-}
-.checklist-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
-}
-.check-item {
-  padding: 12px 14px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-}
-.check-item.present { border-color: #86efac; background: #f0fdf4; }
-.check-item.missing { border-color: #fecaca; background: #fef2f2; }
-.check-item strong { display: block; font-size: 14px; }
-.summary-bar {
-  margin: 16px 0;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: #eff6ff;
+.cb-hub { max-width: 1100px; margin: 20px auto 40px; }
+.cb-hub h1 { margin-bottom: 6px; font-size: 26px; }
+.cb-sub { color: #64748b; margin: 0 0 20px; font-size: 14px; }
+.cb-back { margin-bottom: 16px; display: inline-block; }
+
+.cb-hero {
+  padding: 20px 22px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
   border: 1px solid #bfdbfe;
-  font-size: 14px;
+  margin-bottom: 28px;
 }
-.confirm-box {
-  margin: 24px 0;
-  padding: 16px 18px;
+.cb-hero-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.cb-hero-count {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+}
+.cb-hero-count span { color: #059669; }
+.cb-hero-hint { font-size: 13px; color: #475569; max-width: 420px; }
+.cb-progress-track {
+  height: 14px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+.cb-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+  transition: width .35s ease;
+}
+
+.cb-section { margin: 28px 0; }
+.cb-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.cb-section-head h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #0f172a;
+}
+.cb-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.cb-badge.missing { background: #fee2e2; color: #b91c1c; }
+.cb-badge.received { background: #dcfce7; color: #166534; }
+
+.cb-wells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.cb-well {
+  position: relative;
+  border-radius: 12px;
+  padding: 16px 16px 14px;
+  min-height: 118px;
+  border: 2px solid transparent;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.cb-well:hover { transform: translateY(-1px); }
+
+.cb-well.missing {
+  background: #fff7ed;
+  border-color: #fdba74;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+}
+.cb-well.missing:hover {
+  border-color: #f97316;
+  box-shadow: 0 8px 20px rgba(249, 115, 22, .15);
+}
+.cb-well.missing .cb-well-action { color: #c2410c; font-weight: 700; }
+
+.cb-well.received {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+.cb-well-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+  padding-right: 28px;
+}
+.cb-well-panel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+.cb-well-status {
+  font-size: 13px;
+  color: #475569;
+}
+.cb-well-icon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 20px;
+  line-height: 1;
+}
+.cb-well-links {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cb-well-links a {
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+.cb-well-links a:hover { background: #ecfdf5; }
+
+.cb-upload-form { margin: 0; height: 100%; }
+.cb-upload-form label.cb-well {
+  display: block;
+  margin: 0;
+}
+.cb-file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+.cb-note-btn {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #fdba74;
+  color: #c2410c;
+}
+.cb-note-btn:hover { background: #ffedd5; }
+
+.cb-replace-form { margin-top: 8px; }
+.cb-replace-form label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #166534;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.cb-replace-form input[type=file] { display: none; }
+
+.cb-complete {
+  padding: 18px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+  color: #166534;
+  font-weight: 600;
+  text-align: center;
+}
+
+.cb-signoff {
+  margin: 32px 0 24px;
+  padding: 18px 20px;
   border: 1px dashed #94a3b8;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #f8fafc;
 }
-.confirm-box label { font-weight: 600; cursor: pointer; }
-.confirm-meta { margin-top: 8px; font-size: 12px; color: #64748b; }
-.file-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-.file-table th, .file-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-.upload-box {
+.cb-signoff label { font-weight: 600; cursor: pointer; }
+.cb-signoff-meta { margin-top: 8px; font-size: 12px; color: #64748b; }
+
+.cb-audit {
   margin-top: 28px;
-  padding: 20px;
-  border: 1px dashed #94a3b8;
-  border-radius: 10px;
-  background: #fff;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
 }
-.upload-box h2 { margin-top: 0; font-size: 18px; }
-.upload-row { margin-bottom: 14px; }
-.upload-row label { display: block; font-weight: 600; margin-bottom: 6px; }
-.upload-row input, .upload-row select { width: 100%; max-width: 480px; padding: 8px; }
+.cb-audit summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 10px;
+}
+.cb-file-table { width: 100%; border-collapse: collapse; }
+.cb-file-table th, .cb-file-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="doc-hub">
-  <a href="{{ back_url }}" class="back">← Back to client profile</a>
-  <h1>City Build Academy files — {{ client.full_name }}</h1>
-  <p style="color:#64748b;">Checklist uses database metadata only. Files download from Azure when you click Download.</p>
+<div class="cb-hub">
+  <a href="{{ back_url }}" class="cb-back">← Back to client profile</a>
+  <h1>City Build Academy — {{ client.full_name }}</h1>
+  <p class="cb-sub">Tap a missing tile to upload. Each tile saves the correct document type automatically — no dropdowns.</p>
 
-  <div class="summary-bar">
-    <strong>{{ on_file_count }} / {{ total_count }}</strong> checklist items on file
-  </div>
-
-  {% for panel in panels %}
-  <div class="panel-block">
-    <h3>{{ panel.title }}</h3>
-    <div class="checklist-grid">
-      {% for item in panel.items %}
-      <div class="check-item {% if item.present %}present{% else %}missing{% endif %}">
-        <strong>{% if item.present %}✓{% else %}○{% endif %} {{ item.label }}</strong>
-        <span style="font-size:12px;color:#64748b;">{% if item.present %}On file{% else %}Missing{% endif %}</span>
-        {% if item.source == 'casenotes' and item.case_notes_count %}
-        <span style="display:block;font-size:11px;color:#64748b;margin-top:4px;">{{ item.case_notes_count }} note(s) in system</span>
-        {% endif %}
+  <div class="cb-hero">
+    <div class="cb-hero-top">
+      <div>
+        <div class="cb-hero-count"><span>{{ on_file_count }}</span> / {{ total_count }} received</div>
+        <div class="cb-hero-hint">
+          {% if missing_count %}
+            {{ missing_count }} still needed — work top to bottom, click an orange tile, pick a file, done.
+          {% else %}
+            Packet complete. Optional staff sign-off below when reviewed.
+          {% endif %}
+        </div>
       </div>
-      {% endfor %}
+    </div>
+    <div class="cb-progress-track" aria-hidden="true">
+      <div class="cb-progress-fill" style="width: {{ progress_percent }}%;"></div>
     </div>
   </div>
-  {% endfor %}
 
-  <div class="confirm-box">
+  {% if missing_items %}
+  <section class="cb-section">
+    <div class="cb-section-head">
+      <h2>Still needed</h2>
+      <span class="cb-badge missing">{{ missing_count }}</span>
+    </div>
+    <div class="cb-wells">
+      {% for item in missing_items %}
+        {% if item.source == 'casenotes' %}
+          <div class="cb-well missing">
+            <span class="cb-well-icon">📝</span>
+            <div class="cb-well-panel">{{ item.panel_title }}</div>
+            <div class="cb-well-label">{{ item.label }}</div>
+            <div class="cb-well-status">Add at least one case note</div>
+            {% if item.add_note_url %}
+              <a href="{{ item.add_note_url }}" class="cb-note-btn">+ Add case note</a>
+            {% endif %}
+          </div>
+        {% else %}
+          <form method="post" enctype="multipart/form-data" class="cb-upload-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="upload_checklist_item" />
+            <input type="hidden" name="checklist_source" value="{{ item.source }}" />
+            {% if item.code %}<input type="hidden" name="doc_type" value="{{ item.code }}" />{% endif %}
+            <label class="cb-well missing">
+              <span class="cb-well-icon">📤</span>
+              <div class="cb-well-panel">{{ item.panel_title }}</div>
+              <div class="cb-well-label">{{ item.label }}</div>
+              <div class="cb-well-action">Click to upload</div>
+              <input type="file" name="file" class="cb-file-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.txt" onchange="this.form.submit()" />
+            </label>
+          </form>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <div class="cb-complete">🎉 All checklist items received for this client.</div>
+  {% endif %}
+
+  {% if received_items %}
+  <section class="cb-section">
+    <div class="cb-section-head">
+      <h2>Received</h2>
+      <span class="cb-badge received">{{ on_file_count }}</span>
+    </div>
+    <div class="cb-wells">
+      {% for item in received_items %}
+        <div class="cb-well received">
+          <span class="cb-well-icon">✅</span>
+          <div class="cb-well-panel">{{ item.panel_title }}</div>
+          <div class="cb-well-label">{{ item.label }}</div>
+          <div class="cb-well-status">
+            {% if item.file_label %}{{ item.file_label }}{% else %}On file{% endif %}
+            {% if item.source == 'casenotes' and item.case_notes_count %}
+              · {{ item.case_notes_count }} note{{ item.case_notes_count|pluralize }}
+            {% endif %}
+          </div>
+          <div class="cb-well-links">
+            {% if item.download_url %}
+              <a href="{{ item.download_url }}" target="_blank">Download</a>
+            {% endif %}
+            {% if item.source == 'casenotes' and item.add_note_url %}
+              <a href="{{ item.add_note_url }}">View notes</a>
+            {% elif item.source != 'casenotes' %}
+              <form method="post" enctype="multipart/form-data" class="cb-replace-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="upload_checklist_item" />
+                <input type="hidden" name="checklist_source" value="{{ item.source }}" />
+                {% if item.code %}<input type="hidden" name="doc_type" value="{{ item.code }}" />{% endif %}
+                <label>
+                  Replace
+                  <input type="file" name="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.txt" onchange="this.form.submit()" />
+                </label>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="cb-signoff">
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="save_confirmation" />
       <label>
         <input type="checkbox" name="citybuild_confirmed" value="1" {% if client.citybuild_files_confirmed %}checked{% endif %} />
-        Submitted &amp; confirmed by (optional staff sign-off)
+        Staff sign-off — packet reviewed (optional)
       </label>
       {% if client.citybuild_files_confirmed and client.citybuild_files_confirmed_by %}
-      <div class="confirm-meta">
+      <div class="cb-signoff-meta">
         Signed off by {{ client.citybuild_files_confirmed_by }}
         {% if client.citybuild_files_confirmed_at %} · {{ client.citybuild_files_confirmed_at|date:"M j, Y g:i A" }}{% endif %}
       </div>
       {% else %}
-      <div class="confirm-meta">Not required — check when the file packet has been reviewed.</div>
+      <div class="cb-signoff-meta">Not required — check when the full packet has been reviewed.</div>
       {% endif %}
       <p style="margin:12px 0 0;"><input type="submit" value="Save sign-off" class="default" /></p>
     </form>
   </div>
 
-  <div class="upload-box" style="margin-top:20px;">
-    <h2>Resume</h2>
-    {% if resume_download_url %}
-    <p><a href="{{ resume_download_url }}" target="_blank" class="button">📥 Download resume on file</a></p>
-    {% else %}
-    <p style="color:#64748b;margin:0 0 12px;">No resume on file yet.</p>
-    {% endif %}
-    <form method="post" enctype="multipart/form-data">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="upload_resume" />
-      <div class="upload-row">
-        <label for="resume">Upload or replace resume</label>
-        <input type="file" name="resume" id="resume" required />
-      </div>
-      <input type="submit" value="Save resume" class="default" />
-    </form>
-  </div>
-
-  <h2>Files on record ({{ document_rows|length }})</h2>
   {% if document_rows %}
-  <table class="file-table">
-    <thead>
-      <tr>
-        <th>Type</th>
-        <th>Title</th>
-        <th>Uploaded</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in document_rows %}
-      <tr>
-        <td>{{ row.doc.get_doc_type_display }}</td>
-        <td>{{ row.doc.title }}</td>
-        <td>{{ row.doc.created_at|date:"M j, Y" }}{% if row.doc.uploaded_by %} · {{ row.doc.uploaded_by }}{% endif %}</td>
-        <td><a href="{{ row.download_url }}" target="_blank">Download</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p style="color:#64748b;">No supporting documents uploaded yet.</p>
+  <details class="cb-audit">
+    <summary>All files on record ({{ document_rows|length }}{% if resume_download_url %}+ resume{% endif %})</summary>
+    {% if resume_download_url %}
+      <p style="margin:8px 0;"><a href="{{ resume_download_url }}" target="_blank">Download resume on file</a></p>
+    {% endif %}
+    <table class="cb-file-table">
+      <thead>
+        <tr><th>Type</th><th>Title</th><th>Uploaded</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for row in document_rows %}
+        <tr>
+          <td>{{ row.doc.get_doc_type_display }}</td>
+          <td>{{ row.doc.title }}</td>
+          <td>{{ row.doc.created_at|date:"M j, Y" }}{% if row.doc.uploaded_by %} · {{ row.doc.uploaded_by }}{% endif %}</td>
+          <td><a href="{{ row.download_url }}" target="_blank">Download</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
   {% endif %}
-
-  <div class="upload-box">
-    <h2>Upload a document</h2>
-    <form method="post" enctype="multipart/form-data">
-      {% csrf_token %}
-      <div class="upload-row">
-        <label for="doc_type">Document type</label>
-        <select name="doc_type" id="doc_type" required>
-          {% for value, label in doc_type_choices %}
-          <option value="{{ value }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="upload-row">
-        <label for="title">Title (optional)</label>
-        <input type="text" name="title" id="title" placeholder="Defaults to file name" />
-      </div>
-      <div class="upload-row">
-        <label for="file">File</label>
-        <input type="file" name="file" id="file" required />
-      </div>
-      <input type="submit" value="Upload" class="default" />
-    </form>
-  </div>
 </div>
 {% endblock %}

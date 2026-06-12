@@ -636,8 +636,31 @@ class ClientAdminChangeViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         blob_exists_mock.assert_not_called()
         self.assertContains(response, 'City Build Academy files')
-        self.assertContains(response, 'TABE (top page only)')
-        self.assertContains(response, 'Submitted &amp; confirmed by')
+        self.assertContains(response, 'TABE')
+        self.assertContains(response, 'Received')
+        self.assertContains(response, 'Staff sign-off')
+
+    def test_citybuild_tile_upload_marks_checklist_received(self):
+        from clients.citybuild_docs import citybuild_packet_for_client
+        self.client_record.training_interest = 'citybuild'
+        self.client_record.save(update_fields=['training_interest'])
+        url = reverse('admin:clients_client_documents', args=[self.client_record.pk])
+        response = self.django_client.post(
+            url,
+            {
+                'action': 'upload_checklist_item',
+                'checklist_source': 'document',
+                'doc_type': 'cb_tabe',
+                'file': SimpleUploadedFile('tabe.pdf', b'%PDF tabe'),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        packet = citybuild_packet_for_client(self.client_record)
+        tabe_present = any(label == 'TABE' and present for label, present in packet['items'])
+        self.assertTrue(tabe_present)
+        follow = self.django_client.get(url)
+        self.assertContains(follow, 'TABE')
+        self.assertContains(follow, 'Received')
 
     def test_citybuild_confirmation_checkbox_optional(self):
         self.client_record.training_interest = 'citybuild'
@@ -865,7 +888,7 @@ class CityBuildMissingDocsReportTests(TestCase):
         rows = [line for line in body.strip().split('\n') if line]
         self.assertEqual(len(rows), 2)
         self.assertIn('Build Candidate', body)
-        self.assertIn('TABE (top page only)', body)
+        self.assertIn('TABE', body)
         self.assertNotIn('General Client', body)
         self.assertNotIn('Capsa Only', body)
 

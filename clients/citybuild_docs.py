@@ -11,7 +11,7 @@ CITYBUILD_CHECKLIST_PANELS = (
         (
             ('cb_application', 'Application (photo release embedded)', 'document'),
             ('cb_roi', 'Release of Information', 'document'),
-            ('cb_tabe', 'TABE (top page only)', 'document'),
+            ('cb_tabe', 'TABE', 'document'),
             ('cb_parq', 'Par-Q (doc clearance if required)', 'document'),
             ('cb_iep', 'IEP', 'document'),
             ('id', 'DL', 'document'),
@@ -60,7 +60,7 @@ CITYBUILD_CHECKLIST_PANELS = (
 CITYBUILD_UPLOAD_DOC_TYPES = (
     ('cb_application', 'Application (photo release embedded)'),
     ('cb_roi', 'Release of Information'),
-    ('cb_tabe', 'TABE (top page only)'),
+    ('cb_tabe', 'TABE'),
     ('cb_parq', 'Par-Q (doc clearance if required)'),
     ('cb_iep', 'IEP'),
     ('id', 'DL / Government ID'),
@@ -100,6 +100,19 @@ def iter_citybuild_checklist_items():
 CITYBUILD_CHECKLIST_ITEMS = tuple(iter_citybuild_checklist_items())
 CITYBUILD_CHECKLIST_ITEM_COUNT = len(CITYBUILD_CHECKLIST_ITEMS)
 
+# Valid doc_type codes used by checklist tile uploads (server-side guard).
+CITYBUILD_CHECKLIST_DOC_TYPES = frozenset(
+    code for _panel, code, _label, source in CITYBUILD_CHECKLIST_ITEMS
+    if source == 'document' and code
+)
+
+
+def checklist_label_for_doc_type(doc_type):
+    for _panel, code, label, source in CITYBUILD_CHECKLIST_ITEMS:
+        if source == 'document' and code == doc_type:
+            return label
+    return doc_type.replace('_', ' ').title()
+
 
 def citybuild_item_present(code, source, present_doc_types, has_resume, case_notes_count):
     if source == 'resume':
@@ -112,7 +125,7 @@ def citybuild_item_present(code, source, present_doc_types, has_resume, case_not
 def present_doc_types_for_client(client):
     """Doc types on file for one client (DB only, no blob calls)."""
     present = set(client.documents.exclude(file='').values_list('doc_type', flat=True))
-    if client.resume:
+    if client.resume or 'resume' in present:
         present.add('resume')
     return present
 
@@ -123,9 +136,10 @@ def citybuild_packet_for_client(client, casenotes_count=None):
         casenotes_count = getattr(client, 'casenotes_count', None)
     if casenotes_count is None:
         casenotes_count = client.casenotes.count()
+    present = present_doc_types_for_client(client)
     return evaluate_citybuild_packet(
-        present_doc_types_for_client(client),
-        bool(client.resume),
+        present,
+        'resume' in present,
         casenotes_count,
     )
 

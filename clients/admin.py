@@ -29,8 +29,10 @@ from .models_extensions import (
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 from .citybuild_docs import (
     CITYBUILD_PROGRAMS,
+    CITYBUILD_CHECKLIST_DOC_TYPES,
     CITYBUILD_UPLOAD_DOC_TYPES,
     CITYBUILD_CHECKLIST_PANELS,
+    checklist_label_for_doc_type,
     citybuild_item_present,
     citybuild_packet_for_client,
     is_citybuild_client,
@@ -668,9 +670,80 @@ class ClientAdmin(admin.ModelAdmin):
     
     def _client_present_doc_types(self, obj):
         present = set(obj.documents.exclude(file='').values_list('doc_type', flat=True))
-        if obj.resume:
+        if obj.resume or 'resume' in present:
             present.add('resume')
         return present
+
+    def _documents_by_type(self, obj):
+        by_type = {}
+        for doc in obj.documents.exclude(file='').order_by('-created_at'):
+            if doc.doc_type not in by_type:
+                by_type[doc.doc_type] = doc
+        return by_type
+
+    def _citybuild_checklist_context(self, obj):
+        present = self._client_present_doc_types(obj)
+        has_resume = 'resume' in present
+        case_notes_count = obj.casenotes.count()
+        docs_by_type = self._documents_by_type(obj)
+        add_note_url = reverse('admin:clients_client_add_case_note', args=[obj.pk]) if obj.pk else None
+        panels = []
+        missing_items = []
+        received_items = []
+        on_file = 0
+        total = 0
+        for panel_title, items in CITYBUILD_CHECKLIST_PANELS:
+            panel_items = []
+            for code, label, source in items:
+                total += 1
+                present_item = citybuild_item_present(
+                    code, source, present, has_resume, case_notes_count,
+                )
+                if present_item:
+                    on_file += 1
+
+                download_url = None
+                file_label = ''
+                if source == 'resume' and present_item:
+                    if obj.resume:
+                        download_url = reverse('client-resume-download', kwargs={'pk': obj.pk})
+                        file_label = os.path.basename(obj.resume.name)
+                    elif docs_by_type.get('resume'):
+                        resume_doc = docs_by_type['resume']
+                        download_url = reverse('document-download', kwargs={'pk': resume_doc.pk})
+                        file_label = resume_doc.title
+                elif source == 'document' and code and code in docs_by_type:
+                    doc = docs_by_type[code]
+                    download_url = reverse('document-download', kwargs={'pk': doc.pk})
+                    file_label = doc.title
+
+                item = {
+                    'code': code,
+                    'label': label,
+                    'source': source,
+                    'present': present_item,
+                    'panel_title': panel_title,
+                    'case_notes_count': case_notes_count if source == 'casenotes' else 0,
+                    'download_url': download_url,
+                    'file_label': file_label,
+                    'add_note_url': add_note_url if source == 'casenotes' else None,
+                }
+                panel_items.append(item)
+                if present_item:
+                    received_items.append(item)
+                else:
+                    missing_items.append(item)
+            panels.append({'title': panel_title, 'items': panel_items})
+        progress_percent = round((on_file / total) * 100) if total else 0
+        return {
+            'panels': panels,
+            'missing_items': missing_items,
+            'received_items': received_items,
+            'on_file_count': on_file,
+            'total_count': total,
+            'missing_count': total - on_file,
+            'progress_percent': progress_percent,
+        }
 
     def case_notes_manage_link(self, obj):
         if not obj or not obj.pk:
@@ -692,36 +765,6 @@ class ClientAdmin(admin.ModelAdmin):
             min(total, CASE_NOTE_INLINE_LIMIT),
         )
     case_notes_manage_link.short_description = 'All case notes'
-
-    def _citybuild_checklist_context(self, obj):
-        present = self._client_present_doc_types(obj)
-        has_resume = bool(obj.resume)
-        case_notes_count = obj.casenotes.count()
-        panels = []
-        on_file = 0
-        total = 0
-        for panel_title, items in CITYBUILD_CHECKLIST_PANELS:
-            panel_items = []
-            for code, label, source in items:
-                total += 1
-                present_item = citybuild_item_present(
-                    code, source, present, has_resume, case_notes_count,
-                )
-                if present_item:
-                    on_file += 1
-                panel_items.append({
-                    'code': code,
-                    'label': label,
-                    'source': source,
-                    'present': present_item,
-                    'case_notes_count': case_notes_count if source == 'casenotes' else 0,
-                })
-            panels.append({'title': panel_title, 'items': panel_items})
-        return {
-            'panels': panels,
-            'on_file_count': on_file,
-            'total_count': total,
-        }
 
     def documents_checklist(self, obj):
         if not obj or not obj.pk:
@@ -895,6 +938,36 @@ class ClientAdmin(admin.ModelAdmin):
                     messages.error(request, 'Choose a resume file to upload.')
                 return redirect('admin:clients_client_documents', object_id)
 
+            if request.POST.get('action') == 'upload_checklist_item' and is_citybuild_client(client):
+                upload_file = request.FILES.get('file')
+                checklist_source = request.POST.get('checklist_source', 'document')
+                doc_type = (request.POST.get('doc_type') or '').strip()
+                if not upload_file:
+                    messages.error(request, 'Choose a file to upload.')
+                    return redirect('admin:clients_client_documents', object_id)
+                try:
+                    if checklist_source == 'resume':
+                        client.resume = upload_file
+                        client.save(update_fields=['resume', 'updated_at'])
+                        messages.success(request, 'Resume received — checklist updated.')
+                    elif checklist_source == 'casenotes':
+                        messages.info(request, 'Use “Add case note” on that tile to complete this item.')
+                    elif doc_type in CITYBUILD_CHECKLIST_DOC_TYPES:
+                        label = checklist_label_for_doc_type(doc_type)
+                        Document.objects.create(
+                            client=client,
+                            title=label,
+                            doc_type=doc_type,
+                            file=upload_file,
+                            uploaded_by=staff_name,
+                        )
+                        messages.success(request, f'{label} received — checklist updated.')
+                    else:
+                        messages.error(request, 'Unknown checklist item.')
+                except Exception as exc:
+                    messages.error(request, f'Upload failed: {exc}')
+                return redirect('admin:clients_client_documents', object_id)
+
             upload_file = request.FILES.get('file')
             if upload_file:
                 try:
@@ -932,9 +1005,12 @@ class ClientAdmin(admin.ModelAdmin):
                 **base_context,
                 'title': f'City Build Academy files — {client.full_name}',
                 'panels': ctx['panels'],
+                'missing_items': ctx['missing_items'],
+                'received_items': ctx['received_items'],
                 'on_file_count': ctx['on_file_count'],
                 'total_count': ctx['total_count'],
-                'doc_type_choices': CITYBUILD_UPLOAD_DOC_TYPES,
+                'missing_count': ctx['missing_count'],
+                'progress_percent': ctx['progress_percent'],
             }
             return TemplateResponse(request, 'admin/clients/citybuild_client_documents.html', context)
 
