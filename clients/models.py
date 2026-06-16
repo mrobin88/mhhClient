@@ -61,13 +61,10 @@ class Client(models.Model):
     ]
     
     TRAINING_INTEREST_CHOICES = [
-        ('citybuild', 'City Build Academy'),
         ('capsa', 'CAPSA'),
-        ('security', 'Security Guard Card Program'),
-        ('construction', 'Construction On Ramp'),
-        ('pit_stop', 'Pit Stop Program'),
+        ('citybuild', 'City Build'),
+        ('pit_stop', 'Pit Stop'),
         ('general', 'General Employment Assistance'),
-        ('other', 'Other training'),
     ]
     
     NEIGHBORHOOD_CHOICES = [
@@ -143,7 +140,7 @@ class Client(models.Model):
     # CityBuild file packet (optional staff sign-off — not required for intake)
     citybuild_files_confirmed = models.BooleanField(
         default=False,
-        help_text='Staff confirmed City Build Academy file packet reviewed (optional).',
+        help_text='Staff confirmed City Build file packet reviewed (optional).',
     )
     citybuild_files_confirmed_by = models.CharField(max_length=100, blank=True, default='')
     citybuild_files_confirmed_at = models.DateTimeField(blank=True, null=True)
@@ -234,12 +231,12 @@ class Client(models.Model):
 
 
 class CityBuildFileChecklist(Client):
-    """Admin-only proxy: City Build Academy clients and their file packet checklist."""
+    """Admin-only proxy: City Build clients and their file packet checklist."""
 
     class Meta:
         proxy = True
-        verbose_name = 'City Build Academy file checklist'
-        verbose_name_plural = 'City Build Academy file checklists'
+        verbose_name = 'City Build file checklist'
+        verbose_name_plural = 'City Build file checklists'
 
 
 class CaseNote(models.Model):

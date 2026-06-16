@@ -559,8 +559,8 @@ class ClientAdminChangeViewTests(TestCase):
         url = reverse('admin:clients_client_change', args=[self.client_record.pk])
         response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'City Build Academy Files')
-        self.assertContains(response, 'City Build Academy files hub')
+        self.assertContains(response, 'City Build Files')
+        self.assertContains(response, 'City Build files hub')
         self.assertNotContains(response, 'Panel 1')
         self.assertNotContains(response, 'Upload client resume')
 
@@ -570,8 +570,8 @@ class ClientAdminChangeViewTests(TestCase):
         url = reverse('admin:clients_client_change', args=[self.client_record.pk])
         response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'City Build Academy Files')
-        self.assertNotContains(response, 'City Build Academy files hub')
+        self.assertNotContains(response, 'City Build Files')
+        self.assertNotContains(response, 'City Build files hub')
 
     def test_citybuild_checklist_admin_changelist(self):
         self.client_record.training_interest = 'citybuild'
@@ -635,7 +635,7 @@ class ClientAdminChangeViewTests(TestCase):
             response = self.django_client.get(url)
         self.assertEqual(response.status_code, 200)
         blob_exists_mock.assert_not_called()
-        self.assertContains(response, 'City Build Academy files')
+        self.assertContains(response, 'City Build files')
         self.assertContains(response, 'TABE')
         self.assertContains(response, 'Received')
         self.assertContains(response, 'Staff sign-off')
@@ -1004,12 +1004,13 @@ class PublicClientRegistrationTests(TestCase):
             'referral_source': 'walk_in',
         }
 
-    def test_public_registration_requires_government_id(self):
+    def test_public_registration_without_id_succeeds(self):
         response = self.api.post('/api/clients/', self._registration_payload(), format='multipart')
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('Government ID upload is required', response.json()['detail'])
+        self.assertEqual(response.status_code, 201)
+        client = Client.objects.get(pk=response.json()['id'])
+        self.assertFalse(client.documents.filter(doc_type='id').exists())
 
-    def test_public_registration_accepts_required_government_id(self):
+    def test_public_registration_accepts_optional_government_id(self):
         response = self.api.post(
             '/api/clients/',
             {

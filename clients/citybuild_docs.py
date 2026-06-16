@@ -1,4 +1,4 @@
-"""City Build Academy document checklist (metadata only — no blob calls)."""
+"""City Build document checklist (metadata only — no blob calls)."""
 
 # Checklist applies to Academy only — not CAPSA.
 CITYBUILD_PROGRAMS = frozenset({'citybuild'})

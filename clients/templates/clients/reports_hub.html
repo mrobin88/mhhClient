@@ -163,13 +163,10 @@
         <label>Program
           <select id="program">
             <option value="">All programs</option>
-            <option value="citybuild">City Build Academy</option>
             <option value="capsa">CAPSA</option>
-            <option value="security">Security Guard Card Program</option>
-            <option value="construction">Construction On Ramp</option>
-            <option value="pit_stop">Pit Stop Program</option>
-            <option value="general">General job readiness</option>
-            <option value="other">Other training</option>
+            <option value="citybuild">City Build</option>
+            <option value="pit_stop">Pit Stop</option>
+            <option value="general">General Employment Assistance</option>
           </select>
         </label>
         <label>Client status
@@ -216,8 +213,8 @@
         <a class="btn secondary" id="clientOutcomesCsv" href="/api/reports/client-outcomes/" target="_blank">CSV only</a>
       </div>
       <div class="card" style="border-color:#b45309;background:#fffbeb;">
-        <div class="title">🏗️ City Build Academy Missing Docs</div>
-        <div class="desc">City Build Academy clients only — checklist on file vs missing (DB only, no blob reads). Honors case manager and status filters above.</div>
+        <div class="title">🏗️ City Build Missing Docs</div>
+        <div class="desc">City Build clients only — checklist on file vs missing (DB only, no blob reads). Honors case manager and status filters above.</div>
         <a class="btn" id="citybuildMissingDocsCsv" href="/api/reports/citybuild-missing-docs/" target="_blank">Download CSV</a>
         <a class="btn secondary" id="citybuildMissingDocsIncomplete" href="/api/reports/citybuild-missing-docs/?only_incomplete=1" target="_blank">Incomplete only</a>
       </div>

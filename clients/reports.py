@@ -1660,7 +1660,7 @@ class TodaysAssignmentsCSVView(LoginRequiredMixin, View):
 
 def _citybuild_clients_for_missing_docs_report(request):
     """
-    City Build Academy clients for the missing-docs export.
+    City Build clients for the missing-docs export.
 
     Uses indexed filters on training_interest (single WHERE + optional staff/status).
     """
@@ -1772,7 +1772,7 @@ def _write_citybuild_missing_docs_csv(writer, clients, only_incomplete=False):
 
 class CityBuildMissingDocsReportCSVView(LoginRequiredMixin, View):
     """
-    CSV of City Build Academy checklist status for Academy clients only.
+    CSV of City Build checklist status for City Build clients only.
 
     Pass only_incomplete=1 to hide clients with a complete file packet.
     """

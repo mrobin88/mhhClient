@@ -44,8 +44,20 @@
 
         <!-- Form Content -->
         <div class="form-body space-y-8">
+          <div class="stepper-wrap">
+            <div class="stepper-head">
+              <span class="stepper-kicker">Step {{ currentStepNumber }} of {{ totalSteps }}</span>
+              <span class="stepper-title">{{ currentStepLabel }}</span>
+            </div>
+            <div class="stepper-track" role="progressbar" :aria-valuenow="currentStepNumber" :aria-valuemin="1" :aria-valuemax="totalSteps">
+              <div class="stepper-fill" :style="{ width: progressWidth }"></div>
+            </div>
+          </div>
+
+          <Transition name="fade-slide" mode="out-in">
+            <div :key="currentStep" class="step-panel">
           <!-- Training Program Interest Section - Compact Button Rows -->
-          <div class="space-y-4">
+          <div v-if="currentStep === 'program'" class="space-y-4">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
               <h3 class="section-title font-semibold text-slate-800">Training Program Interest <span class="text-mission-600">*</span></h3>
@@ -73,7 +85,19 @@
                   ]"
                 >
                   <span class="mr-2">🏗️</span>
-                  <span>City Build Academy</span>
+                  <span>City Build</span>
+                </button>
+
+                <button
+                  type="button"
+                  @click="form.training_interest = 'pit_stop'"
+                  :class="[
+                    'program-btn-compact',
+                    form.training_interest === 'pit_stop' ? 'program-btn-active' : 'program-btn-inactive'
+                  ]"
+                >
+                  <span class="mr-2">🚻</span>
+                  <span>Pit Stop</span>
                 </button>
 
                 <button
@@ -96,7 +120,7 @@
           </div>
 
           <!-- Personal Information Section -->
-          <div class="space-y-6">
+          <div v-else-if="currentStep === 'personal'" class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
               <h3 class="section-title font-semibold text-slate-800">Personal Information</h3>
@@ -204,7 +228,7 @@
           </div>
 
           <!-- Address Section -->
-          <div class="space-y-6">
+          <div v-else-if="currentStep === 'address'" class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
               <h3 class="section-title font-semibold text-slate-800">Address</h3>
@@ -230,7 +254,7 @@
           </div>
 
           <!-- San Francisco Residency & Demographics Section -->
-          <div class="space-y-6">
+          <div v-else-if="currentStep === 'background'" class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
               <h3 class="section-title font-semibold text-slate-800">San Francisco Residency & Background</h3>
@@ -329,7 +353,7 @@
           </div>
 
           <!-- Employment & Referral Section -->
-          <div class="space-y-6">
+          <div v-else-if="currentStep === 'employment'" class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
               <h3 class="section-title font-semibold text-slate-800">Employment & Referral Information</h3>
@@ -379,31 +403,14 @@
             </div>
           </div>
 
-          <!-- Identification & Documents -->
-          <div class="form-section">
+          <!-- Resume & Documents -->
+          <div v-else-if="currentStep === 'documents'" class="form-section">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="section-title font-semibold text-slate-800">Identification & Documents</h3>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">
-                <span class="text-mission-600">*</span> Government ID
-                <span class="text-slate-400 text-sm ml-2">Driver's license, state ID, passport, or other photo ID</span>
-              </label>
-              <input
-                type="file"
-                class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-mission-100 file:text-mission-700 hover:file:bg-mission-200"
-                :accept="docAccept"
-                @change="(e) => handleDocUpload(e, 'id')"
-              />
-              <div v-if="docFiles.id" class="doc-filename mt-2">{{ docFiles.id.name }}</div>
-              <p v-if="!docFiles.id && formAttempted" class="text-red-600 text-sm mt-2">
-                A government ID upload is required to submit your application.
-              </p>
+              <h3 class="section-title font-semibold text-slate-800">Resume & Documents</h3>
             </div>
             
-            <div class="form-group mt-6">
+            <div class="form-group">
               <label class="form-label">
                 Resume (Optional)
                 <span class="text-slate-400 text-sm ml-2">PDF, Word, or text files accepted</span>
@@ -440,6 +447,13 @@
                   </div>
 
                   <div class="doc-tile">
+                    <div class="doc-title">Identification</div>
+                    <div class="doc-subtitle">Driver's license, state ID, passport</div>
+                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'id')" />
+                    <div v-if="docFiles.id" class="doc-filename">{{ docFiles.id.name }}</div>
+                  </div>
+
+                  <div class="doc-tile">
                     <div class="doc-title">Photo Release Form</div>
                     <div class="doc-subtitle">Signed form</div>
                     <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'photo_release')" />
@@ -464,7 +478,7 @@
           </div>
 
           <!-- Pit Stop Specific Fields (shown after main application) -->
-          <div v-if="form.training_interest === 'pit_stop'" class="space-y-6 p-6 border rounded-xl bg-slate-50">
+          <div v-else-if="currentStep === 'pitstop'" class="space-y-6 p-6 border rounded-xl bg-slate-50">
             <h4 class="text-xl font-semibold text-slate-800">Pit Stop Application</h4>
             <div class="form-stack">
               <div class="form-field">
@@ -559,17 +573,39 @@
               <textarea v-model="pitstop.education_history" class="form-input" rows="3" placeholder="Schools, certifications, etc."></textarea>
             </div>
           </div>
+            </div>
+          </Transition>
 
           <!-- Submit Section -->
           <div class="pt-8 border-t border-slate-200">
-            <div class="flex flex-col lg:flex-row gap-6 items-center justify-between">
+            <div class="flex flex-col gap-6">
+              <div class="step-actions">
+                <button
+                  type="button"
+                  class="step-btn"
+                  @click="prevStep"
+                  :disabled="isFirstStep || isSubmitting"
+                >
+                  Back
+                </button>
+                <button
+                  v-if="!isLastStep"
+                  type="button"
+                  class="step-btn step-btn-primary"
+                  @click="nextStep"
+                  :disabled="isSubmitting"
+                >
+                  Next
+                </button>
+              </div>
+              <div class="flex flex-col lg:flex-row gap-6 items-center justify-between">
               <div class="text-sm text-slate-600">
                 <span class="text-mission-600 font-semibold">*</span> Required fields
               </div>
               <button 
                 type="submit" 
                 class="submit-button group"
-                :disabled="isSubmitting"
+                :disabled="isSubmitting || !isLastStep"
               >
                 <svg v-if="isSubmitting" class="animate-spin -ml-1 mr-3 h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -580,6 +616,7 @@
                 </svg>
                 {{ isSubmitting ? 'Submitting...' : 'Submit Application' }}
               </button>
+            </div>
             </div>
           </div>
 
@@ -619,7 +656,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import axios from 'axios'
 import { getApiUrl } from '../config/api'
 
@@ -689,6 +726,48 @@ const error = ref('')
 const success = ref(false)
 const isSubmitting = ref(false)
 const formAttempted = ref(false)
+const currentStepIndex = ref(0)
+
+const stepOrder = computed(() => {
+  const steps = ['program', 'personal', 'address', 'background', 'employment', 'documents']
+  if (form.value.training_interest === 'pit_stop') steps.push('pitstop')
+  return steps
+})
+
+const stepTitles = {
+  program: 'Program',
+  personal: 'Personal Info',
+  address: 'Address',
+  background: 'Background',
+  employment: 'Employment',
+  documents: 'Documents',
+  pitstop: 'Pit Stop',
+}
+
+const totalSteps = computed(() => stepOrder.value.length)
+const currentStep = computed(() => stepOrder.value[currentStepIndex.value] || stepOrder.value[0])
+const currentStepNumber = computed(() => currentStepIndex.value + 1)
+const currentStepLabel = computed(() => stepTitles[currentStep.value] || 'Section')
+const isFirstStep = computed(() => currentStepIndex.value === 0)
+const isLastStep = computed(() => currentStepIndex.value >= totalSteps.value - 1)
+const progressWidth = computed(() => {
+  if (totalSteps.value <= 1) return '100%'
+  return `${Math.round((currentStepNumber.value / totalSteps.value) * 100)}%`
+})
+
+watch(stepOrder, (steps) => {
+  if (currentStepIndex.value > steps.length - 1) {
+    currentStepIndex.value = steps.length - 1
+  }
+})
+
+const nextStep = () => {
+  if (!isLastStep.value) currentStepIndex.value += 1
+}
+
+const prevStep = () => {
+  if (!isFirstStep.value) currentStepIndex.value -= 1
+}
 
 const MAX_TOTAL_UPLOAD_BYTES = 20 * 1024 * 1024 // 20MB total across resume + optional docs
 const MAX_DOC_IMAGE_DIMENSION = 1600
@@ -924,8 +1003,9 @@ async function handleSubmit() {
   isSubmitting.value = true
 
   try {
-    if (!docFiles.value.id) {
-      error.value = 'Please upload a photo of your government ID to continue.'
+    if (!isLastStep.value) {
+      currentStepIndex.value = totalSteps.value - 1
+      error.value = 'Please review the final section before submitting.'
       return
     }
 
@@ -1082,6 +1162,17 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
 .registration-shell {
   width: 100%;
   max-width: 42rem;
@@ -1114,6 +1205,77 @@ async function handleSubmit() {
 
 .form-body {
   padding: clamp(1rem, 4vw, 2.5rem);
+}
+
+.step-panel {
+  min-height: 280px;
+}
+
+.stepper-wrap {
+  margin-bottom: 0.5rem;
+}
+
+.stepper-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  gap: 0.75rem;
+}
+
+.stepper-kicker {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.stepper-title {
+  font-size: 0.9rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.stepper-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.stepper-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #14b8a6, #0d9488);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.step-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.step-btn {
+  flex: 1;
+  min-height: 2.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-weight: 600;
+}
+
+.step-btn-primary {
+  border-color: #14b8a6;
+  background: #14b8a6;
+  color: #fff;
+}
+
+.step-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .form-stack {

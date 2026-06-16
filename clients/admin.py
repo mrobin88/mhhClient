@@ -795,7 +795,7 @@ class ClientAdmin(admin.ModelAdmin):
                     ))
             summary = format_html(
                 '<p style="margin:0 0 8px;font-size:13px;color:#334155;">'
-                '<strong>City Build Academy:</strong> {} / {} on file</p>',
+                '<strong>City Build:</strong> {} / {} on file</p>',
                 ctx['on_file_count'],
                 ctx['total_count'],
             )
@@ -843,7 +843,7 @@ class ClientAdmin(admin.ModelAdmin):
         url = reverse('admin:clients_client_documents', args=[obj.pk])
         if is_citybuild_client(obj):
             ctx = self._citybuild_checklist_context(obj)
-            label = 'City Build Academy files hub'
+            label = 'City Build files hub'
             count_label = f'{ctx["on_file_count"]} / {ctx["total_count"]} checklist items'
         else:
             label = 'Open documents hub'
@@ -923,9 +923,9 @@ class ClientAdmin(admin.ModelAdmin):
                     'updated_at',
                 ])
                 if confirmed:
-                    messages.success(request, 'City Build Academy file packet sign-off saved.')
+                    messages.success(request, 'City Build file packet sign-off saved.')
                 else:
-                    messages.info(request, 'City Build Academy sign-off cleared.')
+                    messages.info(request, 'City Build sign-off cleared.')
                 return redirect('admin:clients_client_documents', object_id)
 
             if request.POST.get('action') == 'upload_resume' and is_citybuild_client(client):
@@ -1003,7 +1003,7 @@ class ClientAdmin(admin.ModelAdmin):
             ctx = self._citybuild_checklist_context(client)
             context = {
                 **base_context,
-                'title': f'City Build Academy files — {client.full_name}',
+                'title': f'City Build files — {client.full_name}',
                 'panels': ctx['panels'],
                 'missing_items': ctx['missing_items'],
                 'received_items': ctx['received_items'],
@@ -1103,11 +1103,11 @@ class ClientAdmin(admin.ModelAdmin):
         if obj and is_citybuild_client(obj):
             fieldsets = [
                 (
-                    'City Build Academy Files',
+                    'City Build Files',
                     {
                         'fields': ('citybuild_files_summary', 'documents_hub_link'),
                         'description': (
-                            'Checklist, uploads, resume, and sign-off live in the City Build Academy files hub — '
+                            'Checklist, uploads, resume, and sign-off live in the City Build files hub — '
                             'not on this page. Nothing is pulled from Azure until you download.'
                         ),
                     },
@@ -1401,7 +1401,7 @@ class ClientAdmin(admin.ModelAdmin):
 @admin.register(CityBuildFileChecklist)
 class CityBuildFileChecklistAdmin(admin.ModelAdmin):
     """
-    Sidebar home for City Build Academy file packets — changelist only, hub for detail.
+    Sidebar home for City Build file packets — changelist only, hub for detail.
     Add → upload a new Document (pick Academy doc type on the form).
     """
 
