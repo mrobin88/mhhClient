@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.conf import settings
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from django.db.models import Count
+from django.db.models import Count, Q
 from datetime import datetime, time, timedelta
 import csv
 import io
@@ -905,9 +905,14 @@ class ClientAdmin(admin.ModelAdmin):
 
         client = get_object_or_404(Client, pk=object_id)
         staff_name = _staff_display_name(request.user)
+        force_checklist = request.GET.get('citybuild_checklist') == '1'
+        show_citybuild_checklist = is_citybuild_client(client) or force_checklist
+        docs_url = reverse('admin:clients_client_documents', args=[object_id])
+        if force_checklist:
+            docs_url = f'{docs_url}?citybuild_checklist=1'
 
         if request.method == 'POST':
-            if request.POST.get('action') == 'save_confirmation' and is_citybuild_client(client):
+            if request.POST.get('action') == 'save_confirmation' and show_citybuild_checklist:
                 confirmed = request.POST.get('citybuild_confirmed') == '1'
                 client.citybuild_files_confirmed = confirmed
                 if confirmed:
@@ -926,9 +931,9 @@ class ClientAdmin(admin.ModelAdmin):
                     messages.success(request, 'City Build file packet sign-off saved.')
                 else:
                     messages.info(request, 'City Build sign-off cleared.')
-                return redirect('admin:clients_client_documents', object_id)
+                return redirect(docs_url)
 
-            if request.POST.get('action') == 'upload_resume' and is_citybuild_client(client):
+            if request.POST.get('action') == 'upload_resume' and show_citybuild_checklist:
                 resume_file = request.FILES.get('resume')
                 if resume_file:
                     client.resume = resume_file
@@ -936,15 +941,15 @@ class ClientAdmin(admin.ModelAdmin):
                     messages.success(request, f'Resume uploaded for {client.full_name}.')
                 else:
                     messages.error(request, 'Choose a resume file to upload.')
-                return redirect('admin:clients_client_documents', object_id)
+                return redirect(docs_url)
 
-            if request.POST.get('action') == 'upload_checklist_item' and is_citybuild_client(client):
+            if request.POST.get('action') == 'upload_checklist_item' and show_citybuild_checklist:
                 upload_file = request.FILES.get('file')
                 checklist_source = request.POST.get('checklist_source', 'document')
                 doc_type = (request.POST.get('doc_type') or '').strip()
                 if not upload_file:
                     messages.error(request, 'Choose a file to upload.')
-                    return redirect('admin:clients_client_documents', object_id)
+                    return redirect(docs_url)
                 try:
                     if checklist_source == 'resume':
                         client.resume = upload_file
@@ -966,7 +971,7 @@ class ClientAdmin(admin.ModelAdmin):
                         messages.error(request, 'Unknown checklist item.')
                 except Exception as exc:
                     messages.error(request, f'Upload failed: {exc}')
-                return redirect('admin:clients_client_documents', object_id)
+                return redirect(docs_url)
 
             upload_file = request.FILES.get('file')
             if upload_file:
@@ -981,7 +986,7 @@ class ClientAdmin(admin.ModelAdmin):
                     messages.success(request, f'Uploaded {upload_file.name} for {client.full_name}.')
                 except Exception as exc:
                     messages.error(request, f'Upload failed: {exc}')
-            return redirect('admin:clients_client_documents', object_id)
+            return redirect(docs_url)
 
         document_rows = []
         for doc in client.documents.exclude(file='').order_by('-created_at'):
@@ -999,7 +1004,7 @@ class ClientAdmin(admin.ModelAdmin):
             'back_url': reverse('admin:clients_client_change', args=[client.pk]),
         }
 
-        if is_citybuild_client(client):
+        if show_citybuild_checklist:
             ctx = self._citybuild_checklist_context(client)
             context = {
                 **base_context,
@@ -1424,7 +1429,10 @@ class CityBuildFileChecklistAdmin(admin.ModelAdmin):
         return (
             super()
             .get_queryset(request)
-            .filter(training_interest__in=CITYBUILD_PROGRAMS)
+            .filter(
+                Q(training_interest__in=CITYBUILD_PROGRAMS) |
+                Q(training_interest='capsa')
+            )
             .annotate(casenotes_count=Count('casenotes'))
             .prefetch_related('documents')
         )
@@ -1436,10 +1444,12 @@ class CityBuildFileChecklistAdmin(admin.ModelAdmin):
         return redirect(reverse('admin:clients_document_add'))
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
-        return redirect('admin:clients_client_documents', object_id=object_id)
+        url = reverse('admin:clients_client_documents', args=[object_id])
+        return redirect(f'{url}?citybuild_checklist=1')
 
     def open_files_hub(self, obj):
         url = reverse('admin:clients_client_documents', args=[obj.pk])
+        url = f'{url}?citybuild_checklist=1'
         return format_html('<a href="{}"><strong>{}</strong></a>', url, obj.full_name)
     open_files_hub.short_description = 'Client'
 
