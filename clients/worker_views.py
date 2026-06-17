@@ -22,6 +22,7 @@ from rest_framework.response import Response
 from .models import CaseNote
 from .models_extensions import (
     WorkerAccount,
+    WorkerDailyFeedback,
     WorkerSessionToken,
     WorkSite,
     WorkerTimePunch,
@@ -29,6 +30,7 @@ from .models_extensions import (
 from .serializers import (
     WorkerLoginSerializer,
     WorkerAccountSerializer,
+    WorkerDailyFeedbackSerializer,
     WorkSiteSerializer,
     WorkerTimePunchSerializer,
 )
@@ -325,6 +327,83 @@ def worker_profile(request):
     if err:
         return err
     return Response(WorkerAccountSerializer(worker_account).data)
+
+
+@api_view(['PATCH'])
+@permission_classes([AllowAny])
+def worker_profile_update(request):
+    worker_account, err = _require_worker(request)
+    if err:
+        return err
+
+    short_profile = request.data.get('short_profile')
+    career_goals = request.data.get('long_term_career_goals')
+    update_fields = []
+
+    if short_profile is not None:
+        worker_account.short_profile = str(short_profile).strip()[:1200]
+        update_fields.append('short_profile')
+    if career_goals is not None:
+        worker_account.long_term_career_goals = str(career_goals).strip()[:2000]
+        update_fields.append('long_term_career_goals')
+
+    if not update_fields:
+        return Response(
+            {'error': 'Provide short_profile or long_term_career_goals.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    worker_account.save(update_fields=update_fields + ['is_approved'])
+    return Response(WorkerAccountSerializer(worker_account).data)
+
+
+def _worker_local_today():
+    return timezone.now().astimezone(WORKER_LOCAL_TZ).date()
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def worker_daily_feedback(request):
+    worker_account, err = _require_worker(request)
+    if err:
+        return err
+
+    if request.method == 'GET':
+        today = _worker_local_today()
+        todays_entry = WorkerDailyFeedback.objects.filter(
+            worker_account=worker_account,
+            feedback_date=today,
+        ).first()
+        recent_entries = WorkerDailyFeedback.objects.filter(worker_account=worker_account)[:7]
+        return Response(
+            {
+                'today_feedback': (
+                    WorkerDailyFeedbackSerializer(todays_entry).data if todays_entry else None
+                ),
+                'recent_feedback': WorkerDailyFeedbackSerializer(recent_entries, many=True).data,
+            }
+        )
+
+    feedback_text = str(request.data.get('feedback_text') or '').strip()
+    if not feedback_text:
+        return Response(
+            {'feedback_text': ['Tell us how your day went.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    feedback_date = _worker_local_today()
+    entry, created = WorkerDailyFeedback.objects.update_or_create(
+        worker_account=worker_account,
+        feedback_date=feedback_date,
+        defaults={'feedback_text': feedback_text[:2000]},
+    )
+    return Response(
+        {
+            'message': 'Daily feedback saved.' if created else 'Daily feedback updated.',
+            'feedback': WorkerDailyFeedbackSerializer(entry).data,
+        },
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
 
 
 @api_view(['GET'])

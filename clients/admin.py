@@ -23,6 +23,7 @@ from .models import Client, CaseNote, CityBuildFileChecklist, Document, PitStopA
 from .models_extensions import (
     WorkSite,
     WorkerAccount,
+    WorkerDailyFeedback,
     WorkerTimePunch,
     ClientTextMessage,
 )
@@ -1841,6 +1842,10 @@ class WorkerAccountAdmin(admin.ModelAdmin):
             'fields': ('client', 'phone', 'worker_status', 'is_active'),
             'description': 'Portal access must be on for iPad login. PIN defaults to last 4 digits of phone.',
         }),
+        ('Worker portal profile', {
+            'fields': ('short_profile', 'long_term_career_goals'),
+            'description': 'Worker-written profile content from the worker portal.',
+        }),
         ('Hours + clock logs', {
             'fields': ('weekly_hours_check', 'total_hours_display', 'last_punch_display', 'related_records_links'),
         }),
@@ -2241,4 +2246,22 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
             queryset.select_related('worker_account__client', 'work_site').order_by('-clock_in_at'),
         )
         return response
+
+
+@admin.register(WorkerDailyFeedback)
+class WorkerDailyFeedbackAdmin(admin.ModelAdmin):
+    list_display = ['worker_account', 'feedback_date', 'preview', 'updated_at']
+    list_filter = ['feedback_date', 'updated_at']
+    search_fields = [
+        'worker_account__client__first_name',
+        'worker_account__client__last_name',
+        'feedback_text',
+    ]
+    autocomplete_fields = ['worker_account']
+    readonly_fields = ['created_at', 'updated_at']
+
+    def preview(self, obj):
+        text = (obj.feedback_text or '').strip()
+        return (text[:80] + '...') if len(text) > 80 else text
+    preview.short_description = 'Feedback'
 

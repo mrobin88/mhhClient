@@ -36,6 +36,14 @@
           </button>
           <button
             type="button"
+            @click="tab = 'feedback'"
+            :class="tab === 'feedback' ? tabActive : tabIdle"
+          >
+            <ChatBubbleBottomCenterTextIcon class="w-3.5 h-3.5" aria-hidden="true" />
+            Feedback
+          </button>
+          <button
+            type="button"
             @click="tab = 'incident'"
             :class="tab === 'incident' ? tabActive : tabIdle"
           >
@@ -55,8 +63,9 @@
 
       <main class="max-w-md w-full mx-auto px-3 py-3 flex-1 overflow-y-auto">
         <WorkerAssignments v-if="tab === 'assignments'" />
+        <WorkerFeedback v-else-if="tab === 'feedback'" />
         <WorkerIncidentReport v-else-if="tab === 'incident'" />
-        <WorkerProfile v-else />
+        <WorkerProfile v-else-if="tab === 'profile'" />
       </main>
     </template>
   </div>
@@ -66,18 +75,20 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import {
   BriefcaseIcon,
+  ChatBubbleBottomCenterTextIcon,
   ExclamationTriangleIcon,
   UserCircleIcon,
 } from '@heroicons/vue/24/outline'
 import { workerFetch } from './api'
 import WorkerLogin from './components/WorkerLogin.vue'
 import WorkerAssignments from './components/WorkerAssignments.vue'
+import WorkerFeedback from './components/WorkerFeedback.vue'
 import WorkerIncidentReport from './components/WorkerIncidentReport.vue'
 import WorkerProfile from './components/WorkerProfile.vue'
 
 const isAuthenticated = ref(false)
 const workerAccount = ref<Record<string, unknown> | null>(null)
-const tab = ref<'assignments' | 'incident' | 'profile'>('assignments')
+const tab = ref<'assignments' | 'feedback' | 'incident' | 'profile'>('assignments')
 
 const tabActive =
   'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-md border border-emerald-400/70 bg-emerald-500/20 px-2 py-1.5 text-[11px] font-bold text-emerald-200'
@@ -95,6 +106,7 @@ const tickerItems = computed(() => {
   const hour = now.getHours()
   return [
     `SHIFT CLOCK ${tab.value === 'assignments' ? 'OPEN' : 'READY'} +1.7%`,
+    `DAILY FEEDBACK ${tab.value === 'feedback' ? 'ACTIVE' : 'READY'} +0.9%`,
     `LUNCH WINDOW TRACKED • ${hour}:${minute}`,
     'INCIDENT LINE LIVE • SUPERVISOR + DETAILS',
     'LOCATION SERVICES REQUIRED • VERIFIED',

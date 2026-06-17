@@ -11,6 +11,48 @@
     </section>
 
     <section class="worker-card p-3 space-y-2">
+      <div>
+        <h2 class="worker-card-title">My worker profile</h2>
+        <p class="text-[11px] text-slate-300">Add a short intro and your long-term career goals.</p>
+      </div>
+
+      <label class="block space-y-1">
+        <span class="worker-label">Short profile</span>
+        <textarea
+          v-model.trim="shortProfile"
+          rows="3"
+          class="worker-field worker-textarea"
+          maxlength="1200"
+          placeholder="A little about you and the type of work you enjoy."
+        />
+      </label>
+
+      <label class="block space-y-1">
+        <span class="worker-label">Long-term career goals</span>
+        <textarea
+          v-model.trim="longTermCareerGoals"
+          rows="4"
+          class="worker-field worker-textarea"
+          maxlength="2000"
+          placeholder="Where do you want your career to go over time?"
+        />
+      </label>
+
+      <button
+        type="button"
+        class="worker-btn worker-btn-primary"
+        :disabled="profileBusy"
+        @click="saveProfile"
+      >
+        <span v-if="profileBusy" class="worker-spinner" aria-hidden="true"></span>
+        <span v-if="profileBusy">Saving</span>
+        <span v-else>Save profile</span>
+      </button>
+      <p v-if="profileMessage" class="worker-status-note worker-status-note--ok">{{ profileMessage }}</p>
+      <p v-if="profileError" class="worker-status-note worker-status-note--error">{{ profileError }}</p>
+    </section>
+
+    <section class="worker-card p-3 space-y-2">
       <div class="flex items-start justify-between gap-2">
         <div>
           <h2 class="worker-card-title">Availability</h2>
@@ -52,13 +94,20 @@ interface WorkerProfile {
   phone?: string
   worker_status_label?: string
   is_available?: boolean
+  short_profile?: string
+  long_term_career_goals?: string
 }
 
 const profile = ref<WorkerProfile | null>(null)
 const isAvailable = ref(false)
 const busy = ref(false)
+const profileBusy = ref(false)
 const error = ref('')
 const message = ref('')
+const profileError = ref('')
+const profileMessage = ref('')
+const shortProfile = ref('')
+const longTermCareerGoals = ref('')
 
 async function loadProfile() {
   error.value = ''
@@ -71,8 +120,38 @@ async function loadProfile() {
     }
     profile.value = body
     isAvailable.value = Boolean(body.is_available)
+    shortProfile.value = String(body.short_profile || '')
+    longTermCareerGoals.value = String(body.long_term_career_goals || '')
   } catch {
     error.value = 'No connection. Try again.'
+  }
+}
+
+async function saveProfile() {
+  if (profileBusy.value) return
+  profileBusy.value = true
+  profileError.value = ''
+  profileMessage.value = ''
+  try {
+    const resp = await workerFetch('/api/worker/profile/update/', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        short_profile: shortProfile.value,
+        long_term_career_goals: longTermCareerGoals.value,
+      }),
+    })
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok || !body) {
+      profileError.value = body?.error || 'Could not save profile.'
+      return
+    }
+    profile.value = body
+    profileMessage.value = 'Profile saved.'
+  } catch {
+    profileError.value = 'No connection. Try again.'
+  } finally {
+    profileBusy.value = false
   }
 }
 

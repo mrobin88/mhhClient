@@ -3,6 +3,7 @@ Extended models for worker dispatch and availability tracking
 """
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from .models import Client, CaseNote
 
 
@@ -453,6 +454,14 @@ class WorkerAccount(models.Model):
         blank=True,
         help_text='Roster notes / follow-up history visible to staff.',
     )
+    short_profile = models.TextField(
+        blank=True,
+        help_text='Short self-written profile visible in the worker portal.',
+    )
+    long_term_career_goals = models.TextField(
+        blank=True,
+        help_text='Worker-entered long-term career goals.',
+    )
     
     class Meta:
         ordering = ['-created_at']
@@ -535,4 +544,35 @@ class WorkerSessionToken(models.Model):
 
     def __str__(self):
         return f"WorkerSessionToken({self.worker_account.phone})"
+
+
+class WorkerDailyFeedback(models.Model):
+    """One feedback entry per worker per calendar day."""
+
+    worker_account = models.ForeignKey(
+        WorkerAccount,
+        on_delete=models.CASCADE,
+        related_name='daily_feedback_entries',
+    )
+    feedback_date = models.DateField(default=timezone.localdate)
+    feedback_text = models.TextField(help_text='Daily worker feedback.')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-feedback_date', '-updated_at']
+        verbose_name = 'Worker Daily Feedback'
+        verbose_name_plural = 'Worker Daily Feedback'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['worker_account', 'feedback_date'],
+                name='unique_worker_feedback_per_day',
+            )
+        ]
+        indexes = [
+            models.Index(fields=['worker_account', 'feedback_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.worker_account} feedback {self.feedback_date}"
 

@@ -16,7 +16,13 @@ from clients.admin import ClientAdmin
 from clients.models import CaseNote, Client
 from clients.models import Document
 from clients.notifications import _to_e164_us, _compose_sms_body, send_phone_text_message
-from clients.models_extensions import WorkerAccount, WorkerTimePunch, WorkSite, ClientTextMessage
+from clients.models_extensions import (
+    ClientTextMessage,
+    WorkerAccount,
+    WorkerDailyFeedback,
+    WorkerTimePunch,
+    WorkSite,
+)
 from clients.worker_views import WorkerSession
 
 
@@ -299,6 +305,56 @@ class WorkerTimePunchTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn('supervisor_name', response.data)
+
+    def test_worker_can_update_profile_goals(self):
+        response = self.api.patch(
+            '/api/worker/profile/update/',
+            {
+                'short_profile': 'I like customer-facing work and team environments.',
+                'long_term_career_goals': 'I want to become a lead supervisor.',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.worker.refresh_from_db()
+        self.assertIn('team environments', self.worker.short_profile)
+        self.assertIn('lead supervisor', self.worker.long_term_career_goals)
+
+    def test_worker_daily_feedback_upserts_for_today(self):
+        create_response = self.api.post(
+            '/api/worker/daily-feedback/',
+            {'feedback_text': 'Good day, but needed more gloves.'},
+            format='json',
+        )
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(WorkerDailyFeedback.objects.count(), 1)
+
+        update_response = self.api.post(
+            '/api/worker/daily-feedback/',
+            {'feedback_text': 'Update: supplies arrived and shift ended smoothly.'},
+            format='json',
+        )
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(WorkerDailyFeedback.objects.count(), 1)
+
+        feedback = WorkerDailyFeedback.objects.get(worker_account=self.worker)
+        self.assertIn('supplies arrived', feedback.feedback_text)
+
+    def test_worker_daily_feedback_get_returns_recent_entries(self):
+        WorkerDailyFeedback.objects.create(
+            worker_account=self.worker,
+            feedback_date=timezone.localdate() - timedelta(days=1),
+            feedback_text='Yesterday feedback entry',
+        )
+        WorkerDailyFeedback.objects.create(
+            worker_account=self.worker,
+            feedback_date=timezone.localdate(),
+            feedback_text='Today feedback entry',
+        )
+        response = self.api.get('/api/worker/daily-feedback/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['today_feedback']['feedback_text'], 'Today feedback entry')
+        self.assertGreaterEqual(len(response.data['recent_feedback']), 2)
 
     def _login_superuser(self):
         User = get_user_model()

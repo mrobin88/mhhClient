@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Client, CaseNote, PitStopApplication, JobPlacement
 from .models_extensions import (
     WorkerAccount,
+    WorkerDailyFeedback,
     WorkAssignment,
     WorkSite,
     WorkerTimePunch,
@@ -156,9 +157,23 @@ class WorkerAccountSerializer(serializers.ModelSerializer):
             'worker_status',
             'worker_status_label',
             'is_available',
+            'short_profile',
+            'long_term_career_goals',
             'last_login',
         ]
         read_only_fields = ['id', 'last_login']
+
+
+class WorkerDailyFeedbackSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkerDailyFeedback
+        fields = [
+            'id',
+            'feedback_date',
+            'feedback_text',
+            'created_at',
+            'updated_at',
+        ]
 
 
 class WorkSiteSerializer(serializers.ModelSerializer):
