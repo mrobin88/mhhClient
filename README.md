@@ -1,109 +1,56 @@
-# 🎯 Client Services Management System
+# Client Services Management System
 
-**Production-ready client intake and case management system for service organizations.**
+Internal client intake and case-management platform for staff and managers.
 
-## 🌟 **Live System**
-- **Frontend**: https://blue-glacier-0c5f06410.3.azurestaticapps.net/
-- **Lobby check-in (visit note)**: https://blue-glacier-0c5f06410.3.azurestaticapps.net/checkin (`/checkin.html` redirects here)
-- **Staff workspace**: https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff/ (same login as Admin)
-- **Backend API**: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/api/
-- **Admin Interface**: https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net/admin/
+## What It Does
 
-## ✨ **Features**
-- **Client Intake System** - Streamlined online registration with resume upload
-- **Case Notes Management** - Timestamped case notes with visual follow-up indicators
-- **Email Notifications** - Automated follow-up reminders for case notes
-- **CSV Export** - Export case notes and client data for reporting
-- **Staff Dashboard** - Search, manage, and monitor client caseloads
-- **Admin Interface** - Complete system administration with Django admin
-- **Document Management** - Secure file uploads and storage via Azure Blob Storage
+- Client intake + profile management
+- Case notes + follow-up tracking
+- Staff/admin workflows for updates and oversight
+- CSV reporting exports
+- Document upload and storage
 
-## 🛠️ **Production Stack**
-- **Frontend**: Vue.js 3 + TypeScript + Tailwind CSS → Azure Static Web Apps
-- **Backend**: Django 5.1.15 + Django REST Framework → Azure App Service
-- **Database**: PostgreSQL → Azure Database for PostgreSQL
-- **Storage**: Azure Blob Storage (for documents/resumes)
-- **Deployment**: GitHub Actions → Auto-deploy on push to main
-- **Server**: Gunicorn with WhiteNoise for static files
+## End-User Flow
 
-## 🚀 **Local Development**
+1. Client submits intake form.
+2. Staff review/update client profile.
+3. Staff log case notes and follow-up dates.
+4. Managers export reports for operations/audits.
+
+## Stack
+
+- Frontend: Vue 3 + TypeScript + Tailwind
+- Backend: Django + Django REST Framework
+- Database: PostgreSQL
+- Storage: Azure Blob Storage
+- Hosting: Azure Static Web Apps + Azure App Service
+- Server: Gunicorn + WhiteNoise
+
+## Hosting and CI/CD
+
+- Production is hosted on Azure services.
+- Deployments run via GitHub Actions on push/merge to `main`.
+- Runtime config and secrets are environment-variable based.
+
+## Development Notes
+
+Built and maintained end-to-end by one developer (product design, implementation, cloud hosting, CI/CD, and support) with an iterative, pragmatic shipping style.
+
+## Local Setup
 
 ```bash
-# Start development servers
+cp env.example .env
+cp frontend/env.production.template frontend/.env.local
+pip install -r requirements.txt
+cd frontend && npm install && cd ..
+python manage.py migrate
 ./start-dev.sh
-
-# Access local system
-# Frontend: http://localhost:5173
-# Backend API: http://localhost:8000/api/
-# Admin: http://localhost:8000/admin/
 ```
 
-### Environment Setup
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:8000/api/`
+- Admin: `http://localhost:8000/admin/`
 
-1. Copy `env.example` to `.env` and configure:
-   ```bash
-   cp env.example .env
-   # Edit .env with your database credentials
-   ```
+## Docs
 
-2. For frontend, copy `frontend/env.production.template` to `frontend/.env.local`:
-   ```bash
-   cp frontend/env.production.template frontend/.env.local
-   # Update VITE_API_URL if needed
-   ```
-
-3. Install dependencies:
-   ```bash
-   # Backend
-   pip install -r requirements.txt
-   
-   # Frontend
-   cd frontend && npm install
-   ```
-
-4. Run migrations:
-   ```bash
-   python manage.py migrate
-   ```
-
-5. Create superuser:
-   ```bash
-   python manage.py createsuperuser
-   ```
-
-## 📚 **Documentation**
-- **Staff how-to (front of house)**: [STAFF_GUIDE.md](STAFF_GUIDE.md) — why we use the system and daily workflows for staff and managers
-
-## 🔧 **Project Structure**
-
-```
-mhhClient/
-├── config/              # Django settings (simple_settings.py)
-├── clients/             # Client management app
-├── users/               # User/staff management app
-├── frontend/            # Vue.js frontend
-├── static/              # Static files (CSS, JS)
-├── media/               # Media uploads (local dev only)
-├── manage.py           # Django management script
-├── requirements.txt    # Python dependencies
-├── runtime.txt         # Python version (3.11)
-└── startup.sh          # Azure startup script
-```
-
-## 📝 **Key Configuration**
-
-- **Settings**: `config/simple_settings.py` (used in production and development)
-- **Database**: Configured via environment variables (see `env.example`)
-- **Static Files**: Served via WhiteNoise in production
-- **Media Files**: Stored in Azure Blob Storage in production
-
-## 🔐 **Security Notes**
-
-- All secrets are managed via environment variables
-- Never commit `.env` files or files containing secrets
-- Production secrets are configured in Azure App Service settings
-- Django 5.1.15 includes critical SQL injection security fixes
-
----
-
-**Professional client services management platform** 🏗️
+- Staff guide: `STAFF_GUIDE.md`
