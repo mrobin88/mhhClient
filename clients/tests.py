@@ -13,7 +13,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from clients.admin import ClientAdmin
-from clients.models import Client
+from clients.models import CaseNote, Client
 from clients.models import Document
 from clients.notifications import _to_e164_us, _compose_sms_body, send_phone_text_message
 from clients.models_extensions import WorkerAccount, WorkerTimePunch, WorkSite, ClientTextMessage
@@ -88,15 +88,14 @@ class WorkerTimePunchTests(TestCase):
         self.assertTrue(bool(punch.clock_in_map_image))
         self.assertIsNone(punch.clock_out_at)
 
-    def test_worker_can_clock_in_without_location(self):
+    def test_worker_clock_in_requires_location_services(self):
         response = self.api.post(
             '/api/worker/time-punch/',
             {'action': 'clock_in'},
             format='multipart',
         )
-        self.assertEqual(response.status_code, 201)
-        punch = WorkerTimePunch.objects.get()
-        self.assertEqual(punch.clock_in_location_label, '')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('location', response.data['error'].lower())
 
     def test_worker_can_clock_in_with_explicit_work_site(self):
         response = self.api.post(
@@ -104,6 +103,10 @@ class WorkerTimePunchTests(TestCase):
             {
                 'action': 'clock_in',
                 'work_site_id': self.site.pk,
+                'geolocation': (
+                    '{"status":"captured","latitude":37.7749,'
+                    '"longitude":-122.4194,"accuracy":20}'
+                ),
             },
             format='multipart',
         )
@@ -257,6 +260,45 @@ class WorkerTimePunchTests(TestCase):
             format='json',
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_start_lunch_requires_location_services(self):
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            clock_in_at=timezone.now() - timedelta(hours=2),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+        )
+        response = self.api.post(
+            '/api/worker/time-punch/',
+            {'action': 'start_lunch'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('location', response.data['error'].lower())
+
+    def test_worker_can_submit_simple_incident_report(self):
+        response = self.api.post(
+            '/api/worker/incident-report/',
+            {
+                'supervisor_name': 'Jane Supervisor',
+                'details': 'Customer slipped near the sink and we cleaned it.',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        note = CaseNote.objects.latest('created_at')
+        self.assertEqual(note.client_id, self.client_record.id)
+        self.assertIn('Worker Incident Report', note.content)
+        self.assertIn('Jane Supervisor', note.content)
+
+    def test_worker_incident_report_requires_fields(self):
+        response = self.api.post(
+            '/api/worker/incident-report/',
+            {'supervisor_name': '', 'details': ''},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('supervisor_name', response.data)
 
     def _login_superuser(self):
         User = get_user_model()

@@ -1,18 +1,25 @@
 <template>
   <div class="space-y-2">
-    <p class="worker-section-intro">Tap to clock in or out for your shift.</p>
+    <p class="worker-section-intro">Tap to clock in or out for your shift. Location services must be on.</p>
 
-    <div v-if="loading" class="flex items-center justify-center py-6 text-slate-500 text-sm">
+    <div v-if="loading" class="flex items-center justify-center py-6 text-slate-300 text-sm">
       <span class="worker-spinner worker-spinner--dark" aria-hidden="true"></span>
       Loading
     </div>
 
-    <div v-else-if="error" class="rounded-lg bg-red-50 text-red-800 text-xs px-3 py-2 border border-red-100">
+    <div v-else-if="error" class="worker-status-note worker-status-note--error">
       {{ error }}
     </div>
 
     <section v-else class="worker-card p-3 space-y-2">
-      <div class="worker-status-note bg-slate-50 text-slate-700 border border-slate-200">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="worker-card-title">Shift clock</h2>
+        <span class="worker-pill" :class="activePunch ? 'worker-pill-green' : 'worker-pill-slate'">
+          {{ activePunch ? 'Live position' : 'Flat' }}
+        </span>
+      </div>
+
+      <div class="worker-status-note worker-status-note--ok">
         <ClockIcon class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom" aria-hidden="true" />
         <template v-if="isOnLunch">
           On lunch since {{ formatDateTime(activePunch?.lunch_start_at) }}
@@ -25,14 +32,14 @@
         </template>
       </div>
 
-      <div class="grid grid-cols-2 gap-2">
-        <div class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Today</p>
-          <p class="text-sm font-bold text-slate-900">{{ formatHours(todayDisplayHours) }}</p>
+      <div class="worker-metric-grid">
+        <div class="worker-metric">
+          <p class="worker-metric-label">Today</p>
+          <p class="worker-metric-value">{{ formatHours(todayDisplayHours) }}</p>
         </div>
-        <div class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">This week</p>
-          <p class="text-sm font-bold text-slate-900">{{ formatHours(weekDisplayHours) }}</p>
+        <div class="worker-metric">
+          <p class="worker-metric-label">This week</p>
+          <p class="worker-metric-value">{{ formatHours(weekDisplayHours) }}</p>
         </div>
       </div>
 
@@ -76,7 +83,7 @@
       </button>
     </section>
 
-    <p v-if="message" class="worker-status-note bg-slate-50 text-slate-800 border border-slate-200">{{ message }}</p>
+    <p v-if="message" class="worker-status-note worker-status-note--ok">{{ message }}</p>
   </div>
 </template>
 
@@ -97,11 +104,18 @@ interface ActivePunch {
   is_on_lunch: boolean
 }
 
+interface Coordinates {
+  latitude: number
+  longitude: number
+  accuracy?: number
+}
+
 interface LocationReference {
   label: string
   mapBlob: Blob | null
-  latitude?: number
-  longitude?: number
+  latitude: number
+  longitude: number
+  accuracy?: number
 }
 
 const PUNCH_COOLDOWN_MS = 2500
@@ -168,10 +182,10 @@ function formatDateTime(iso: string | null | undefined) {
   })
 }
 
-function captureCoordinates(): Promise<{ latitude: number; longitude: number } | null> {
-  return new Promise((resolve) => {
+function captureCoordinates(): Promise<Coordinates> {
+  return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
-      resolve(null)
+      reject(new Error('Turn on location services to continue.'))
       return
     }
     navigator.geolocation.getCurrentPosition(
@@ -179,9 +193,16 @@ function captureCoordinates(): Promise<{ latitude: number; longitude: number } |
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
         })
       },
-      () => resolve(null),
+      (positionError) => {
+        if (positionError.code === positionError.PERMISSION_DENIED) {
+          reject(new Error('Location permission is required. Turn on location services.'))
+          return
+        }
+        reject(new Error('Could not get your location. Turn on location services and try again.'))
+      },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
     )
   })
@@ -221,11 +242,7 @@ async function fetchMapSnapshot(latitude: number, longitude: number): Promise<Bl
   }
 }
 
-async function buildLocationReference(): Promise<LocationReference> {
-  const coords = await captureCoordinates()
-  if (!coords) {
-    return { label: '', mapBlob: null }
-  }
+async function buildLocationReference(coords: Coordinates): Promise<LocationReference> {
   const [label, mapBlob] = await Promise.all([
     reverseGeocodeLabel(coords.latitude, coords.longitude),
     fetchMapSnapshot(coords.latitude, coords.longitude),
@@ -235,6 +252,7 @@ async function buildLocationReference(): Promise<LocationReference> {
     mapBlob,
     latitude: coords.latitude,
     longitude: coords.longitude,
+    accuracy: coords.accuracy,
   }
 }
 
@@ -266,17 +284,25 @@ async function submitAction(action: 'clock_in' | 'clock_out' | 'start_lunch' | '
   error.value = ''
   message.value = ''
   try {
+    const coordinates = await captureCoordinates()
     const form = new FormData()
     form.append('action', action)
+    form.append(
+      'geolocation',
+      JSON.stringify({
+        status: 'captured',
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        accuracy: coordinates.accuracy,
+      }),
+    )
 
     if (action === 'clock_in' || action === 'clock_out') {
-      const location = await buildLocationReference()
+      const location = await buildLocationReference(coordinates)
       if (location.label) form.append('location_label', location.label)
       if (location.mapBlob) form.append('map_snapshot', location.mapBlob, 'map_snapshot.png')
-      if (location.latitude != null && location.longitude != null) {
-        form.append('map_latitude', String(location.latitude))
-        form.append('map_longitude', String(location.longitude))
-      }
+      form.append('map_latitude', String(location.latitude))
+      form.append('map_longitude', String(location.longitude))
     }
 
     const resp = await workerFetch('/api/worker/time-punch/', {
@@ -294,8 +320,12 @@ async function submitAction(action: 'clock_in' | 'clock_out' | 'start_lunch' | '
     }
     message.value = body.message || 'Clock update saved.'
     await loadClockContext()
-  } catch {
-    error.value = 'No connection. Try again.'
+  } catch (submitError) {
+    if (submitError instanceof Error) {
+      error.value = submitError.message
+    } else {
+      error.value = 'No connection. Try again.'
+    }
   } finally {
     busy.value = false
   }

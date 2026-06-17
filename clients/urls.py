@@ -32,6 +32,7 @@ from .worker_views import (
     worker_profile,
     worker_work_sites,
     worker_time_punch,
+    worker_incident_report,
 )
 from .kiosk_views import KioskCheckInLookupView, KioskCheckInSubmitView, KioskDocumentUploadView
 from .staff_views import (
@@ -87,6 +88,7 @@ urlpatterns = [
     path('worker/profile/', worker_profile, name='worker-profile'),
     path('worker/work-sites/', worker_work_sites, name='worker-work-sites'),
     path('worker/time-punch/', worker_time_punch, name='worker-time-punch'),
+    path('worker/incident-report/', worker_incident_report, name='worker-incident-report'),
     # Lobby kiosk: self check-in case note (static web app -> API)
     path('kiosk/check-in/lookup/', KioskCheckInLookupView.as_view(), name='kiosk-check-in-lookup'),
     path('kiosk/check-in/submit/', KioskCheckInSubmitView.as_view(), name='kiosk-check-in-submit'),

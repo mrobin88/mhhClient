@@ -5,14 +5,14 @@
         <div class="worker-login-brand">
           <BriefcaseIcon aria-hidden="true" />
         </div>
-        <h1 class="text-lg font-semibold text-slate-900 tracking-tight">PitStop Worker</h1>
-        <p class="text-[11px] text-slate-600 mt-0.5">Sign in with your phone and PIN.</p>
+        <h1 class="text-lg font-semibold text-white tracking-tight">PitStop Worker</h1>
+        <p class="text-[11px] text-slate-300 mt-0.5">Market-style shift terminal</p>
       </div>
 
       <div class="worker-card p-3">
         <form @submit.prevent="handleLogin" class="space-y-2.5">
           <div>
-            <label for="phone" class="block text-[11px] font-semibold text-slate-800 mb-1">Mobile number</label>
+            <label for="phone" class="worker-label">Mobile number</label>
             <div class="worker-input-wrap">
               <DevicePhoneMobileIcon class="worker-input-icon" aria-hidden="true" />
               <input
@@ -30,7 +30,7 @@
           </div>
 
           <div>
-            <label for="pin" class="block text-[11px] font-semibold text-slate-800 mb-1">PIN (4 digits)</label>
+            <label for="pin" class="worker-label">PIN (4 digits)</label>
             <div class="worker-input-wrap">
               <LockClosedIcon class="worker-input-icon" aria-hidden="true" />
               <input
@@ -55,7 +55,7 @@
             </button>
           </div>
 
-          <div v-if="error" class="text-[11px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">
+          <div v-if="error" class="worker-status-note worker-status-note--error">
             {{ error }}
           </div>
 
@@ -66,7 +66,7 @@
           </button>
         </form>
 
-        <p class="text-[10px] text-slate-500 text-center mt-2.5">
+        <p class="text-[10px] text-slate-400 text-center mt-2.5">
           PitStop workers only. Ask your supervisor for PIN reset.
         </p>
       </div>

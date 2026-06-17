@@ -1,23 +1,31 @@
 <template>
-  <div class="worker-portal h-[100dvh] bg-slate-50 text-slate-900 antialiased flex flex-col overflow-hidden">
+  <div class="worker-portal h-[100dvh] antialiased flex flex-col overflow-hidden">
     <WorkerLogin v-if="!isAuthenticated" @login-success="handleLoginSuccess" />
 
     <template v-else>
-      <header class="bg-white border-b border-slate-200 shrink-0">
-        <div class="max-w-md mx-auto px-3 pt-2 pb-1.5 flex items-center justify-between gap-2">
+      <header class="worker-topbar shrink-0">
+        <div class="max-w-md mx-auto px-3 pt-2 pb-2 flex items-center justify-between gap-2">
           <div class="min-w-0">
-            <h1 class="text-sm font-semibold text-slate-900 leading-tight">PitStop Worker</h1>
-            <p class="text-[11px] text-slate-500 truncate">{{ workerName }}</p>
+            <p class="worker-kicker">PitStop Worker Market</p>
+            <h1 class="text-sm font-semibold text-white leading-tight">Shift Desk</h1>
+            <p class="text-[11px] text-slate-400 truncate">{{ workerName }}</p>
           </div>
           <button
             type="button"
-            class="shrink-0 text-[11px] font-semibold text-slate-600 hover:text-slate-900 py-1 px-2 rounded-md hover:bg-slate-100"
+            class="worker-ghost-btn"
             @click="logout"
           >
             Sign out
           </button>
         </div>
-        <nav class="max-w-md mx-auto flex items-center gap-1 px-2 pb-1.5" aria-label="Main">
+        <div class="worker-ticker-shell">
+          <div class="worker-ticker-track">
+            <span v-for="(item, idx) in tickerItems" :key="`${idx}-${item}`" class="worker-ticker-item">
+              {{ item }}
+            </span>
+          </div>
+        </div>
+        <nav class="max-w-md mx-auto flex items-center gap-1 px-2 py-2" aria-label="Main">
           <button
             type="button"
             @click="tab = 'assignments'"
@@ -25,6 +33,14 @@
           >
             <BriefcaseIcon class="w-3.5 h-3.5" aria-hidden="true" />
             Clock
+          </button>
+          <button
+            type="button"
+            @click="tab = 'incident'"
+            :class="tab === 'incident' ? tabActive : tabIdle"
+          >
+            <ExclamationTriangleIcon class="w-3.5 h-3.5" aria-hidden="true" />
+            Incident
           </button>
           <button
             type="button"
@@ -37,8 +53,9 @@
         </nav>
       </header>
 
-      <main class="max-w-md w-full mx-auto px-3 py-2 flex-1 overflow-y-auto">
+      <main class="max-w-md w-full mx-auto px-3 py-3 flex-1 overflow-y-auto">
         <WorkerAssignments v-if="tab === 'assignments'" />
+        <WorkerIncidentReport v-else-if="tab === 'incident'" />
         <WorkerProfile v-else />
       </main>
     </template>
@@ -49,25 +66,39 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import {
   BriefcaseIcon,
+  ExclamationTriangleIcon,
   UserCircleIcon,
 } from '@heroicons/vue/24/outline'
 import { workerFetch } from './api'
 import WorkerLogin from './components/WorkerLogin.vue'
 import WorkerAssignments from './components/WorkerAssignments.vue'
+import WorkerIncidentReport from './components/WorkerIncidentReport.vue'
 import WorkerProfile from './components/WorkerProfile.vue'
 
 const isAuthenticated = ref(false)
 const workerAccount = ref<Record<string, unknown> | null>(null)
-const tab = ref<'assignments' | 'profile'>('assignments')
+const tab = ref<'assignments' | 'incident' | 'profile'>('assignments')
 
 const tabActive =
-  'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-md border border-teal-700 bg-teal-50 px-2 py-1 text-[11px] font-bold text-teal-900'
+  'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-md border border-emerald-400/70 bg-emerald-500/20 px-2 py-1.5 text-[11px] font-bold text-emerald-200'
 const tabIdle =
-  'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-md border border-transparent px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+  'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-md border border-slate-700/70 bg-slate-900 px-2 py-1.5 text-[11px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-white'
 
 const workerName = computed(() => {
   const n = workerAccount.value?.client_name
   return typeof n === 'string' ? n : 'Worker'
+})
+
+const tickerItems = computed(() => {
+  const now = new Date()
+  const minute = String(now.getMinutes()).padStart(2, '0')
+  const hour = now.getHours()
+  return [
+    `SHIFT CLOCK ${tab.value === 'assignments' ? 'OPEN' : 'READY'} +1.7%`,
+    `LUNCH WINDOW TRACKED • ${hour}:${minute}`,
+    'INCIDENT LINE LIVE • SUPERVISOR + DETAILS',
+    'LOCATION SERVICES REQUIRED • VERIFIED',
+  ]
 })
 
 function handleLoginSuccess(data: { token: string; worker_account: Record<string, unknown> }) {

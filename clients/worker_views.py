@@ -19,6 +19,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from .models import CaseNote
 from .models_extensions import (
     WorkerAccount,
     WorkerSessionToken,
@@ -125,6 +126,64 @@ def _parse_optional_coordinates(request):
         return float(lat), float(lng)
     except (TypeError, ValueError):
         return None, None
+
+
+def _parse_geolocation_payload(request):
+    """Normalized geolocation payload from JSON body or multipart fields."""
+    geo_raw = request.data.get('geolocation')
+    payload = {}
+    if isinstance(geo_raw, str):
+        try:
+            payload = json.loads(geo_raw)
+        except json.JSONDecodeError:
+            payload = {}
+    elif isinstance(geo_raw, dict):
+        payload = geo_raw
+
+    latitude, longitude = _parse_optional_coordinates(request)
+    if latitude is None:
+        latitude = payload.get('latitude')
+    if longitude is None:
+        longitude = payload.get('longitude')
+
+    try:
+        latitude = float(latitude) if latitude is not None else None
+    except (TypeError, ValueError):
+        latitude = None
+    try:
+        longitude = float(longitude) if longitude is not None else None
+    except (TypeError, ValueError):
+        longitude = None
+
+    try:
+        accuracy = payload.get('accuracy')
+        accuracy = float(accuracy) if accuracy is not None else None
+    except (TypeError, ValueError):
+        accuracy = None
+
+    status_value = str(payload.get('status') or '').strip().lower()
+    geo_status = status_value if status_value in dict(WorkerTimePunch.GEO_STATUS_CHOICES) else None
+    geo_error = str(payload.get('error') or '').strip()[:200]
+    has_coordinates = latitude is not None and longitude is not None
+    if not geo_status:
+        geo_status = WorkerTimePunch.GEO_STATUS_CAPTURED if has_coordinates else WorkerTimePunch.GEO_STATUS_SKIPPED
+
+    return {
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracy': accuracy,
+        'status': geo_status,
+        'error': geo_error,
+        'has_coordinates': has_coordinates,
+    }
+
+
+def _location_required_error(action):
+    action_label = action.replace('_', ' ')
+    return Response(
+        {'error': f'Turn on location services to {action_label}.'},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
 
 
 def _parse_location_reference(request):
@@ -337,7 +396,7 @@ def worker_shift_interests(request):
     )
 
 
-def _handle_lunch_action(action, open_punch, now):
+def _handle_lunch_action(action, open_punch, now, geolocation):
     """Start or end the single unpaid lunch break on the worker's open punch."""
     if not open_punch:
         return Response(
@@ -354,8 +413,14 @@ def _handle_lunch_action(action, open_punch, now):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if not geolocation['has_coordinates']:
+            return _location_required_error(action)
         open_punch.lunch_start_at = now
-        open_punch.save(update_fields=['lunch_start_at'])
+        open_punch.lunch_start_latitude = geolocation['latitude']
+        open_punch.lunch_start_longitude = geolocation['longitude']
+        open_punch.save(
+            update_fields=['lunch_start_at', 'lunch_start_latitude', 'lunch_start_longitude']
+        )
         return Response(
             {
                 'message': 'Lunch started.',
@@ -377,8 +442,14 @@ def _handle_lunch_action(action, open_punch, now):
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
+    if not geolocation['has_coordinates']:
+        return _location_required_error(action)
     open_punch.lunch_end_at = now
-    open_punch.save(update_fields=['lunch_end_at'])
+    open_punch.lunch_end_latitude = geolocation['latitude']
+    open_punch.lunch_end_longitude = geolocation['longitude']
+    open_punch.save(
+        update_fields=['lunch_end_at', 'lunch_end_latitude', 'lunch_end_longitude']
+    )
     return Response(
         {
             'message': f'Lunch ended ({open_punch.lunch_minutes} min).',
@@ -431,6 +502,7 @@ def worker_time_punch(request):
     if site_err:
         return site_err
 
+    geolocation = _parse_geolocation_payload(request)
     location_ref = _parse_location_reference(request) if action in {'clock_in', 'clock_out'} else None
     now = timezone.now()
 
@@ -442,7 +514,7 @@ def worker_time_punch(request):
     )
 
     if action in {'start_lunch', 'end_lunch'}:
-        return _handle_lunch_action(action, open_punch, now)
+        return _handle_lunch_action(action, open_punch, now, geolocation)
 
     if action == 'clock_in':
         if open_punch:
@@ -453,10 +525,19 @@ def worker_time_punch(request):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if not geolocation['has_coordinates']:
+            return _location_required_error(action)
         punch = WorkerTimePunch.objects.create(
             worker_account=account,
             work_site=site,
             clock_in_at=now,
+            clock_in_latitude=geolocation['latitude'],
+            clock_in_longitude=geolocation['longitude'],
+            clock_in_accuracy_meters=geolocation['accuracy'],
+            clock_in_geo_status=geolocation['status'],
+            clock_in_geo_error=geolocation['error'],
+            clock_in_geo_basic_ok=True,
+            clock_in_geo_basic_note='Location captured',
         )
         if location_ref:
             _attach_location_snapshot(punch, 'clock_in', location_ref)
@@ -477,6 +558,8 @@ def worker_time_punch(request):
             {'error': 'No active clock-in found.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    if not geolocation['has_coordinates']:
+        return _location_required_error(action)
 
     if open_punch.is_on_lunch:
         return Response(
@@ -489,7 +572,24 @@ def worker_time_punch(request):
 
     open_punch.clock_out_at = now
     open_punch.clock_out_server_received_at = now
-    update_fields = ['clock_out_at', 'clock_out_server_received_at']
+    open_punch.clock_out_latitude = geolocation['latitude']
+    open_punch.clock_out_longitude = geolocation['longitude']
+    open_punch.clock_out_accuracy_meters = geolocation['accuracy']
+    open_punch.clock_out_geo_status = geolocation['status']
+    open_punch.clock_out_geo_error = geolocation['error']
+    open_punch.clock_out_geo_basic_ok = True
+    open_punch.clock_out_geo_basic_note = 'Location captured'
+    update_fields = [
+        'clock_out_at',
+        'clock_out_server_received_at',
+        'clock_out_latitude',
+        'clock_out_longitude',
+        'clock_out_accuracy_meters',
+        'clock_out_geo_status',
+        'clock_out_geo_error',
+        'clock_out_geo_basic_ok',
+        'clock_out_geo_basic_note',
+    ]
     if location_ref:
         _attach_location_snapshot(open_punch, 'clock_out', location_ref)
         update_fields.extend(['clock_out_location_label', 'clock_out_map_image'])
@@ -505,6 +605,40 @@ def worker_time_punch(request):
             'punch': WorkerTimePunchSerializer(open_punch).data,
         }
     )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def worker_incident_report(request):
+    """Simple worker incident report for supervisor follow-up."""
+    account, err = _require_worker(request)
+    if err:
+        return err
+
+    supervisor_name = str(request.data.get('supervisor_name') or '').strip()
+    details = str(request.data.get('details') or '').strip()
+    if not supervisor_name:
+        return Response(
+            {'supervisor_name': ['Supervisor name is required.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not details:
+        return Response(
+            {'details': ['Describe what happened.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    CaseNote.objects.create(
+        client=account.client,
+        staff_member='Worker Portal',
+        note_type='general',
+        content=(
+            'Worker Incident Report\n'
+            f'Supervisor: {supervisor_name}\n'
+            f'What happened: {details}'
+        ),
+    )
+    return Response({'message': 'Incident report submitted.'}, status=status.HTTP_201_CREATED)
 
 
 @api_view(['GET', 'POST'])
