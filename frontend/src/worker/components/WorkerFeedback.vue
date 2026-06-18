@@ -19,7 +19,7 @@
       />
     </label>
 
-    <button type="button" class="worker-btn worker-btn-primary" :disabled="busy" @click="saveFeedback">
+    <button type="button" class="worker-btn worker-btn-card worker-btn-primary" :disabled="busy" @click="saveFeedback">
       <span v-if="busy">Saving…</span>
       <span v-else>Save daily feedback</span>
     </button>

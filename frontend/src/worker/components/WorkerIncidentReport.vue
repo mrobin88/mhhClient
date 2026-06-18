@@ -28,7 +28,7 @@
 
     <button
       type="button"
-      class="worker-btn worker-btn-primary"
+      class="worker-btn worker-btn-card worker-btn-primary"
       :disabled="busy"
       @click="submitIncident"
     >

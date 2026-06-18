@@ -40,7 +40,7 @@
 
       <button
         type="button"
-        class="worker-btn worker-btn-primary"
+        class="worker-btn worker-btn-card worker-btn-primary"
         :disabled="profileBusy"
         @click="saveProfile"
       >
@@ -68,7 +68,7 @@
 
       <button
         type="button"
-        class="worker-btn"
+        class="worker-btn worker-btn-card"
         :class="isAvailable ? 'worker-btn-secondary' : 'worker-btn-primary'"
         :disabled="busy"
         @click="toggleAvailability"

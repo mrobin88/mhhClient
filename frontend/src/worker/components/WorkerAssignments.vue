@@ -43,44 +43,52 @@
         </div>
       </div>
 
-      <button
-        v-if="isOnLunch"
-        type="button"
-        class="worker-btn worker-btn-primary"
-        :disabled="busy || cooldown"
-        @click="submitAction('end_lunch')"
-      >
-        <span v-if="busy" class="worker-spinner" aria-hidden="true"></span>
-        <span v-if="busy">Sending</span>
-        <span v-else-if="cooldown">Please wait…</span>
-        <span v-else>End lunch</span>
-      </button>
+      <div class="worker-action-grid">
+        <button
+          v-if="isOnLunch"
+          type="button"
+          class="worker-action-card worker-action-card-primary worker-action-card-full"
+          :disabled="busy || cooldown"
+          @click="submitAction('end_lunch')"
+        >
+          <span class="worker-action-kicker">Lunch</span>
+          <span class="worker-action-title">
+            <span v-if="busy">Sending…</span>
+            <span v-else-if="cooldown">Please wait…</span>
+            <span v-else>End lunch</span>
+          </span>
+        </button>
 
-      <button
-        v-else
-        type="button"
-        class="worker-btn"
-        :class="activePunch ? 'worker-btn-secondary' : 'worker-btn-primary'"
-        :disabled="busy || cooldown"
-        @click="submitAction(activePunch ? 'clock_out' : 'clock_in')"
-      >
-        <span v-if="busy" class="worker-spinner" aria-hidden="true"></span>
-        <StopCircleIcon v-else-if="activePunch" class="w-3.5 h-3.5" aria-hidden="true" />
-        <PlayCircleIcon v-else class="w-3.5 h-3.5" aria-hidden="true" />
-        <span v-if="busy">Sending</span>
-        <span v-else-if="cooldown">Please wait…</span>
-        <span v-else>{{ activePunch ? 'Clock out' : 'Clock in' }}</span>
-      </button>
+        <template v-else>
+          <button
+            type="button"
+            class="worker-action-card"
+            :class="activePunch ? 'worker-action-card-muted' : 'worker-action-card-primary'"
+            :disabled="busy || cooldown"
+            @click="submitAction(activePunch ? 'clock_out' : 'clock_in')"
+          >
+            <span class="worker-action-kicker">Shift</span>
+            <span class="worker-action-title">
+              <span v-if="busy">Sending…</span>
+              <span v-else-if="cooldown">Please wait…</span>
+              <span v-else>{{ activePunch ? 'Clock out' : 'Clock in' }}</span>
+            </span>
+            <StopCircleIcon v-if="!busy && activePunch" class="w-3.5 h-3.5" aria-hidden="true" />
+            <PlayCircleIcon v-else-if="!busy" class="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
 
-      <button
-        v-if="canStartLunch"
-        type="button"
-        class="worker-btn worker-btn-secondary"
-        :disabled="busy || cooldown"
-        @click="submitAction('start_lunch')"
-      >
-        Start lunch
-      </button>
+          <button
+            v-if="canStartLunch"
+            type="button"
+            class="worker-action-card worker-action-card-muted worker-action-card-compact"
+            :disabled="busy || cooldown"
+            @click="submitAction('start_lunch')"
+          >
+            <span class="worker-action-kicker">Break</span>
+            <span class="worker-action-title">Start lunch</span>
+          </button>
+        </template>
+      </div>
     </section>
 
     <p v-if="message" class="worker-status-note worker-status-note--ok">{{ message }}</p>

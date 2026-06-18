@@ -25,38 +25,16 @@
             </span>
           </div>
         </div>
-        <nav class="max-w-md mx-auto flex items-center gap-1 px-2 py-2" aria-label="Main">
+        <nav class="worker-nav max-w-md mx-auto px-2 py-2" aria-label="Main">
           <button
+            v-for="item in navItems"
+            :key="item.key"
             type="button"
-            @click="tab = 'assignments'"
-            :class="tab === 'assignments' ? tabActive : tabIdle"
+            class="worker-nav-btn"
+            :class="tab === item.key ? 'worker-nav-btn-active' : 'worker-nav-btn-idle'"
+            @click="tab = item.key"
           >
-            <BriefcaseIcon class="w-3.5 h-3.5" aria-hidden="true" />
-            Clock
-          </button>
-          <button
-            type="button"
-            @click="tab = 'feedback'"
-            :class="tab === 'feedback' ? tabActive : tabIdle"
-          >
-            <ChatBubbleBottomCenterTextIcon class="w-3.5 h-3.5" aria-hidden="true" />
-            Feedback
-          </button>
-          <button
-            type="button"
-            @click="tab = 'incident'"
-            :class="tab === 'incident' ? tabActive : tabIdle"
-          >
-            <ExclamationTriangleIcon class="w-3.5 h-3.5" aria-hidden="true" />
-            Incident
-          </button>
-          <button
-            type="button"
-            @click="tab = 'profile'"
-            :class="tab === 'profile' ? tabActive : tabIdle"
-          >
-            <UserCircleIcon class="w-3.5 h-3.5" aria-hidden="true" />
-            Profile
+            {{ item.label }}
           </button>
         </nav>
       </header>
@@ -73,12 +51,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import {
-  BriefcaseIcon,
-  ChatBubbleBottomCenterTextIcon,
-  ExclamationTriangleIcon,
-  UserCircleIcon,
-} from '@heroicons/vue/24/outline'
 import { workerFetch } from './api'
 import WorkerLogin from './components/WorkerLogin.vue'
 import WorkerAssignments from './components/WorkerAssignments.vue'
@@ -86,32 +58,78 @@ import WorkerFeedback from './components/WorkerFeedback.vue'
 import WorkerIncidentReport from './components/WorkerIncidentReport.vue'
 import WorkerProfile from './components/WorkerProfile.vue'
 
+type WorkerTab = 'assignments' | 'feedback' | 'incident' | 'profile'
+
+interface WorkerDashboardSummary {
+  is_clocked_in: boolean
+  incident_reports_today: number
+  incident_reports_week: number
+  last_incident_at: string | null
+  has_feedback_today: boolean
+}
+
 const isAuthenticated = ref(false)
 const workerAccount = ref<Record<string, unknown> | null>(null)
-const tab = ref<'assignments' | 'feedback' | 'incident' | 'profile'>('assignments')
+const tab = ref<WorkerTab>('assignments')
+const dashboardSummary = ref<WorkerDashboardSummary | null>(null)
+let summaryTimer: ReturnType<typeof setInterval> | null = null
 
-const tabActive =
-  'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-md border border-emerald-400/70 bg-emerald-500/20 px-2 py-1.5 text-[11px] font-bold text-emerald-200'
-const tabIdle =
-  'flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-md border border-slate-700/70 bg-slate-900 px-2 py-1.5 text-[11px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-white'
+const navItems: Array<{ key: WorkerTab; label: string }> = [
+  { key: 'assignments', label: 'Clock' },
+  { key: 'feedback', label: 'Feedback' },
+  { key: 'incident', label: 'Incident' },
+  { key: 'profile', label: 'Profile' },
+]
 
 const workerName = computed(() => {
   const n = workerAccount.value?.client_name
   return typeof n === 'string' ? n : 'Worker'
 })
 
+function formatTimeOnly(iso: string | null) {
+  if (!iso) return 'none'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return 'none'
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
 const tickerItems = computed(() => {
   const now = new Date()
-  const minute = String(now.getMinutes()).padStart(2, '0')
-  const hour = now.getHours()
+  const summary = dashboardSummary.value
+  const localTime = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
   return [
-    `SHIFT CLOCK ${tab.value === 'assignments' ? 'OPEN' : 'READY'} +1.7%`,
-    `DAILY FEEDBACK ${tab.value === 'feedback' ? 'ACTIVE' : 'READY'} +0.9%`,
-    `LUNCH WINDOW TRACKED • ${hour}:${minute}`,
-    'INCIDENT LINE LIVE • SUPERVISOR + DETAILS',
-    'LOCATION SERVICES REQUIRED • VERIFIED',
+    `Clock ${summary?.is_clocked_in ? 'IN' : 'OUT'} • ${localTime}`,
+    `Incidents today ${summary?.incident_reports_today ?? 0} • week ${summary?.incident_reports_week ?? 0}`,
+    `Last incident ${formatTimeOnly(summary?.last_incident_at || null)}`,
+    `Daily feedback ${summary?.has_feedback_today ? 'submitted' : 'pending'}`,
   ]
 })
+
+async function loadDashboardSummary() {
+  if (!localStorage.getItem('worker_token')) return
+  try {
+    const resp = await workerFetch('/api/worker/dashboard-summary/')
+    if (!resp.ok) return
+    const body = await resp.json().catch(() => null)
+    if (!body) return
+    dashboardSummary.value = {
+      is_clocked_in: Boolean(body.is_clocked_in),
+      incident_reports_today: Number(body.incident_reports_today) || 0,
+      incident_reports_week: Number(body.incident_reports_week) || 0,
+      last_incident_at: typeof body.last_incident_at === 'string' ? body.last_incident_at : null,
+      has_feedback_today: Boolean(body.has_feedback_today),
+    }
+  } catch {
+    /* keep current ticker values */
+  }
+}
+
+function startSummaryPolling() {
+  if (summaryTimer) clearInterval(summaryTimer)
+  summaryTimer = setInterval(() => {
+    loadDashboardSummary()
+  }, 60_000)
+}
 
 function handleLoginSuccess(data: { token: string; worker_account: Record<string, unknown> }) {
   isAuthenticated.value = true
@@ -119,6 +137,8 @@ function handleLoginSuccess(data: { token: string; worker_account: Record<string
   localStorage.setItem('worker_token', data.token)
   localStorage.setItem('worker_account', JSON.stringify(data.worker_account))
   tab.value = 'assignments'
+  loadDashboardSummary()
+  startSummaryPolling()
 }
 
 function resetToLogin() {
@@ -127,6 +147,11 @@ function resetToLogin() {
   isAuthenticated.value = false
   workerAccount.value = null
   tab.value = 'assignments'
+  dashboardSummary.value = null
+  if (summaryTimer) {
+    clearInterval(summaryTimer)
+    summaryTimer = null
+  }
 }
 
 function logout() {
@@ -158,6 +183,8 @@ async function validateExistingSession() {
     const profile = await resp.json()
     workerAccount.value = profile
     localStorage.setItem('worker_account', JSON.stringify(profile))
+    await loadDashboardSummary()
+    startSummaryPolling()
   } catch {
     /* offline: keep optimistic session */
   }
@@ -174,5 +201,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('worker-session-expired', onSessionExpired)
+  if (summaryTimer) clearInterval(summaryTimer)
 })
 </script>

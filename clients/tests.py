@@ -356,6 +356,29 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(response.data['today_feedback']['feedback_text'], 'Today feedback entry')
         self.assertGreaterEqual(len(response.data['recent_feedback']), 2)
 
+    def test_worker_dashboard_summary_includes_incident_counts(self):
+        CaseNote.objects.create(
+            client=self.client_record,
+            staff_member='Worker Portal',
+            note_type='general',
+            content='Worker Incident Report\nSupervisor: Test\nWhat happened: One',
+        )
+        CaseNote.objects.create(
+            client=self.client_record,
+            staff_member='Worker Portal',
+            note_type='general',
+            content='Worker Incident Report\nSupervisor: Test\nWhat happened: Two',
+        )
+        WorkerDailyFeedback.objects.create(
+            worker_account=self.worker,
+            feedback_date=timezone.localdate(),
+            feedback_text='Daily check-in',
+        )
+        response = self.api.get('/api/worker/dashboard-summary/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['incident_reports_today'], 2)
+        self.assertTrue(response.data['has_feedback_today'])
+
     def _login_superuser(self):
         User = get_user_model()
         admin_user = User.objects.create_superuser(

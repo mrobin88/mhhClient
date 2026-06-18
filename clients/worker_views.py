@@ -361,6 +361,13 @@ def _worker_local_today():
     return timezone.now().astimezone(WORKER_LOCAL_TZ).date()
 
 
+def _worker_local_day_bounds():
+    now = timezone.now().astimezone(WORKER_LOCAL_TZ)
+    start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_tomorrow = start_today + timedelta(days=1)
+    return start_today, start_tomorrow
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def worker_daily_feedback(request):
@@ -403,6 +410,48 @@ def worker_daily_feedback(request):
             'feedback': WorkerDailyFeedbackSerializer(entry).data,
         },
         status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def worker_dashboard_summary(request):
+    """Compact status payload for the worker header ticker."""
+    worker_account, err = _require_worker(request)
+    if err:
+        return err
+
+    today_start, tomorrow_start = _worker_local_day_bounds()
+    week_start = today_start - timedelta(days=6)
+    incident_notes = CaseNote.objects.filter(
+        client=worker_account.client,
+        staff_member='Worker Portal',
+        content__startswith='Worker Incident Report',
+    )
+    last_incident = incident_notes.order_by('-created_at').first()
+    has_open_punch = WorkerTimePunch.objects.filter(
+        worker_account=worker_account,
+        clock_out_at__isnull=True,
+    ).exists()
+    has_feedback_today = WorkerDailyFeedback.objects.filter(
+        worker_account=worker_account,
+        feedback_date=_worker_local_today(),
+    ).exists()
+
+    return Response(
+        {
+            'is_clocked_in': has_open_punch,
+            'incident_reports_today': incident_notes.filter(
+                created_at__gte=today_start,
+                created_at__lt=tomorrow_start,
+            ).count(),
+            'incident_reports_week': incident_notes.filter(
+                created_at__gte=week_start,
+                created_at__lt=tomorrow_start,
+            ).count(),
+            'last_incident_at': last_incident.created_at if last_incident else None,
+            'has_feedback_today': has_feedback_today,
+        }
     )
 
 
