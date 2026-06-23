@@ -235,9 +235,6 @@
                 </div>
                 <div class="case-note-meta">
                     {{ note.created_at|date:"F j, Y \a\\t g:i A" }} by {{ note.staff_member }}
-                    {% if note.follow_up_date %}
-                    | Follow-up: {{ note.follow_up_date|date:"M j, Y" }}
-                    {% endif %}
                 </div>
                 <div>{{ note.content|linebreaks }}</div>
                 {% if note.next_steps %}

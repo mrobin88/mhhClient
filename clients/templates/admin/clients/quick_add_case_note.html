@@ -195,16 +195,6 @@
                 placeholder="Optional next steps or action items"></textarea>
         </div>
         
-        <div class="form-row">
-            <label>
-                Follow-up Date: <small>(Optional - you'll receive email alerts)</small>
-            </label>
-            <input type="date" name="follow_up_date" />
-            <small style="display: block; margin-top: 5px; color: #64748b;">
-                Set a follow-up date to receive email alerts when it's due or overdue.
-            </small>
-        </div>
-        
         <div class="submit-row">
             <input type="submit" value="Add Case Note" class="default" />
             <a href="{% url 'admin:clients_client_change' client.pk %}" class="button">Cancel</a>
@@ -218,14 +208,6 @@
         <div class="note-preview">
             <strong>{% if note.note_date %}{{ note.note_date|date:"M d, Y" }}{% else %}{{ note.created_at|date:"M d, Y" }}{% endif %} - {{ note.get_note_type_display }}</strong>
             <p>{{ note.content|truncatewords:30 }}</p>
-            {% if note.follow_up_date %}
-                <small style="color: #f59e0b;">
-                    Follow-up: {{ note.follow_up_date|date:"M d, Y" }}
-                    {% if note.is_overdue_followup %}
-                        <strong style="color: #ef4444;">(OVERDUE)</strong>
-                    {% endif %}
-                </small>
-            {% endif %}
         </div>
         {% endfor %}
     </div>

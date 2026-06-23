@@ -7,18 +7,15 @@ from .views import (
     ResumeDownloadView,
     client_dashboard_stats,
     PitStopApplicationViewSet,
-    JobPlacementViewSet,
 )
 from .reports import (
     ReportsHubView,
     AvailableWorkersCSVView,
-    JobPlacementsReportCSVView,
     CallOutReportCSVView,
     TodaysAssignmentsCSVView,
     ClientOutcomesReportCSVView,
     ClientOutcomesPackageView,
     ManagerOperationsPackageView,
-    StaffFollowUpScorecardCSVView,
     WorkforceInventoryPackageView,
     ClientFilePackageView,
     PitStopHoursReportCSVView,
@@ -56,7 +53,6 @@ router = DefaultRouter()
 router.register(r'clients', ClientViewSet)
 router.register(r'case-notes', CaseNoteViewSet)
 router.register(r'pitstop-applications', PitStopApplicationViewSet, basename='pitstop-application')
-router.register(r'job-placements', JobPlacementViewSet, basename='job-placement')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -67,13 +63,11 @@ urlpatterns = [
     # CSV Export Reports
     path('reports/', ReportsHubView.as_view(), name='reports-hub'),
     path('reports/available-workers/', AvailableWorkersCSVView.as_view(), name='available-workers-csv'),
-    path('reports/job-placements/', JobPlacementsReportCSVView.as_view(), name='job-placements-report-csv'),
     path('reports/callouts/', CallOutReportCSVView.as_view(), name='callouts-report-csv'),
     path('reports/todays-assignments/', TodaysAssignmentsCSVView.as_view(), name='todays-assignments-csv'),
     path('reports/client-outcomes/', ClientOutcomesReportCSVView.as_view(), name='client-outcomes-report-csv'),
     path('reports/client-outcomes-package/', ClientOutcomesPackageView.as_view(), name='client-outcomes-package'),
     path('reports/manager-operations-package/', ManagerOperationsPackageView.as_view(), name='manager-operations-package'),
-    path('reports/staff-followup-scorecard/', StaffFollowUpScorecardCSVView.as_view(), name='staff-followup-scorecard-csv'),
     path('reports/workforce-inventory-package/', WorkforceInventoryPackageView.as_view(), name='workforce-inventory-package'),
     path('reports/client-file-package/', ClientFilePackageView.as_view(), name='client-file-package'),
     path('reports/pitstop-hours/', PitStopHoursReportCSVView.as_view(), name='pitstop-hours-report-csv'),

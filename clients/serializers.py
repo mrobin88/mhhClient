@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Client, CaseNote, PitStopApplication, JobPlacement
+from .models import Client, CaseNote, PitStopApplication
 from .models_extensions import (
     WorkerAccount,
     WorkerDailyFeedback,
@@ -85,15 +85,6 @@ class PitStopApplicationSerializer(serializers.ModelSerializer):
         model = PitStopApplication
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
-
-
-class JobPlacementSerializer(serializers.ModelSerializer):
-    client_name = serializers.CharField(source='client.full_name', read_only=True)
-
-    class Meta:
-        model = JobPlacement
-        fields = '__all__'
-        read_only_fields = ['created_at', 'updated_at', 'created_by_user', 'created_by_name']
 
 
 # ========================================

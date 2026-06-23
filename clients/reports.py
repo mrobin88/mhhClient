@@ -14,14 +14,13 @@ from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Count
 
-from .models import Client, CaseNote, Document, JobPlacement
+from .models import Client, CaseNote, Document
 from .citybuild_docs import (
     CITYBUILD_CHECKLIST_ITEMS,
     CITYBUILD_PROGRAMS,
     evaluate_citybuild_packet,
 )
 from .models_extensions import WorkAssignment, WorkSite, WorkerTimePunch
-from .notifications import followup_stage
 
 
 # Accountants read these reports in local time, but the DB stores UTC.
@@ -101,24 +100,15 @@ def _build_client_case_narrative(client, notes):
     first_note = notes[0]
     last_note = notes[-1]
     note_type_counts = {}
-    overdue_notes = 0
-    upcoming_followups = 0
     for note in notes:
         note_type_counts[note.get_note_type_display()] = note_type_counts.get(note.get_note_type_display(), 0) + 1
-        stage = followup_stage(note.follow_up_date)
-        if stage in {'overdue_under_30', 'overdue_30_plus', 'overdue_60_plus', 'overdue_90_plus'}:
-            overdue_notes += 1
-        elif stage == 'current':
-            upcoming_followups += 1
 
     top_note_type = max(note_type_counts.items(), key=lambda item: item[1])[0]
-    job_status = 'has a job placement on record' if client.job_placed else 'does not have a recorded job placement yet'
     return (
         f"{client.full_name} entered services on {client.created_at.strftime('%Y-%m-%d')} and currently "
-        f"{job_status}. Their case timeline includes {len(notes)} notes from "
+        f"has {len(notes)} case notes on file from "
         f"{first_note.note_date.strftime('%Y-%m-%d')} through {last_note.note_date.strftime('%Y-%m-%d')}, with "
-        f"most activity in {top_note_type.lower()}. There are {overdue_notes} overdue follow-up items and "
-        f"{upcoming_followups} upcoming follow-up items currently on file."
+        f"most activity in {top_note_type.lower()}."
     )
 
 
@@ -164,7 +154,6 @@ class AvailableWorkersCSVView(LoginRequiredMixin, View):
         # Base queryset - active clients who have completed program
         clients = Client.objects.filter(
             status__in=['active', 'program_complete'],
-            job_placed=False  # Not yet placed in permanent job
         ).select_related().prefetch_related('work_assignments')
 
         # `day` filter was tied to removed weekly-availability records; ignored for compatibility.
@@ -371,8 +360,6 @@ class ClientFilePackageView(LoginRequiredMixin, View):
         pw.writerow(['Employment Status', client.get_employment_status_display()])
         pw.writerow(['Program Start Date', client.program_start_date.isoformat() if client.program_start_date else ''])
         pw.writerow(['Program Completed Date', client.program_completed_date.isoformat() if client.program_completed_date else ''])
-        pw.writerow(['Job Placed', 'Yes' if client.job_placed else 'No'])
-        pw.writerow(['Job Placement Date', client.job_placement_date.isoformat() if client.job_placement_date else ''])
         pw.writerow(['Total Case Notes', len(notes)])
         pw.writerow(['Generated At', datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
 
@@ -384,8 +371,6 @@ class ClientFilePackageView(LoginRequiredMixin, View):
             'Note Type',
             'Case Note',
             'Next Steps',
-            'Follow-up Date',
-            'Follow-up Status',
         ])
         for note in notes:
             nw.writerow([
@@ -394,8 +379,6 @@ class ClientFilePackageView(LoginRequiredMixin, View):
                 note.get_note_type_display(),
                 note.content or '',
                 note.next_steps or '',
-                note.follow_up_date.isoformat() if note.follow_up_date else '',
-                followup_stage(note.follow_up_date),
             ])
 
         timeline_items = ''.join(
@@ -406,13 +389,12 @@ class ClientFilePackageView(LoginRequiredMixin, View):
               <td>{escape(note.staff_member or '')}</td>
               <td>{escape((note.content or '').strip() or '—')}</td>
               <td>{escape((note.next_steps or '').strip() or '—')}</td>
-              <td>{escape(note.follow_up_date.isoformat() if note.follow_up_date else '—')}</td>
             </tr>
             """
             for note in notes
         )
         if not timeline_items:
-            timeline_items = '<tr><td colspan="6">No case notes on file yet.</td></tr>'
+            timeline_items = '<tr><td colspan="5">No case notes on file yet.</td></tr>'
 
         html = f"""<!doctype html>
 <html>
@@ -454,8 +436,6 @@ class ClientFilePackageView(LoginRequiredMixin, View):
   <div class="kv">
     <div class="key">Program Start Date</div><div>{client.program_start_date.isoformat() if client.program_start_date else '—'}</div>
     <div class="key">Program Completed Date</div><div>{client.program_completed_date.isoformat() if client.program_completed_date else '—'}</div>
-    <div class="key">Job Placement</div><div>{'Yes' if client.job_placed else 'No'}</div>
-    <div class="key">Job Placement Date</div><div>{client.job_placement_date.isoformat() if client.job_placement_date else '—'}</div>
     <div class="key">Case Note Count</div><div>{len(notes)}</div>
   </div>
 
@@ -468,7 +448,6 @@ class ClientFilePackageView(LoginRequiredMixin, View):
         <th>Staff</th>
         <th>Case Note</th>
         <th>Next Steps</th>
-        <th>Follow-up Date</th>
       </tr>
     </thead>
     <tbody>
@@ -740,36 +719,14 @@ CLIENT_OUTCOMES_HEADERS = [
     'Last Updated',
     'Program Start',
     'Program Completed',
-    'Job Placed',
-    'Job Placement Date',
     'Has Resume',
     'Documents On File',
     'Total Case Notes',
     'Last Case Note Date',
-    'Follow-up Overdue Bucket',
 ]
 
 
-def _worst_followup_bucket(notes, today=None):
-    today = today or date.today()
-    overdue_bucket = 'no_followup'
-    rank = {
-        'no_followup': 0,
-        'current': 1,
-        'overdue_under_30': 2,
-        'overdue_30_plus': 3,
-        'overdue_60_plus': 4,
-        'overdue_90_plus': 5,
-    }
-    for note in notes:
-        stage = followup_stage(note.follow_up_date, today=today)
-        if rank.get(stage, 0) > rank.get(overdue_bucket, 0):
-            overdue_bucket = stage
-    return overdue_bucket
-
-
 def _write_client_outcomes_csv(writer, clients):
-    today = date.today()
     notes_by_client = {}
     for client in clients.prefetch_related('casenotes'):
         notes_by_client[client.id] = list(client.casenotes.all().order_by('-note_date', '-created_at'))
@@ -794,13 +751,10 @@ def _write_client_outcomes_csv(writer, clients):
             client.updated_at.strftime('%Y-%m-%d') if client.updated_at else '',
             client.program_start_date.isoformat() if client.program_start_date else '',
             client.program_completed_date.isoformat() if client.program_completed_date else '',
-            'Yes' if client.job_placed else 'No',
-            client.job_placement_date.isoformat() if client.job_placement_date else '',
             'Yes' if client.resume else 'No',
             getattr(client, 'documents_on_file', 0) or 0,
             getattr(client, 'case_notes_total', len(notes)),
             last_note.note_date.strftime('%Y-%m-%d') if last_note and last_note.note_date else '',
-            _worst_followup_bucket(notes, today=today),
         ])
 
 
@@ -904,58 +858,15 @@ class ClientOutcomesPackageView(LoginRequiredMixin, View):
 
 class ManagerOperationsPackageView(LoginRequiredMixin, View):
     """
-    One-click manager bundle: outcomes package + follow-up scorecard + PitStop hours.
+    One-click manager bundle: outcomes package + PitStop hours.
     """
 
     def get(self, request):
         clients = _clients_for_outcomes_report(request)
-        since_days = int(request.GET.get('since_days', '90') or 90)
-        since_date = date.today() - timedelta(days=since_days)
 
         outcomes_csv = io.StringIO()
         _write_client_outcomes_csv(csv.writer(outcomes_csv), clients)
         outcomes_html = _build_client_outcomes_summary_html(clients, request)
-
-        score_io = io.StringIO()
-        score_writer = csv.writer(score_io)
-        score_writer.writerow([
-            'Staff Member', 'Total Notes', 'Follow-up Notes', 'Clients Touched',
-            'Overdue 30+', 'Overdue 60+', 'Overdue 90+', 'Credits', 'Mark',
-        ])
-        notes = CaseNote.objects.filter(note_date__gte=since_date).select_related('client')
-        if request.GET.get('mine') in {'1', 'true', 'True'}:
-            notes = notes.filter(staff_member__in=_staff_aliases(request.user))
-        scorecard = {}
-        for note in notes:
-            key = (note.staff_member or 'Unassigned').strip() or 'Unassigned'
-            if key not in scorecard:
-                scorecard[key] = {
-                    'total_notes': 0, 'follow_up_notes': 0, 'clients_touched': set(),
-                    'overdue_30_plus': 0, 'overdue_60_plus': 0, 'overdue_90_plus': 0,
-                }
-            row = scorecard[key]
-            row['total_notes'] += 1
-            if note.note_type == 'follow_up':
-                row['follow_up_notes'] += 1
-            row['clients_touched'].add(note.client_id)
-            stage = followup_stage(note.follow_up_date)
-            if stage == 'overdue_30_plus':
-                row['overdue_30_plus'] += 1
-            elif stage == 'overdue_60_plus':
-                row['overdue_60_plus'] += 1
-            elif stage == 'overdue_90_plus':
-                row['overdue_90_plus'] += 1
-        for staff_member, row in sorted(scorecard.items(), key=lambda item: item[0].lower()):
-            credits = (
-                (row['follow_up_notes'] * 3) + row['total_notes']
-                - (row['overdue_30_plus'] * 2) - (row['overdue_60_plus'] * 3)
-                - (row['overdue_90_plus'] * 4)
-            )
-            mark = 'A' if credits >= 80 else 'B' if credits >= 50 else 'C' if credits >= 25 else 'D'
-            score_writer.writerow([
-                staff_member, row['total_notes'], row['follow_up_notes'], len(row['clients_touched']),
-                row['overdue_30_plus'], row['overdue_60_plus'], row['overdue_90_plus'], credits, mark,
-            ])
 
         pitstop_io = io.StringIO()
         start_date = (request.GET.get('start_date') or '').strip()
@@ -979,8 +890,7 @@ h1{{margin-bottom:6px}}.step{{margin:10px 0;padding:10px 14px;background:#f8fafc
 <p>Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}. Unzip this folder, then:</p>
 <div class="step"><strong>1.</strong> Open <code>client_outcomes.csv</code> in Excel — full caseload ({clients.count()} clients).</div>
 <div class="step"><strong>2.</strong> Print <code>client_outcomes_summary.html</code> for a one-page meeting snapshot.</div>
-<div class="step"><strong>3.</strong> Review <code>staff_followup_scorecard.csv</code> (last {since_days} days).</div>
-<div class="step"><strong>4.</strong> Review <code>pitstop_hours.csv</code> for clocked time (uses activity date range from Reports Hub).</div>
+<div class="step"><strong>3.</strong> Review <code>pitstop_hours.csv</code> for clocked time (uses activity date range from Reports Hub).</div>
 </body></html>"""
 
         out = io.BytesIO()
@@ -988,176 +898,12 @@ h1{{margin-bottom:6px}}.step{{margin:10px 0;padding:10px 14px;background:#f8fafc
             zf.writestr('START_HERE.html', start_here)
             zf.writestr(f'client_outcomes_{date.today().isoformat()}.csv', outcomes_csv.getvalue())
             zf.writestr('client_outcomes_summary.html', outcomes_html)
-            zf.writestr('staff_followup_scorecard.csv', score_io.getvalue())
             zf.writestr('pitstop_hours.csv', pitstop_io.getvalue())
         out.seek(0)
         response = HttpResponse(out.getvalue(), content_type='application/zip')
         response['Content-Disposition'] = (
             f'attachment; filename="manager_operations_package_{date.today().isoformat()}.zip"'
         )
-        return response
-
-
-class JobPlacementsReportCSVView(LoginRequiredMixin, View):
-    """
-    Export job placements for audit and manager review.
-    GET parameters:
-      - start_date (required-ish for audit windows)
-      - end_date
-      - work_type (full_time|part_time|contract)
-      - mine=1 (placements logged by current user)
-      - logged_by (string contains filter on logger name)
-    """
-
-    def get(self, request):
-        start_date = (request.GET.get('start_date') or '').strip()
-        end_date = (request.GET.get('end_date') or '').strip()
-        work_type = (request.GET.get('work_type') or '').strip()
-        mine = request.GET.get('mine')
-        logged_by = (request.GET.get('logged_by') or '').strip()
-
-        placements = JobPlacement.objects.select_related('client', 'created_by_user').all()
-        if start_date:
-            placements = placements.filter(start_date__gte=start_date)
-        if end_date:
-            placements = placements.filter(start_date__lte=end_date)
-        if work_type:
-            placements = placements.filter(work_type=work_type)
-        if mine in {'1', 'true', 'True'}:
-            aliases = _staff_aliases(request.user)
-            placements = placements.filter(
-                Q(created_by_user=request.user) | Q(created_by_name__in=aliases)
-            )
-        elif logged_by:
-            placements = placements.filter(created_by_name__icontains=logged_by)
-
-        response = HttpResponse(content_type='text/csv')
-        filename_suffix = f"{start_date or 'all'}_to_{end_date or 'all'}"
-        response['Content-Disposition'] = (
-            f'attachment; filename="job_placements_{filename_suffix}.csv"'
-        )
-        writer = csv.writer(response)
-        writer.writerow([
-            'Placement ID',
-            'Client ID',
-            'Client Name',
-            'Client Phone',
-            'Employer',
-            'Job Title',
-            'Work Type',
-            'Hourly Rate',
-            'Start Date',
-            'Employer Address',
-            'Logged By',
-            'Logged At',
-            'Notes',
-        ])
-        for p in placements.order_by('-start_date', '-created_at'):
-            writer.writerow([
-                p.id,
-                p.client_id,
-                p.client.full_name,
-                p.client.phone or '',
-                p.employer,
-                p.job_title or '',
-                p.get_work_type_display(),
-                p.hourly_rate if p.hourly_rate is not None else '',
-                p.start_date.isoformat() if p.start_date else '',
-                p.employer_address or '',
-                p.created_by_name or (p.created_by_user.username if p.created_by_user else ''),
-                p.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                p.notes or '',
-            ])
-        return response
-
-
-class StaffFollowUpScorecardCSVView(LoginRequiredMixin, View):
-    """
-    Staff performance scorecard for follow-up activity.
-    Uses existing case notes (no schema changes required).
-    """
-
-    def get(self, request):
-        mine = request.GET.get('mine')
-        since_days = int(request.GET.get('since_days', '90') or 90)
-        since_date = date.today() - timedelta(days=since_days)
-
-        notes = CaseNote.objects.filter(note_date__gte=since_date).select_related('client')
-        if mine in {'1', 'true', 'True'}:
-            notes = notes.filter(staff_member__in=_staff_aliases(request.user))
-
-        # Aggregate by staff_member
-        scorecard = {}
-        for note in notes:
-            key = (note.staff_member or 'Unassigned').strip() or 'Unassigned'
-            if key not in scorecard:
-                scorecard[key] = {
-                    'total_notes': 0,
-                    'follow_up_notes': 0,
-                    'clients_touched': set(),
-                    'overdue_30_plus': 0,
-                    'overdue_60_plus': 0,
-                    'overdue_90_plus': 0,
-                }
-            row = scorecard[key]
-            row['total_notes'] += 1
-            if note.note_type == 'follow_up':
-                row['follow_up_notes'] += 1
-            row['clients_touched'].add(note.client_id)
-            stage = followup_stage(note.follow_up_date)
-            if stage == 'overdue_30_plus':
-                row['overdue_30_plus'] += 1
-            elif stage == 'overdue_60_plus':
-                row['overdue_60_plus'] += 1
-            elif stage == 'overdue_90_plus':
-                row['overdue_90_plus'] += 1
-
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = (
-            f'attachment; filename="staff_followup_scorecard_{date.today().isoformat()}.csv"'
-        )
-        writer = csv.writer(response)
-        writer.writerow([
-            'Staff Member',
-            'Total Notes',
-            'Follow-up Notes',
-            'Clients Touched',
-            'Overdue 30+',
-            'Overdue 60+',
-            'Overdue 90+',
-            'Credits',
-            'Mark',
-        ])
-
-        for staff_member, row in sorted(scorecard.items(), key=lambda item: item[0].lower()):
-            credits = (
-                (row['follow_up_notes'] * 3)
-                + (row['total_notes'])
-                - (row['overdue_30_plus'] * 2)
-                - (row['overdue_60_plus'] * 3)
-                - (row['overdue_90_plus'] * 4)
-            )
-            if credits >= 80:
-                mark = 'A'
-            elif credits >= 50:
-                mark = 'B'
-            elif credits >= 20:
-                mark = 'C'
-            else:
-                mark = 'Needs Attention'
-
-            writer.writerow([
-                staff_member,
-                row['total_notes'],
-                row['follow_up_notes'],
-                len(row['clients_touched']),
-                row['overdue_30_plus'],
-                row['overdue_60_plus'],
-                row['overdue_90_plus'],
-                credits,
-                mark,
-            ])
-
         return response
 
 

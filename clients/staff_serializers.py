@@ -54,8 +54,6 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
             'training_interest',
             'program_start_date',
             'program_completed_date',
-            'job_placed',
-            'job_placement_date',
             'age',
             'case_notes_count',
             'created_at',
@@ -76,7 +74,6 @@ class StaffCaseNoteSerializer(serializers.ModelSerializer):
             'note_type_display',
             'content',
             'next_steps',
-            'follow_up_date',
             'staff_member',
             'created_at',
         ]

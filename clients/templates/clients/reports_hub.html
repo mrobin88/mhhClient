@@ -178,22 +178,6 @@
             <option value="inactive">Inactive</option>
           </select>
         </label>
-        <label>Work type
-          <select id="workType">
-            <option value="">All work types</option>
-            <option value="full_time">Full-time</option>
-            <option value="part_time">Part-time</option>
-            <option value="contract">Contract</option>
-          </select>
-        </label>
-        <label>Follow-up window
-          <select id="sinceDays">
-            <option value="30">Last 30 days</option>
-            <option value="60">Last 60 days</option>
-            <option value="90" selected>Last 90 days</option>
-            <option value="180">Last 180 days</option>
-          </select>
-        </label>
         <label>Case manager / logger name <input id="staffName" type="text" placeholder="e.g., Maria"></label>
         <label>Client lookup (ID, phone, or name) <input id="clientLookup" type="text" placeholder="e.g., 123 or 4155551234"></label>
         <label class="toggle"><input id="mineOnly" type="checkbox"> Only my records</label>
@@ -203,12 +187,12 @@
     <section class="grid">
       <div class="card" style="border-color:#0f766e;background:#f0fdfa;">
         <div class="title">📦 Manager package (recommended)</div>
-        <div class="desc">ZIP with outcomes CSV, printable summary, follow-up scorecard, and PitStop hours. Open START_HERE.html first.</div>
+        <div class="desc">ZIP with outcomes CSV, printable summary, and PitStop hours. Open START_HERE.html first.</div>
         <a class="btn" id="managerPackageZip" href="/api/reports/manager-operations-package/" target="_blank">Download ZIP</a>
       </div>
       <div class="card">
         <div class="title">🧾 Client Outcomes</div>
-        <div class="desc">Full caseload export — case manager, notes, job placement, missing-data flags.</div>
+        <div class="desc">Full caseload export — case manager, notes, and missing-data flags.</div>
         <a class="btn" id="clientOutcomesPackage" href="/api/reports/client-outcomes-package/" target="_blank">Download ZIP (CSV + print)</a>
         <a class="btn secondary" id="clientOutcomesCsv" href="/api/reports/client-outcomes/" target="_blank">CSV only</a>
       </div>
@@ -217,11 +201,6 @@
         <div class="desc">City Build clients only — checklist on file vs missing (DB only, no blob reads). Honors case manager and status filters above.</div>
         <a class="btn" id="citybuildMissingDocsCsv" href="/api/reports/citybuild-missing-docs/" target="_blank">Download CSV</a>
         <a class="btn secondary" id="citybuildMissingDocsIncomplete" href="/api/reports/citybuild-missing-docs/?only_incomplete=1" target="_blank">Incomplete only</a>
-      </div>
-      <div class="card">
-        <div class="title">💼 Job Placements</div>
-        <div class="desc">Placement, pay, work type, start date, and who logged it.</div>
-        <a class="btn" id="jobPlacementsCsv" href="/api/reports/job-placements/" target="_blank">Download CSV</a>
       </div>
       <div class="card">
         <div class="title">📦 Workforce Inventory Package</div>
@@ -259,8 +238,6 @@
     const endEl = document.getElementById('endDate');
     const programEl = document.getElementById('program');
     const clientStatusEl = document.getElementById('clientStatus');
-    const workTypeEl = document.getElementById('workType');
-    const sinceDaysEl = document.getElementById('sinceDays');
     const staffNameEl = document.getElementById('staffName');
     const mineOnlyEl = document.getElementById('mineOnly');
     const clientLookupEl = document.getElementById('clientLookup');
@@ -290,8 +267,7 @@
       };
       document.getElementById('managerPackageZip').href = buildUrl('/api/reports/manager-operations-package/', {
         ...outcomeParams,
-        ...activityDates,
-        since_days: sinceDaysEl.value || '90'
+        ...activityDates
       });
       document.getElementById('clientOutcomesPackage').href = buildUrl('/api/reports/client-outcomes-package/', outcomeParams);
       document.getElementById('clientOutcomesCsv').href = buildUrl('/api/reports/client-outcomes/', outcomeParams);
@@ -305,13 +281,6 @@
       document.getElementById('citybuildMissingDocsIncomplete').href = buildUrl('/api/reports/citybuild-missing-docs/', {
         ...citybuildParams,
         only_incomplete: '1'
-      });
-      document.getElementById('jobPlacementsCsv').href = buildUrl('/api/reports/job-placements/', {
-        ...activityDates,
-        ...createdRange,
-        work_type: workTypeEl.value || '',
-        logged_by: staffNameEl.value || '',
-        mine
       });
       document.getElementById('workforceZip').href = buildUrl('/api/reports/workforce-inventory-package/', {
         ...activityDates,
@@ -334,7 +303,7 @@
       });
     };
 
-    [startEl, endEl, programEl, clientStatusEl, workTypeEl, sinceDaysEl, staffNameEl, mineOnlyEl, clientLookupEl, createdRangeOnlyEl]
+    [startEl, endEl, programEl, clientStatusEl, staffNameEl, mineOnlyEl, clientLookupEl, createdRangeOnlyEl]
       .forEach((el) => el.addEventListener('change', applyLinks));
     [staffNameEl, clientLookupEl].forEach((el) => el.addEventListener('input', applyLinks));
     applyLinks();

@@ -19,7 +19,7 @@ from django.contrib import messages
 from django.core.mail import send_mail
 from django.utils import timezone
 from .time_display import format_display_datetime
-from .models import Client, CaseNote, CityBuildFileChecklist, Document, PitStopApplication, JobPlacement
+from .models import Client, CaseNote, CityBuildFileChecklist, Document, PitStopApplication
 from .models_extensions import (
     WorkSite,
     WorkerAccount,
@@ -126,8 +126,8 @@ class CaseNoteInline(admin.TabularInline):
     """Inline admin for displaying case notes as a timestamped list on Client admin page"""
     model = CaseNote
     extra = 0
-    readonly_fields = ['overdue_indicator', 'entered_at_display']
-    fields = ['note_date', 'note_type', 'content', 'next_steps', 'follow_up_date', 'overdue_indicator', 'entered_at_display']
+    readonly_fields = ['entered_at_display']
+    fields = ['note_date', 'note_type', 'content', 'next_steps', 'entered_at_display']
     ordering = ['-note_date', '-created_at']
     can_delete = True
     verbose_name = 'Case Note'
@@ -160,7 +160,6 @@ class CaseNoteInline(admin.TabularInline):
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
         if obj and obj.pk:
-            readonly.append('overdue_indicator')
             readonly.append('entered_at_display')
         return readonly
 
@@ -179,27 +178,6 @@ class CaseNoteInline(admin.TabularInline):
         }
         js = ()
     
-    def overdue_indicator(self, obj):
-        """Show overdue follow-up indicator"""
-        if not obj or not obj.pk:
-            return format_html('<em style="color: #999;">New</em>')
-        
-        if obj.is_overdue_followup:
-            return format_html(
-                '<span style="background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">⚠️ OVERDUE</span>'
-            )
-        elif obj.follow_up_date:
-            from datetime import date
-            days_until = (obj.follow_up_date - date.today()).days
-            if days_until <= 3:
-                return format_html(
-                    '<span style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">Due in {} day{}</span>',
-                    days_until,
-                    's' if days_until != 1 else ''
-                )
-        return format_html('<span style="color: #10b981;">✓</span>')
-    overdue_indicator.short_description = 'Status'
-
     def has_add_permission(self, request, obj=None):
         """Allow adding new case notes"""
         return True
@@ -211,8 +189,8 @@ class CaseNoteInline(admin.TabularInline):
 
 @admin.register(CaseNote)
 class CaseNoteAdmin(admin.ModelAdmin):
-    list_display = ['formatted_date', 'client', 'note_type', 'content_preview', 'follow_up_date', 'is_overdue']
-    list_filter = ['note_type', 'staff_member', 'note_date', 'follow_up_date']
+    list_display = ['formatted_date', 'client', 'note_type', 'content_preview']
+    list_filter = ['note_type', 'staff_member', 'note_date']
     search_fields = ['client__first_name', 'client__last_name', 'content', 'staff_member']
     date_hierarchy = 'note_date'
     readonly_fields = ['created_at', 'updated_at', 'staff_member_display']
@@ -238,28 +216,13 @@ class CaseNoteAdmin(admin.ModelAdmin):
             'fields': ('note_date', 'note_type', 'content', 'next_steps'),
             'description': '⚠️ IMPORTANT: Each case note should be ONE entry. Set Note date to when the interaction happened (retroactive entry is OK).',
         }),
-        ('Follow-up', {
-            'fields': ('follow_up_date',),
-            'description': 'Set a follow-up date to receive email alerts when it\'s due or overdue.'
-        }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         })
     )
-    
-    def is_overdue(self, obj):
-        if obj.is_overdue_followup:
-            return format_html('<span style="color: red; font-weight: bold;">⚠️ OVERDUE</span>')
-        elif obj.follow_up_date:
-            from datetime import date
-            days_until = (obj.follow_up_date - date.today()).days
-            if days_until <= 3:
-                return format_html('<span style="color: orange;">Due in {} day{}</span>', days_until, 's' if days_until != 1 else '')
-        return format_html('<span style="color: green;">✓ On Track</span>')
-    is_overdue.short_description = 'Follow-up Status'
-    
-    actions = ['export_to_csv', 'send_followup_alerts_action']
+
+    actions = ['export_to_csv']
     
     def export_to_csv(self, request, queryset):
         """Export selected case notes to CSV format"""
@@ -278,8 +241,6 @@ class CaseNoteAdmin(admin.ModelAdmin):
             'Staff Member',
             'Content',
             'Next Steps',
-            'Follow-up Date',
-            'Follow-up Status',
             'Note Date',
             'Entered At (system)',
             'Updated At'
@@ -287,20 +248,6 @@ class CaseNoteAdmin(admin.ModelAdmin):
         
         # Write data rows
         for note in queryset.select_related('client'):
-            # Calculate follow-up status
-            followup_status = ''
-            if note.follow_up_date:
-                from datetime import date
-                days_diff = (note.follow_up_date - date.today()).days
-                if days_diff < 0:
-                    followup_status = f'OVERDUE ({abs(days_diff)} days)'
-                elif days_diff == 0:
-                    followup_status = 'Due Today'
-                else:
-                    followup_status = f'Due in {days_diff} day{"s" if days_diff > 1 else ""}'
-            else:
-                followup_status = 'No follow-up'
-            
             writer.writerow([
                 note.id,
                 note.client.full_name,
@@ -310,8 +257,6 @@ class CaseNoteAdmin(admin.ModelAdmin):
                 note.staff_member,
                 note.content,
                 note.next_steps or '',
-                note.follow_up_date.strftime('%Y-%m-%d') if note.follow_up_date else '',
-                followup_status,
                 note.note_date.strftime('%Y-%m-%d') if note.note_date else '',
                 format_display_datetime(note.created_at, '%Y-%m-%d %H:%M:%S') if note.created_at else '',
                 format_display_datetime(note.updated_at, '%Y-%m-%d %H:%M:%S') if note.updated_at else '',
@@ -339,59 +284,6 @@ class CaseNoteAdmin(admin.ModelAdmin):
         return '-'
     content_preview.short_description = 'Note'
     
-    def send_followup_alerts_action(self, request, queryset):
-        """Admin action to send follow-up alerts for selected case notes"""
-        from clients.notifications import send_followup_alert
-        from users.models import StaffUser
-        
-        sent = 0
-        errors = 0
-        
-        for note in queryset:
-            if not note.follow_up_date:
-                continue
-            
-            # Try to find user email
-            user_email = None
-            try:
-                user = StaffUser.objects.filter(
-                    username__iexact=note.staff_member
-                ).first()
-                if not user:
-                    name_parts = note.staff_member.split()
-                    if len(name_parts) >= 2:
-                        user = StaffUser.objects.filter(
-                            first_name__iexact=name_parts[0],
-                            last_name__iexact=name_parts[-1]
-                        ).first()
-                if user and user.email:
-                    user_email = user.email
-            except:
-                pass
-            
-            if not user_email:
-                from django.conf import settings as django_settings
-                user_email = getattr(django_settings, 'CASE_NOTE_ALERT_EMAIL', None)
-                if not user_email:
-                    admin_user = StaffUser.objects.filter(is_superuser=True).first()
-                    if admin_user and admin_user.email:
-                        user_email = admin_user.email
-            
-            if user_email:
-                if send_followup_alert(note, user_email):
-                    sent += 1
-                else:
-                    errors += 1
-            else:
-                errors += 1
-        
-        if sent > 0:
-            self.message_user(request, f'✅ Sent {sent} follow-up alert email(s)')
-        if errors > 0:
-            self.message_user(request, f'❌ {errors} error(s) occurred', level='error')
-    
-    send_followup_alerts_action.short_description = "Send follow-up alert emails for selected case notes"
-
     def staff_member_display(self, obj):
         if obj and (obj.staff_member or '').strip():
             return obj.staff_member
@@ -404,38 +296,11 @@ class CaseNoteAdmin(admin.ModelAdmin):
             obj.staff_member = _staff_display_name(request.user)
         super().save_model(request, obj, form, change)
     
-    def changelist_view(self, request, extra_context=None):
-        """Add overdue follow-ups alert to changelist"""
-        response = super().changelist_view(request, extra_context)
-        
-        if hasattr(response, 'context_data'):
-            overdue_qs = CaseNote.objects.filter(
-                follow_up_date__lt=timezone.now().date()
-            ).exclude(follow_up_date__isnull=True)
-            overdue_count = overdue_qs.count()
-            
-            if overdue_count > 0:
-                from django.contrib import messages
-                today = timezone.now().date()
-                overdue_30 = overdue_qs.filter(follow_up_date__lte=today - timedelta(days=30)).count()
-                overdue_60 = overdue_qs.filter(follow_up_date__lte=today - timedelta(days=60)).count()
-                overdue_90 = overdue_qs.filter(follow_up_date__lte=today - timedelta(days=90)).count()
-                messages.warning(
-                    request,
-                    (
-                        f'⚠️ Overdue follow-ups: {overdue_count} total '
-                        f'({overdue_30} at 30+ days, {overdue_60} at 60+ days, {overdue_90} at 90+ days).'
-                    ),
-                    extra_tags='alert'
-                )
-        
-        return response
-
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'program_completed_date', 'job_placed', 'has_resume', 'case_notes_count', 'created_at']
-    list_filter = ['status', 'training_interest', 'job_placed', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
-    search_fields = ['first_name', 'last_name', 'phone', 'email', 'job_title', 'job_company']
+    list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'program_completed_date', 'has_resume', 'case_notes_count', 'created_at']
+    list_filter = ['status', 'training_interest', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
+    search_fields = ['first_name', 'last_name', 'phone', 'email']
     readonly_fields = [
         'created_at',
         'updated_at',
@@ -603,7 +468,6 @@ class ClientAdmin(admin.ModelAdmin):
                     note_type=request.POST.get('note_type', 'general'),
                     content=request.POST.get('content', ''),
                     next_steps=request.POST.get('next_steps', '') or None,
-                    follow_up_date=request.POST.get('follow_up_date') or None,
                     note_date=note_date or timezone.localdate(),
                 )
                 messages.success(request, f'Case note added successfully for {client.full_name}!')
@@ -650,8 +514,8 @@ class ClientAdmin(admin.ModelAdmin):
             'fields': ('status', 'staff_name'),
             'description': 'Case manager is set automatically from your login when you create this client.',
         }),
-        ('Program Completion & Job Placement', {
-            'fields': ('program_completed_date', 'job_placed', 'job_placement_date', 'job_title', 'job_company', 'job_hourly_wage')
+        ('Program Completion', {
+            'fields': ('program_completed_date',)
         }),
         ('Worker Portal', {
             'fields': ('worker_portal_summary',),
@@ -1143,12 +1007,10 @@ class ClientAdmin(admin.ModelAdmin):
     actions = [
         'mark_active',
         'mark_completed',
-        'mark_job_placed',
         'create_worker_accounts',
         'text_missing_documents',
         'export_to_csv',
         'export_program_report',
-        'export_job_placement_report',
         'export_client_profiles_pdf',
     ]
 
@@ -1312,21 +1174,14 @@ class ClientAdmin(admin.ModelAdmin):
         self.message_user(request, f'{updated} clients marked as completed with today\'s date.')
     mark_completed.short_description = "Mark selected clients as completed"
     
-    def mark_job_placed(self, request, queryset):
-        from django.utils import timezone
-        updated = queryset.update(job_placed=True, job_placement_date=timezone.now().date())
-        self.message_user(request, f'{updated} clients marked as job placed with today\'s date.')
-    mark_job_placed.short_description = "Mark selected clients as job placed"
-    
     def export_program_report(self, request, queryset):
-        """Export program completion and job placement report"""
+        """Export program completion report"""
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="program_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
         
         writer = csv.writer(response)
         writer.writerow([
-            'Client Name', 'Phone', 'Email', 'Program', 'Status', 'Program Completed Date',
-            'Job Placed', 'Job Placement Date', 'Job Title', 'Company', 'Hourly Wage', 'Created Date'
+            'Client Name', 'Phone', 'Email', 'Program', 'Status', 'Program Completed Date', 'Created Date'
         ])
         
         for client in queryset.select_related():
@@ -1337,50 +1192,11 @@ class ClientAdmin(admin.ModelAdmin):
                 client.get_training_interest_display(),
                 client.get_status_display(),
                 client.program_completed_date.strftime('%Y-%m-%d') if client.program_completed_date else '',
-                'Yes' if client.job_placed else 'No',
-                client.job_placement_date.strftime('%Y-%m-%d') if client.job_placement_date else '',
-                client.job_title or '',
-                client.job_company or '',
-                f'${client.job_hourly_wage}' if client.job_hourly_wage else '',
                 client.created_at.strftime('%Y-%m-%d')
             ])
         
         return response
-    export_program_report.short_description = "Export program completion & job placement report"
-    
-    def export_job_placement_report(self, request, queryset):
-        """Export detailed job placement report for placed clients only"""
-        placed_clients = queryset.filter(job_placed=True)
-        
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="job_placements_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
-        
-        writer = csv.writer(response)
-        writer.writerow([
-            'Client Name', 'Phone', 'Email', 'Program Completed', 'Job Title', 'Company', 
-            'Hourly Wage', 'Placement Date', 'Days to Placement', 'Program Type'
-        ])
-        
-        for client in placed_clients:
-            days_to_placement = ''
-            if client.program_completed_date and client.job_placement_date:
-                days_to_placement = (client.job_placement_date - client.program_completed_date).days
-            
-            writer.writerow([
-                client.full_name,
-                client.phone,
-                client.email or '',
-                client.program_completed_date.strftime('%Y-%m-%d') if client.program_completed_date else '',
-                client.job_title or '',
-                client.job_company or '',
-                f'${client.job_hourly_wage}' if client.job_hourly_wage else '',
-                client.job_placement_date.strftime('%Y-%m-%d') if client.job_placement_date else '',
-                str(days_to_placement) if days_to_placement != '' else '',
-                client.get_training_interest_display()
-            ])
-        
-        return response
-    export_job_placement_report.short_description = "Export job placement report (placed clients only)"
+    export_program_report.short_description = "Export program completion report"
     
     def export_client_profiles_pdf(self, request, queryset):
         """Export client profiles as PDF documents - DISABLED (WeasyPrint removed)"""
@@ -1721,88 +1537,20 @@ class DocumentAdmin(admin.ModelAdmin):
 
 @admin.register(PitStopApplication)
 class PitStopApplicationAdmin(admin.ModelAdmin):
-    list_display = ['client', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'available_days_summary', 'created_at']
+    list_display = ['client', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'open_availability_status', 'created_at']
     list_filter = ['employment_desired', 'can_work_us', 'is_veteran', 'created_at']
     search_fields = ['client__first_name', 'client__last_name', 'position_applied_for']
     autocomplete_fields = ['client']
     date_hierarchy = 'created_at'
-    readonly_fields = ['created_at', 'updated_at', 'schedule_summary']
-    
-    def available_days_summary(self, obj):
-        """Show summary of available days"""
-        if not obj.weekly_schedule:
-            return "No schedule set"
-        days_with_times = [day for day, times in obj.weekly_schedule.items() if times]
-        return ", ".join(days_with_times) if days_with_times else "No days available"
-    available_days_summary.short_description = 'Available Days'
-    
-    def schedule_summary(self, obj):
-        """Show detailed schedule summary"""
-        if not obj.weekly_schedule:
-            return "No schedule set"
-        
-        summary = []
-        for day, times in obj.weekly_schedule.items():
-            if times:
-                time_labels = []
-                for time_code in times:
-                    # Convert time code to label
-                    for choice in obj.SHIFT_CHOICES:
-                        if choice[0] == time_code:
-                            time_labels.append(choice[1])
-                            break
-                summary.append(f"{day}: {', '.join(time_labels)}")
-        
-        return format_html('<br>'.join(summary)) if summary else "No availability set"
-    schedule_summary.short_description = 'Weekly Schedule'
+    readonly_fields = ['created_at', 'updated_at']
 
-
-@admin.register(JobPlacement)
-class JobPlacementAdmin(admin.ModelAdmin):
-    list_display = [
-        'client',
-        'employer',
-        'job_title',
-        'work_type',
-        'hourly_rate',
-        'start_date',
-        'created_by_name',
-        'created_at',
-    ]
-    list_filter = ['work_type', 'start_date', 'created_at', 'created_by_name']
-    search_fields = [
-        'client__first_name',
-        'client__last_name',
-        'employer',
-        'job_title',
-        'created_by_name',
-    ]
-    autocomplete_fields = ['client']
-    readonly_fields = ['created_at', 'updated_at', 'created_by_user', 'created_by_name']
-
-    fieldsets = (
-        ('Placement', {
-            'fields': (
-                'client',
-                'employer',
-                'job_title',
-                'work_type',
-                'hourly_rate',
-                'start_date',
-                'employer_address',
-                'notes',
-            )
-        }),
-        ('Audit', {
-            'fields': ('created_by_user', 'created_by_name', 'created_at', 'updated_at'),
-            'description': 'Logged automatically from your staff login.',
-        }),
-    )
-
-    def save_model(self, request, obj, form, change):
-        obj.created_by_user = request.user
-        obj.created_by_name = _staff_display_name(request.user)
-        super().save_model(request, obj, form, change)
+    def open_availability_status(self, obj):
+        schedule = obj.weekly_schedule or {}
+        for _, times in schedule.items():
+            if isinstance(times, list) and times:
+                return format_html('<strong style="color:#15803d;">OPEN AVAILABILITY</strong>')
+        return format_html('<strong style="color:#b91c1c;">NOT OPEN</strong>')
+    open_availability_status.short_description = 'Open Availability'
 
 
 # ========================================
@@ -1851,7 +1599,7 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         }),
         ('Notes (optional)', {
             'classes': ('collapse',),
-            'fields': ('notes', 'follow_up_notes', 'created_by', 'created_at'),
+            'fields': ('notes', 'created_by', 'created_at'),
         }),
         ('Login audit', {
             'classes': ('collapse',),
