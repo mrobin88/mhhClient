@@ -286,8 +286,13 @@ class WorkerTimePunchTests(TestCase):
         response = self.api.post(
             '/api/worker/incident-report/',
             {
-                'supervisor_name': 'Jane Supervisor',
-                'details': 'Customer slipped near the sink and we cleaned it.',
+                'occurred_at': '2026-06-25T09:30',
+                'involved_people': 'Customer and Pit Stop worker',
+                'brief_description': 'Customer slipped near the sink.',
+                'what_happened': 'Customer slipped near the sink and we cleaned it.',
+                'where_happened': 'Restroom sink area',
+                'why_happened': 'Water on the floor',
+                'actions_taken': 'Checked on customer and cleaned the floor.',
             },
             format='json',
         )
@@ -295,16 +300,26 @@ class WorkerTimePunchTests(TestCase):
         note = CaseNote.objects.latest('created_at')
         self.assertEqual(note.client_id, self.client_record.id)
         self.assertIn('Worker Incident Report', note.content)
-        self.assertIn('Jane Supervisor', note.content)
+        self.assertIn(f'Reporting person: {self.client_record.full_name}', note.content)
+        self.assertIn('When it happened: 2026-06-25T09:30', note.content)
 
     def test_worker_incident_report_requires_fields(self):
         response = self.api.post(
             '/api/worker/incident-report/',
-            {'supervisor_name': '', 'details': ''},
+            {
+                'occurred_at': '',
+                'involved_people': '',
+                'brief_description': '',
+                'what_happened': '',
+                'where_happened': '',
+                'why_happened': '',
+                'actions_taken': '',
+            },
             format='json',
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn('supervisor_name', response.data)
+        self.assertIn('occurred_at', response.data)
+        self.assertIn('involved_people', response.data)
 
     def test_worker_can_update_profile_goals(self):
         response = self.api.patch(

@@ -1,16 +1,18 @@
 <template>
   <div class="worker-login-shell">
-    <div class="max-w-xs w-full">
-      <div class="text-center mb-3">
+    <div class="worker-login-panel">
+      <div class="text-center mb-5">
         <div class="worker-login-brand">
           <BriefcaseIcon aria-hidden="true" />
         </div>
-        <h1 class="text-lg font-semibold text-white tracking-tight">PitStop Worker</h1>
-        <p class="text-[11px] text-slate-300 mt-0.5">Market-style shift terminal</p>
+        <h1 class="worker-login-title">Pit Stop Worker Portal</h1>
+        <p class="worker-login-subtitle">
+          Clock in, clock out, report incidents, and submit feedback without paper forms.
+        </p>
       </div>
 
-      <div class="worker-card p-3">
-        <form @submit.prevent="handleLogin" class="space-y-2.5">
+      <div class="worker-card worker-login-card">
+        <form @submit.prevent="handleLogin" class="worker-login-form">
           <div>
             <label for="phone" class="worker-label">Mobile number</label>
             <div class="worker-input-wrap">
@@ -49,7 +51,7 @@
             <button
               type="button"
               @click="useLast4()"
-              class="worker-btn worker-btn-secondary mt-1.5 text-[11px]"
+              class="worker-btn worker-btn-secondary worker-login-helper-btn"
             >
               Use last 4 of my number
             </button>
@@ -66,9 +68,15 @@
           </button>
         </form>
 
-        <p class="text-[10px] text-slate-400 text-center mt-2.5">
-          PitStop workers only. Ask your supervisor for PIN reset.
-        </p>
+        <div class="worker-login-help">
+          <p>
+            Need an account?
+            <a href="/" class="worker-login-link">Go to the sign up page</a>.
+          </p>
+          <p>
+            For PIN resets or account activation, call the Mission Hiring Hall admin office.
+          </p>
+        </div>
       </div>
     </div>
   </div>

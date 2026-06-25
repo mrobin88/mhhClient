@@ -6,8 +6,8 @@
       <header class="worker-topbar shrink-0">
         <div class="max-w-md mx-auto px-3 pt-2 pb-2 flex items-center justify-between gap-2">
           <div class="min-w-0">
-            <p class="worker-kicker">PitStop Worker Market</p>
-            <h1 class="text-sm font-semibold text-white leading-tight">Shift Desk</h1>
+            <p class="worker-kicker">Pit Stop Worker Portal</p>
+            <h1 class="text-sm font-semibold text-white leading-tight">Daily Tools</h1>
             <p class="text-[11px] text-slate-400 truncate">{{ workerName }}</p>
           </div>
           <button

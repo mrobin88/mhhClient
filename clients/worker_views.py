@@ -738,32 +738,49 @@ def worker_time_punch(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def worker_incident_report(request):
-    """Simple worker incident report for supervisor follow-up."""
+    """Worker incident report stored as a case note for staff review."""
     account, err = _require_worker(request)
     if err:
         return err
 
-    supervisor_name = str(request.data.get('supervisor_name') or '').strip()
-    details = str(request.data.get('details') or '').strip()
-    if not supervisor_name:
-        return Response(
-            {'supervisor_name': ['Supervisor name is required.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    if not details:
-        return Response(
-            {'details': ['Describe what happened.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    reporting_person = account.client.full_name
+    occurred_at = str(request.data.get('occurred_at') or '').strip()
+    involved_people = str(request.data.get('involved_people') or '').strip()
+    brief_description = str(request.data.get('brief_description') or request.data.get('details') or '').strip()
+    what_happened = str(request.data.get('what_happened') or request.data.get('details') or '').strip()
+    where_happened = str(request.data.get('where_happened') or '').strip()
+    why_happened = str(request.data.get('why_happened') or '').strip()
+    actions_taken = str(request.data.get('actions_taken') or '').strip()
+
+    errors = {}
+    for field, value, message in (
+        ('occurred_at', occurred_at, 'Enter when it happened.'),
+        ('involved_people', involved_people, 'Enter who was involved.'),
+        ('brief_description', brief_description, 'Enter a brief description.'),
+        ('what_happened', what_happened, 'Describe what happened.'),
+        ('where_happened', where_happened, 'Enter where it happened.'),
+        ('why_happened', why_happened, 'Enter why it happened, or write unknown.'),
+        ('actions_taken', actions_taken, 'Enter actions taken, or write none.'),
+    ):
+        if not value:
+            errors[field] = [message]
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
     CaseNote.objects.create(
         client=account.client,
-        staff_member='Worker Portal',
+        staff_member=reporting_person,
         note_type='general',
         content=(
             'Worker Incident Report\n'
-            f'Supervisor: {supervisor_name}\n'
-            f'What happened: {details}'
+            f'Reporting person: {reporting_person}\n'
+            f'When it happened: {occurred_at}\n'
+            f'Who was involved: {involved_people}\n'
+            f'Brief description: {brief_description}\n'
+            f'What happened: {what_happened}\n'
+            f'Where it happened: {where_happened}\n'
+            f'Why it happened: {why_happened}\n'
+            f'Actions taken: {actions_taken}'
         ),
     )
     return Response({'message': 'Incident report submitted.'}, status=status.HTTP_201_CREATED)
