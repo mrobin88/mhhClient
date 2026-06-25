@@ -6,6 +6,7 @@ from .views import (
     DocumentDownloadView,
     ResumeDownloadView,
     client_dashboard_stats,
+    GuardCardEnrollmentViewSet,
     PitStopApplicationViewSet,
 )
 from .reports import (
@@ -52,6 +53,7 @@ from .staff_views import (
 router = DefaultRouter()
 router.register(r'clients', ClientViewSet)
 router.register(r'case-notes', CaseNoteViewSet)
+router.register(r'guard-card-enrollments', GuardCardEnrollmentViewSet, basename='guard-card-enrollment')
 router.register(r'pitstop-applications', PitStopApplicationViewSet, basename='pitstop-application')
 
 urlpatterns = [

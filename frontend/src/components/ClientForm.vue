@@ -102,6 +102,18 @@
 
                 <button
                   type="button"
+                  @click="form.training_interest = 'guard_card'"
+                  :class="[
+                    'program-btn-compact',
+                    form.training_interest === 'guard_card' ? 'program-btn-active' : 'program-btn-inactive'
+                  ]"
+                >
+                  <span class="mr-2">🛡️</span>
+                  <span>Guard Card Program</span>
+                </button>
+
+                <button
+                  type="button"
                   @click="form.training_interest = 'general'"
                   :class="[
                     'program-btn-compact',
@@ -275,9 +287,9 @@
 
               <div class="form-field">
                 <label class="block text-sm font-semibold text-slate-700">
-                  <span class="text-mission-600">*</span> Neighborhood/Area
+                  Neighborhood/Area
                 </label>
-                <select v-model="form.neighborhood" required class="form-select">
+                <select v-model="form.neighborhood" class="form-select">
                   <option disabled value="">Select your area</option>
                   <option value="mission">Mission District</option>
                   <option value="soma">South of Market (SoMa)</option>
@@ -573,6 +585,59 @@
               <textarea v-model="pitstop.education_history" class="form-input" rows="3" placeholder="Schools, certifications, etc."></textarea>
             </div>
           </div>
+          <div v-else-if="currentStep === 'guardcard'" class="space-y-6 p-6 border rounded-xl bg-slate-50">
+            <h4 class="text-xl font-semibold text-slate-800">Guard Card Program</h4>
+            <div class="form-stack">
+              <div class="form-field">
+                <label class="form-label">Can you legally work in the U.S.?</label>
+                <select v-model="guardcard.can_work_us" class="form-select">
+                  <option :value="true">Yes</option>
+                  <option :value="false">No</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Are you a veteran?</label>
+                <select v-model="guardcard.is_veteran" class="form-select">
+                  <option :value="false">No</option>
+                  <option :value="true">Yes</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Primary barrier to employment or training</label>
+                <select v-model="guardcard.barrier" class="form-select">
+                  <option value="transportation">Transportation</option>
+                  <option value="childcare">Childcare</option>
+                  <option value="housing_instability">Housing instability</option>
+                  <option value="missing_id_docs">Missing ID/docs</option>
+                  <option value="language">Language</option>
+                  <option value="health_disability">Health/disability</option>
+                  <option value="criminal_history">Criminal history</option>
+                  <option value="scheduling_conflict">Scheduling conflict</option>
+                  <option value="financial_hardship">Financial hardship</option>
+                  <option value="other">Other</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Barrier notes</label>
+                <textarea
+                  v-model="guardcard.barrier_notes"
+                  class="form-input"
+                  rows="3"
+                  placeholder="Optional details about barriers or support needed"
+                ></textarea>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Additional notes for staff</label>
+                <textarea
+                  v-model="guardcard.notes"
+                  class="form-input"
+                  rows="3"
+                  placeholder="Optional notes for the Guard Card team"
+                ></textarea>
+              </div>
+            </div>
+          </div>
             </div>
           </Transition>
 
@@ -711,6 +776,14 @@ const pitstop = ref({
   education_history: '',
 })
 
+const guardcard = ref({
+  can_work_us: false,
+  is_veteran: false,
+  barrier: 'none',
+  barrier_notes: '',
+  notes: '',
+})
+
 const resumeFile = ref(null)
 const docAccept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.txt'
 const docFiles = ref({
@@ -731,6 +804,7 @@ const currentStepIndex = ref(0)
 const stepOrder = computed(() => {
   const steps = ['program', 'personal', 'address', 'background', 'employment', 'documents']
   if (form.value.training_interest === 'pit_stop') steps.push('pitstop')
+  if (form.value.training_interest === 'guard_card') steps.push('guardcard')
   return steps
 })
 
@@ -742,6 +816,7 @@ const stepTitles = {
   employment: 'Employment',
   documents: 'Documents',
   pitstop: 'Pit Stop',
+  guardcard: 'Guard Card',
 }
 
 const totalSteps = computed(() => stepOrder.value.length)
@@ -1038,6 +1113,18 @@ async function handleSubmit() {
       formData.append('resume', resumeFile.value)
     }
 
+    if (form.value.training_interest === 'guard_card') {
+      formData.append('guard_card_can_work_us', String(guardcard.value.can_work_us))
+      formData.append('guard_card_is_veteran', String(guardcard.value.is_veteran))
+      formData.append('guard_card_barrier', guardcard.value.barrier)
+      if (guardcard.value.barrier_notes.trim()) {
+        formData.append('guard_card_barrier_notes', guardcard.value.barrier_notes.trim())
+      }
+      if (guardcard.value.notes.trim()) {
+        formData.append('guard_card_notes', guardcard.value.notes.trim())
+      }
+    }
+
     // Add supporting documents (optional)
     if (docFiles.value.sf_residency) formData.append('doc_sf_residency', docFiles.value.sf_residency)
     if (docFiles.value.hs_diploma) formData.append('doc_hs_diploma', docFiles.value.hs_diploma)
@@ -1132,6 +1219,14 @@ async function handleSubmit() {
           { company: '', title: '', city: '', state: '', manager: '', phone: '', start_date: '', end_date: '', responsibilities: '' }
         ],
         education_history: '',
+      }
+
+      guardcard.value = {
+        can_work_us: false,
+        is_veteran: false,
+        barrier: 'none',
+        barrier_notes: '',
+        notes: '',
       }
 
       // Reset resume file

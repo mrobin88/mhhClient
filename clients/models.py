@@ -1,12 +1,17 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.db import models
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.utils import timezone
 import logging
 
 User = get_user_model()
+
+
+def default_guard_card_follow_up_date():
+    return timezone.localdate() + timedelta(days=30)
 
 class Client(models.Model):
     GENDER_CHOICES = [
@@ -64,6 +69,7 @@ class Client(models.Model):
         ('capsa', 'CAPSA'),
         ('citybuild', 'City Build'),
         ('pit_stop', 'Pit Stop'),
+        ('guard_card', 'Guard Card Program'),
         ('general', 'General Employment Assistance'),
     ]
     
@@ -77,10 +83,24 @@ class Client(models.Model):
     ]
     
     STATUS_CHOICES = [
-        ('pending', 'Pending'),
         ('active', 'Active'),
         ('completed', 'Completed'),
-        ('inactive', 'Inactive')
+        ('inactive', 'Inactive'),
+        ('pending', 'Pending (legacy)'),
+    ]
+
+    PIT_STOP_STAGE_APPLICANT = 'applicant'
+    PIT_STOP_STAGE_ACTIVE_PARTICIPANT = 'active_participant'
+    PIT_STOP_STAGE_WORKER = 'worker'
+    PIT_STOP_STAGE_EXITED = 'exited'
+    PIT_STOP_STAGE_WAITLISTED = 'waitlisted'
+
+    PIT_STOP_STAGE_CHOICES = [
+        (PIT_STOP_STAGE_APPLICANT, 'Applicant - Not yet accepted'),
+        (PIT_STOP_STAGE_ACTIVE_PARTICIPANT, 'Active Participant'),
+        (PIT_STOP_STAGE_WORKER, 'Worker (has WorkerAccount)'),
+        (PIT_STOP_STAGE_EXITED, 'Exited Program'),
+        (PIT_STOP_STAGE_WAITLISTED, 'Waitlisted'),
     ]
 
     # Personal Information
@@ -125,8 +145,14 @@ class Client(models.Model):
     resume = models.FileField(upload_to='resumes/', blank=True, null=True, help_text='Upload client resume')
     
     # Status & Tracking
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     staff_name = models.CharField(max_length=100, blank=True, null=True)
+    pit_stop_stage = models.CharField(
+        max_length=30,
+        choices=PIT_STOP_STAGE_CHOICES,
+        default=PIT_STOP_STAGE_APPLICANT,
+        help_text='Pit Stop lifecycle stage used to protect applicants, active participants, workers, and exited clients.',
+    )
     
     # Program Completion & Job Placement Tracking
     program_start_date = models.DateField(blank=True, null=True, help_text="Date when client started their program")
@@ -188,6 +214,10 @@ class Client(models.Model):
     @property
     def case_notes_count(self):
         return self.casenotes.count()
+
+    @property
+    def case_notes(self):
+        return self.casenotes
     
     @property
     def documents_count(self):
@@ -501,6 +531,74 @@ class PitStopApplication(models.Model):
     def get_times_for_day(self, day):
         """Get list of time slots for a specific day"""
         return self.weekly_schedule.get(day, [])
+
+
+class GuardCardEnrollment(models.Model):
+    BARRIER_TRANSPORTATION = 'transportation'
+    BARRIER_CHILDCARE = 'childcare'
+    BARRIER_HOUSING = 'housing_instability'
+    BARRIER_ID_DOCS = 'missing_id_docs'
+    BARRIER_LANGUAGE = 'language'
+    BARRIER_HEALTH = 'health_disability'
+    BARRIER_CRIMINAL_HISTORY = 'criminal_history'
+    BARRIER_SCHEDULING = 'scheduling_conflict'
+    BARRIER_FINANCIAL = 'financial_hardship'
+    BARRIER_OTHER = 'other'
+    BARRIER_NONE = 'none'
+
+    BARRIER_CHOICES = [
+        (BARRIER_TRANSPORTATION, 'Transportation'),
+        (BARRIER_CHILDCARE, 'Childcare'),
+        (BARRIER_HOUSING, 'Housing instability'),
+        (BARRIER_ID_DOCS, 'Missing ID/docs'),
+        (BARRIER_LANGUAGE, 'Language'),
+        (BARRIER_HEALTH, 'Health/disability'),
+        (BARRIER_CRIMINAL_HISTORY, 'Criminal history'),
+        (BARRIER_SCHEDULING, 'Scheduling conflict'),
+        (BARRIER_FINANCIAL, 'Financial hardship'),
+        (BARRIER_OTHER, 'Other'),
+        (BARRIER_NONE, 'None'),
+    ]
+
+    client = models.OneToOneField(
+        Client,
+        on_delete=models.CASCADE,
+        related_name='guard_card_enrollment',
+    )
+    can_work_us = models.BooleanField(default=False)
+    is_veteran = models.BooleanField(default=False)
+    orientation_completed = models.BooleanField(default=False)
+    orientation_date = models.DateField(null=True, blank=True)
+    training_in_progress = models.BooleanField(default=False)
+    guard_card_obtained = models.BooleanField(default=False)
+    guard_card_date = models.DateField(null=True, blank=True)
+    barrier = models.CharField(max_length=30, choices=BARRIER_CHOICES, default=BARRIER_NONE)
+    barrier_notes = models.TextField(blank=True, null=True)
+    next_follow_up_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Auto-set to 30 days from creation when blank.',
+    )
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['next_follow_up_date', 'client__last_name', 'client__first_name']
+        verbose_name = 'Guard Card Enrollment'
+        verbose_name_plural = 'Guard Card Enrollments'
+        indexes = [
+            models.Index(fields=['next_follow_up_date']),
+            models.Index(fields=['barrier']),
+        ]
+
+    def __str__(self):
+        return f"Guard Card - {self.client.full_name}"
+
+    def save(self, *args, **kwargs):
+        if not self.next_follow_up_date:
+            self.next_follow_up_date = default_guard_card_follow_up_date()
+        super().save(*args, **kwargs)
 
 
 class JobPlacement(models.Model):

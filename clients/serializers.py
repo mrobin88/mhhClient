@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Client, CaseNote, PitStopApplication
+from .models import Client, CaseNote, GuardCardEnrollment, PitStopApplication
 from .models_extensions import (
     WorkerAccount,
     WorkerDailyFeedback,
@@ -83,6 +83,18 @@ class PitStopApplicationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PitStopApplication
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class GuardCardEnrollmentSerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source='client.full_name', read_only=True)
+    client_phone = serializers.CharField(source='client.phone', read_only=True)
+    client_email = serializers.CharField(source='client.email', read_only=True)
+    barrier_label = serializers.CharField(source='get_barrier_display', read_only=True)
+
+    class Meta:
+        model = GuardCardEnrollment
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
 

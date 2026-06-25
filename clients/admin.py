@@ -19,7 +19,7 @@ from django.contrib import messages
 from django.core.mail import send_mail
 from django.utils import timezone
 from .time_display import format_display_datetime
-from .models import Client, CaseNote, CityBuildFileChecklist, Document, PitStopApplication
+from .models import Client, CaseNote, CityBuildFileChecklist, Document, GuardCardEnrollment, PitStopApplication
 from .models_extensions import (
     WorkSite,
     WorkerAccount,
@@ -299,7 +299,7 @@ class CaseNoteAdmin(admin.ModelAdmin):
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
     list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'program_completed_date', 'has_resume', 'case_notes_count', 'created_at']
-    list_filter = ['status', 'training_interest', 'neighborhood', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
+    list_filter = ['status', 'training_interest', 'pit_stop_stage', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
     search_fields = ['first_name', 'last_name', 'phone', 'email']
     readonly_fields = [
         'created_at',
@@ -494,7 +494,7 @@ class ClientAdmin(admin.ModelAdmin):
             'fields': ('address', 'city', 'state', 'zip_code')
         }),
         ('San Francisco Residency', {
-            'fields': ('sf_resident', 'neighborhood', 'demographic_info', 'language', 'language_other')
+            'fields': ('sf_resident', 'demographic_info', 'language', 'language_other')
         }),
         ('Education & Employment', {
             'fields': ('highest_degree', 'employment_status', 'training_interest')
@@ -511,7 +511,7 @@ class ClientAdmin(admin.ModelAdmin):
             'description': 'Checklist only on this page — open Documents hub to upload or download (files load on demand).',
         }),
         ('Status & Tracking', {
-            'fields': ('status', 'staff_name'),
+            'fields': ('status', 'pit_stop_stage', 'staff_name'),
             'description': 'Case manager is set automatically from your login when you create this client.',
         }),
         ('Program Completion', {
@@ -1103,6 +1103,16 @@ class ClientAdmin(admin.ModelAdmin):
         reason_counts = {}
 
         for client in queryset.prefetch_related('documents'):
+            if (
+                client.training_interest == 'pit_stop'
+                and client.pit_stop_stage in {
+                    Client.PIT_STOP_STAGE_ACTIVE_PARTICIPANT,
+                    Client.PIT_STOP_STAGE_WORKER,
+                    Client.PIT_STOP_STAGE_EXITED,
+                }
+            ):
+                skipped += 1
+                continue
             missing_codes = self._missing_doc_types_for_client(client)
             if not missing_codes:
                 skipped += 1
@@ -1535,14 +1545,178 @@ class DocumentAdmin(admin.ModelAdmin):
                     messages.info(request, f"  {doc.title}: {doc.file.name}")
     check_storage_config.short_description = "🔍 Check Storage Configuration & Environment"
 
+
+@admin.register(GuardCardEnrollment)
+class GuardCardEnrollmentAdmin(admin.ModelAdmin):
+    list_display = [
+        'client_link',
+        'phone',
+        'pipeline_stage',
+        'orientation_completed',
+        'training_in_progress',
+        'guard_card_obtained',
+        'barrier',
+        'follow_up_status',
+    ]
+    list_filter = [
+        'orientation_completed',
+        'training_in_progress',
+        'guard_card_obtained',
+        'barrier',
+        'next_follow_up_date',
+    ]
+    search_fields = [
+        'client__first_name',
+        'client__last_name',
+        'client__phone',
+        'client__email',
+    ]
+    autocomplete_fields = ['client']
+    readonly_fields = ['created_at', 'updated_at']
+    actions = ['mark_orientation_completed', 'mark_guard_card_obtained', 'export_guard_card_roster_csv']
+
+    fieldsets = (
+        ('Client', {
+            'fields': ('client', 'can_work_us', 'is_veteran'),
+        }),
+        ('Pipeline Progress', {
+            'fields': (
+                'orientation_completed',
+                'orientation_date',
+                'training_in_progress',
+                'guard_card_obtained',
+                'guard_card_date',
+            ),
+        }),
+        ('Employment Barriers', {
+            'fields': ('barrier', 'barrier_notes', 'notes'),
+        }),
+        ('Follow-up', {
+            'fields': ('next_follow_up_date',),
+        }),
+        ('Timestamps', {
+            'classes': ('collapse',),
+            'fields': ('created_at', 'updated_at'),
+        }),
+    )
+
+    def client_link(self, obj):
+        url = reverse('admin:clients_client_change', args=[obj.client_id])
+        return format_html('<a href="{}"><strong>{}</strong></a>', url, obj.client.full_name)
+    client_link.short_description = 'Client'
+    client_link.admin_order_field = 'client__last_name'
+
+    def phone(self, obj):
+        return obj.client.phone
+    phone.short_description = 'Phone'
+    phone.admin_order_field = 'client__phone'
+
+    def pipeline_stage(self, obj):
+        if obj.guard_card_obtained:
+            return format_html('<span style="color:#15803d;font-weight:700;">Guard Card Obtained ✅</span>')
+        if obj.training_in_progress:
+            return format_html('<span style="color:#2563eb;font-weight:700;">Training In Progress</span>')
+        if obj.orientation_completed:
+            return format_html('<span style="color:#c2410c;font-weight:700;">Orientation Done</span>')
+        return format_html('<span style="color:#64748b;font-weight:700;">Enrolled</span>')
+    pipeline_stage.short_description = 'Pipeline Stage'
+
+    def follow_up_status(self, obj):
+        if not obj.next_follow_up_date:
+            return '—'
+        if obj.next_follow_up_date < timezone.localdate():
+            return format_html('<span style="color:#b91c1c;font-weight:700;">{} overdue</span>', obj.next_follow_up_date)
+        return obj.next_follow_up_date
+    follow_up_status.short_description = 'Next Follow-up'
+    follow_up_status.admin_order_field = 'next_follow_up_date'
+
+    @admin.action(description='Mark orientation completed today')
+    def mark_orientation_completed(self, request, queryset):
+        updated = queryset.update(
+            orientation_completed=True,
+            orientation_date=timezone.localdate(),
+        )
+        self.message_user(request, f'{updated} Guard Card enrollment(s) marked orientation complete.')
+
+    @admin.action(description='Mark Guard Card obtained today')
+    def mark_guard_card_obtained(self, request, queryset):
+        updated = queryset.update(
+            guard_card_obtained=True,
+            guard_card_date=timezone.localdate(),
+        )
+        self.message_user(request, f'{updated} Guard Card enrollment(s) marked obtained.')
+
+    @admin.action(description='Export Guard Card roster to CSV')
+    def export_guard_card_roster_csv(self, request, queryset):
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="guard_card_roster_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        writer = csv.writer(response)
+        writer.writerow([
+            'Client',
+            'Phone',
+            'Email',
+            'Stage',
+            'Can Work US',
+            'Veteran',
+            'Barrier',
+            'Next Follow-up',
+            'Notes',
+        ])
+        for enrollment in queryset.select_related('client'):
+            if enrollment.guard_card_obtained:
+                stage = 'Guard Card Obtained'
+            elif enrollment.training_in_progress:
+                stage = 'Training In Progress'
+            elif enrollment.orientation_completed:
+                stage = 'Orientation Done'
+            else:
+                stage = 'Enrolled'
+            writer.writerow([
+                enrollment.client.full_name,
+                enrollment.client.phone,
+                enrollment.client.email or '',
+                stage,
+                'Yes' if enrollment.can_work_us else 'No',
+                'Yes' if enrollment.is_veteran else 'No',
+                enrollment.get_barrier_display(),
+                enrollment.next_follow_up_date or '',
+                enrollment.notes or '',
+            ])
+        return response
+
+
 @admin.register(PitStopApplication)
 class PitStopApplicationAdmin(admin.ModelAdmin):
-    list_display = ['client', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'open_availability_status', 'created_at']
-    list_filter = ['employment_desired', 'can_work_us', 'is_veteran', 'created_at']
+    list_display = ['client', 'pit_stop_stage_display', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'open_availability_status', 'created_at']
+    list_filter = ['client__pit_stop_stage', 'employment_desired', 'can_work_us', 'is_veteran', 'created_at']
     search_fields = ['client__first_name', 'client__last_name', 'position_applied_for']
     autocomplete_fields = ['client']
     date_hierarchy = 'created_at'
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at', 'open_availability_status']
+    actions = ['mark_as_exited_program']
+    fieldsets = (
+        ('Application', {
+            'fields': (
+                'client',
+                'position_applied_for',
+                'employment_desired',
+                'available_start_date',
+                'can_work_us',
+                'is_veteran',
+                'open_availability_status',
+            ),
+            'description': 'Availability is summarized for easier review.',
+        }),
+        ('Additional applicant details', {
+            'classes': ('collapse',),
+            'fields': ('education_history',),
+        }),
+        ('Timestamps', {
+            'classes': ('collapse',),
+            'fields': ('created_at', 'updated_at'),
+        }),
+    )
+    exclude = ['weekly_schedule', 'employment_history']
 
     def open_availability_status(self, obj):
         schedule = obj.weekly_schedule or {}
@@ -1551,6 +1725,40 @@ class PitStopApplicationAdmin(admin.ModelAdmin):
                 return format_html('<strong style="color:#15803d;">OPEN AVAILABILITY</strong>')
         return format_html('<strong style="color:#b91c1c;">NOT OPEN</strong>')
     open_availability_status.short_description = 'Open Availability'
+
+    def pit_stop_stage_display(self, obj):
+        return obj.client.get_pit_stop_stage_display()
+    pit_stop_stage_display.short_description = 'Stage'
+    pit_stop_stage_display.admin_order_field = 'client__pit_stop_stage'
+
+    def changelist_view(self, request, extra_context=None):
+        active_count = Client.objects.filter(
+            training_interest='pit_stop',
+            pit_stop_stage__in=[
+                Client.PIT_STOP_STAGE_ACTIVE_PARTICIPANT,
+                Client.PIT_STOP_STAGE_WORKER,
+            ],
+        ).count()
+        if active_count >= 60:
+            messages.warning(
+                request,
+                (
+                    f'⚠️ Program is at capacity ({active_count} active participants/workers). '
+                    'Do NOT send rejection emails to applicants without filtering by stage.'
+                ),
+            )
+        return super().changelist_view(request, extra_context=extra_context)
+
+    @admin.action(description='Mark as exited program')
+    def mark_as_exited_program(self, request, queryset):
+        client_ids = list(queryset.values_list('client_id', flat=True))
+        updated = Client.objects.filter(pk__in=client_ids).update(pit_stop_stage=Client.PIT_STOP_STAGE_EXITED)
+        WorkerAccount.objects.filter(client_id__in=client_ids).update(
+            is_active=False,
+            is_approved=False,
+            worker_status=WorkerAccount.STATUS_INACTIVE,
+        )
+        self.message_user(request, f'{updated} Pit Stop client(s) marked exited and portal access disabled.')
 
 
 # ========================================
@@ -1620,6 +1828,7 @@ class WorkerAccountAdmin(admin.ModelAdmin):
     actions = [
         'enable_portal_welcome',
         'disable_portal',
+        'mark_as_exited_program',
         'reset_pins',
         'unlock_accounts',
     ]
@@ -1724,6 +1933,7 @@ class WorkerAccountAdmin(admin.ModelAdmin):
             account.is_active = True
             account.worker_status = WorkerAccount.STATUS_ACTIVE
             account.save()
+            Client.objects.filter(pk=account.client_id).update(pit_stop_stage=Client.PIT_STOP_STAGE_WORKER)
             approved += 1
             if send_worker_welcome_email(account):
                 emailed += 1
@@ -1743,6 +1953,17 @@ class WorkerAccountAdmin(admin.ModelAdmin):
         )
         self.message_user(request, f'Portal login disabled for {updated} account(s).')
     disable_portal.short_description = 'Disable portal login'
+
+    @admin.action(description='Mark as exited program')
+    def mark_as_exited_program(self, request, queryset):
+        client_ids = list(queryset.values_list('client_id', flat=True))
+        updated = queryset.update(
+            is_active=False,
+            is_approved=False,
+            worker_status=WorkerAccount.STATUS_INACTIVE,
+        )
+        Client.objects.filter(pk__in=client_ids).update(pit_stop_stage=Client.PIT_STOP_STAGE_EXITED)
+        self.message_user(request, f'{updated} worker account(s) marked exited and portal access disabled.')
 
     def reset_pins(self, request, queryset):
         """Reset PINs to last four digits of the phone number (numeric)."""

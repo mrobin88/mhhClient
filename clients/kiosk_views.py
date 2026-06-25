@@ -4,7 +4,9 @@ Public kiosk endpoints: lookup client by phone, submit a self check-in case note
 The static web app cannot write to PostgreSQL directly; it calls these APIs over HTTPS.
 """
 from pathlib import Path
+from datetime import timedelta
 
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -95,6 +97,10 @@ class KioskCheckInSubmitView(APIView):
             note_type='general',
             content=visit_reason,
         )
+        enrollment = getattr(client, 'guard_card_enrollment', None)
+        if enrollment:
+            enrollment.next_follow_up_date = timezone.localdate() + timedelta(days=30)
+            enrollment.save(update_fields=['next_follow_up_date', 'updated_at'])
         return Response(
             {
                 'ok': True,

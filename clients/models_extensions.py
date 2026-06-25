@@ -481,6 +481,8 @@ class WorkerAccount(models.Model):
             if d:
                 self.phone = d
         super().save(*args, **kwargs)
+        if self.client_id and self.client.pit_stop_stage != Client.PIT_STOP_STAGE_WORKER:
+            Client.objects.filter(pk=self.client_id).update(pit_stop_stage=Client.PIT_STOP_STAGE_WORKER)
 
     def check_pin(self, raw_pin):
         """Check if provided PIN matches stored hash"""
