@@ -1,6 +1,7 @@
 """
 Extended models for worker dispatch and availability tracking
 """
+from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -546,6 +547,35 @@ class WorkerSessionToken(models.Model):
 
     def __str__(self):
         return f"WorkerSessionToken({self.worker_account.phone})"
+
+
+class StaffFeedback(models.Model):
+    """
+    Anonymous-to-staff feedback from the Staff Dashboard.
+
+    submitted_by is stored for accountability but is intentionally never
+    exposed through staff-facing APIs/serializers — only superusers can see
+    it, via Django admin.
+    """
+
+    message = models.TextField(help_text='Free-text feedback from staff.')
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dashboard_feedback',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Staff Feedback'
+        verbose_name_plural = 'Staff Feedback'
+
+    def __str__(self):
+        preview = (self.message or '').strip().replace('\n', ' ')[:60]
+        return preview or f'Feedback #{self.pk}'
 
 
 class WorkerDailyFeedback(models.Model):

@@ -26,6 +26,7 @@ from .models_extensions import (
     WorkerDailyFeedback,
     WorkerTimePunch,
     ClientTextMessage,
+    StaffFeedback,
 )
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 from .citybuild_docs import (
@@ -2233,4 +2234,35 @@ class WorkerDailyFeedbackAdmin(admin.ModelAdmin):
         text = (obj.feedback_text or '').strip()
         return (text[:80] + '...') if len(text) > 80 else text
     preview.short_description = 'Feedback'
+
+
+@admin.register(StaffFeedback)
+class StaffFeedbackAdmin(admin.ModelAdmin):
+    """Staff Dashboard feedback — superuser-only, by design (submitter is not surfaced elsewhere)."""
+
+    list_display = ['preview', 'submitted_by', 'created_at']
+    list_filter = ['created_at']
+    search_fields = ['message', 'submitted_by__username', 'submitted_by__first_name', 'submitted_by__last_name']
+    readonly_fields = ['message', 'submitted_by', 'created_at']
+    ordering = ['-created_at']
+
+    def preview(self, obj):
+        text = (obj.message or '').strip()
+        return (text[:80] + '…') if len(text) > 80 else text
+    preview.short_description = 'Feedback'
+
+    def has_module_permission(self, request):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_view_permission(self, request, obj=None):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return bool(request.user and request.user.is_superuser)
 

@@ -49,6 +49,15 @@ from .staff_views import (
     staff_messages,
     staff_messages_unread_count,
 )
+from .dashboard_views import (
+    dashboard_recent_clients,
+    dashboard_program_distribution,
+    dashboard_activity_feed,
+    dashboard_usage_stats,
+    dashboard_document_types,
+    dashboard_document_upload,
+    staff_feedback_submit,
+)
 
 router = DefaultRouter()
 router.register(r'clients', ClientViewSet)
@@ -108,4 +117,13 @@ urlpatterns = [
     path('staff/password-reset/confirm/', staff_password_reset_confirm, name='staff-password-reset-confirm'),
     path('staff/messages/', staff_messages, name='staff-messages'),
     path('staff/messages/unread-count/', staff_messages_unread_count, name='staff-messages-unread-count'),
+
+    # Staff Dashboard
+    path('staff/dashboard/recent-clients/', dashboard_recent_clients, name='dashboard-recent-clients'),
+    path('staff/dashboard/program-distribution/', dashboard_program_distribution, name='dashboard-program-distribution'),
+    path('staff/dashboard/activity-feed/', dashboard_activity_feed, name='dashboard-activity-feed'),
+    path('staff/dashboard/usage-stats/', dashboard_usage_stats, name='dashboard-usage-stats'),
+    path('staff/dashboard/document-types/', dashboard_document_types, name='dashboard-document-types'),
+    path('staff/dashboard/document-upload/', dashboard_document_upload, name='dashboard-document-upload'),
+    path('staff/feedback/', staff_feedback_submit, name='staff-feedback-submit'),
 ]

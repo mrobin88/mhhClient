@@ -6,7 +6,7 @@
       class="sticky top-0 z-40 bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between"
     >
       <div class="flex items-center gap-2 min-w-0">
-        <span class="text-xl" aria-hidden="true">⛑️</span>
+        <span class="material-symbols-outlined text-orange-600" aria-hidden="true">badge</span>
         <div class="min-w-0">
           <p class="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">MHH Staff</p>
           <p class="font-bold text-sm truncate">{{ user?.display_name }}</p>
@@ -17,17 +17,28 @@
       </button>
     </header>
 
-    <main :class="showChrome ? 'staff-main-pad max-w-lg mx-auto p-4' : 'min-h-screen'">
+    <main :class="mainClass">
       <slot />
     </main>
 
     <nav v-if="showChrome" class="staff-nav">
-      <RouterLink to="/clients">Clients</RouterLink>
+      <RouterLink to="/dashboard">
+        <span class="material-symbols-outlined" aria-hidden="true">dashboard</span>
+        <span class="staff-nav-label">Dashboard</span>
+      </RouterLink>
+      <RouterLink to="/clients">
+        <span class="material-symbols-outlined" aria-hidden="true">group</span>
+        <span class="staff-nav-label">Clients</span>
+      </RouterLink>
       <RouterLink to="/messages">
-        Messages
+        <span class="material-symbols-outlined" aria-hidden="true">chat</span>
+        <span class="staff-nav-label">Messages</span>
         <span v-if="unreadCount > 0" class="staff-nav-badge">{{ unreadCount }}</span>
       </RouterLink>
-      <RouterLink to="/create-skill">Skill note</RouterLink>
+      <RouterLink to="/create-skill">
+        <span class="material-symbols-outlined" aria-hidden="true">school</span>
+        <span class="staff-nav-label">Skill note</span>
+      </RouterLink>
     </nav>
   </div>
 </template>
@@ -54,6 +65,12 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 const showChrome = computed(() => {
   const guest = ['Login', 'ForgotPassword', 'ResetPassword']
   return Boolean(props.user) && !guest.includes(String(route.name))
+})
+
+const mainClass = computed(() => {
+  if (!showChrome.value) return 'min-h-screen'
+  const widthClass = route.name === 'Dashboard' ? 'staff-main-wide' : 'max-w-lg'
+  return `staff-main-pad ${widthClass} mx-auto p-4`
 })
 
 async function refreshUnread() {
