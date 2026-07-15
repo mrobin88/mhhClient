@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -15,18 +16,24 @@
       --btn-dark: #334155;
       --shadow: rgba(15, 23, 42, 0.08);
     }
-    * { box-sizing: border-box; }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: var(--ink);
       background: radial-gradient(circle at top right, #dbeafe, var(--bg) 44%);
     }
+
     .wrap {
       max-width: 1160px;
       margin: 0 auto;
       padding: 26px 18px 34px;
     }
+
     .hero {
       border-radius: 18px;
       background: linear-gradient(135deg, #0f172a, #0f766e);
@@ -35,19 +42,31 @@
       box-shadow: 0 18px 35px rgba(15, 23, 42, 0.24);
       margin-bottom: 16px;
     }
-    .hero h1 { margin: 0 0 6px; font-size: 30px; }
+
+    .hero h1 {
+      margin: 0 0 6px;
+      font-size: 30px;
+    }
+
     .hero .spark {
       font-size: 25px;
       margin-right: 8px;
       vertical-align: -3px;
     }
-    .hero p { margin: 0; color: #d1fae5; line-height: 1.45; }
+
+    .hero p {
+      margin: 0;
+      color: #d1fae5;
+      line-height: 1.45;
+    }
+
     .toolbar {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
       margin-top: 12px;
     }
+
     .nav-link {
       display: inline-block;
       text-decoration: none;
@@ -58,6 +77,7 @@
       font-weight: 700;
       padding: 7px 12px;
     }
+
     .filters {
       margin-top: 12px;
       background: rgba(255, 255, 255, 0.8);
@@ -66,14 +86,25 @@
       padding: 14px;
       box-shadow: 0 6px 18px var(--shadow);
     }
-    .filters h2 { margin: 0; font-size: 16px; }
-    .filters p { margin: 8px 0 12px; color: var(--muted); font-size: 13px; }
+
+    .filters h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .filters p {
+      margin: 8px 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .row {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
       align-items: end;
     }
+
     label {
       font-size: 13px;
       color: var(--ink);
@@ -81,7 +112,9 @@
       flex-direction: column;
       gap: 5px;
     }
-    input, select {
+
+    input,
+    select {
       border: 1px solid #cbd5e1;
       border-radius: 10px;
       min-height: 40px;
@@ -90,6 +123,7 @@
       font-size: 14px;
       background: #fff;
     }
+
     .toggle {
       flex-direction: row;
       align-items: center;
@@ -101,13 +135,19 @@
       min-height: 40px;
       margin-top: 22px;
     }
-    .toggle input { min-height: auto; min-width: auto; }
+
+    .toggle input {
+      min-height: auto;
+      min-width: auto;
+    }
+
     .grid {
       margin-top: 14px;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 12px;
     }
+
     .card {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -115,8 +155,21 @@
       padding: 14px;
       box-shadow: 0 6px 18px var(--shadow);
     }
-    .title { font-size: 17px; font-weight: 800; margin-bottom: 7px; }
-    .desc { color: var(--muted); font-size: 13px; margin-bottom: 11px; line-height: 1.4; min-height: 36px; }
+
+    .title {
+      font-size: 17px;
+      font-weight: 800;
+      margin-bottom: 7px;
+    }
+
+    .desc {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 11px;
+      line-height: 1.4;
+      min-height: 36px;
+    }
+
     .btn {
       display: inline-block;
       text-decoration: none;
@@ -128,7 +181,11 @@
       padding: 8px 11px;
       margin: 0 7px 6px 0;
     }
-    .btn.secondary { background: var(--btn-dark); }
+
+    .btn.secondary {
+      background: var(--btn-dark);
+    }
+
     .support-note {
       margin-top: 12px;
       background: #ffffff;
@@ -142,6 +199,7 @@
     }
   </style>
 </head>
+
 <body>
   <main class="wrap">
     <section class="hero">
@@ -155,11 +213,13 @@
 
     <section class="filters">
       <h2>Selectors</h2>
-      <p><strong>Activity dates</strong> apply to PitStop hours. <strong>Client outcomes</strong> include your full caseload unless you check the box below.</p>
+      <p><strong>Activity dates</strong> apply to PitStop hours. <strong>Client outcomes</strong> include your full
+        caseload unless you check the box below.</p>
       <div class="row">
         <label>Activity start <input id="startDate" type="date" value="{{ start_of_month }}"></label>
         <label>Activity end <input id="endDate" type="date" value="{{ today }}"></label>
-        <label class="toggle"><input id="createdRangeOnly" type="checkbox"> Only clients <em>created</em> in activity date range (outcomes / inventory)</label>
+        <label class="toggle"><input id="createdRangeOnly" type="checkbox"> Only clients <em>created</em> in activity
+          date range (outcomes / inventory)</label>
         <label>Program
           <select id="program">
             <option value="">All programs</option>
@@ -180,7 +240,8 @@
           </select>
         </label>
         <label>Case manager / logger name <input id="staffName" type="text" placeholder="e.g., Maria"></label>
-        <label>Client lookup (ID, phone, or name) <input id="clientLookup" type="text" placeholder="e.g., 123 or 4155551234"></label>
+        <label>Client lookup (ID, phone, or name) <input id="clientLookup" type="text"
+            placeholder="e.g., 123 or 4155551234"></label>
         <label class="toggle"><input id="mineOnly" type="checkbox"> Only my records</label>
       </div>
     </section>
@@ -189,24 +250,31 @@
       <div class="card" style="border-color:#0f766e;background:#f0fdfa;">
         <div class="title">📦 Manager package (recommended)</div>
         <div class="desc">ZIP with outcomes CSV, printable summary, and PitStop hours. Open START_HERE.html first.</div>
-        <a class="btn" id="managerPackageZip" href="/api/reports/manager-operations-package/" target="_blank">Download ZIP</a>
+        <a class="btn" id="managerPackageZip" href="/api/reports/manager-operations-package/" target="_blank">Download
+          ZIP</a>
       </div>
       <div class="card">
         <div class="title">🧾 Client Outcomes</div>
         <div class="desc">Full caseload export — case manager, notes, and missing-data flags.</div>
-        <a class="btn" id="clientOutcomesPackage" href="/api/reports/client-outcomes-package/" target="_blank">Download ZIP (CSV + print)</a>
-        <a class="btn secondary" id="clientOutcomesCsv" href="/api/reports/client-outcomes/" target="_blank">CSV only</a>
+        <a class="btn" id="clientOutcomesPackage" href="/api/reports/client-outcomes-package/" target="_blank">Download
+          ZIP (CSV + print)</a>
+        <a class="btn secondary" id="clientOutcomesCsv" href="/api/reports/client-outcomes/" target="_blank">CSV
+          only</a>
       </div>
       <div class="card" style="border-color:#b45309;background:#fffbeb;">
         <div class="title">🏗️ City Build Missing Docs</div>
-        <div class="desc">City Build clients only — checklist on file vs missing (DB only, no blob reads). Honors case manager and status filters above.</div>
-        <a class="btn" id="citybuildMissingDocsCsv" href="/api/reports/citybuild-missing-docs/" target="_blank">Download CSV</a>
-        <a class="btn secondary" id="citybuildMissingDocsIncomplete" href="/api/reports/citybuild-missing-docs/?only_incomplete=1" target="_blank">Incomplete only</a>
+        <div class="desc">City Build clients only — checklist on file vs missing (DB only, no blob reads). Honors case
+          manager and status filters above.</div>
+        <a class="btn" id="citybuildMissingDocsCsv" href="/api/reports/citybuild-missing-docs/" target="_blank">Download
+          CSV</a>
+        <a class="btn secondary" id="citybuildMissingDocsIncomplete"
+          href="/api/reports/citybuild-missing-docs/?only_incomplete=1" target="_blank">Incomplete only</a>
       </div>
       <div class="card">
         <div class="title">📦 Workforce Inventory Package</div>
         <div class="desc">Printable summary, demographics, and served ZIP analysis package.</div>
-        <a class="btn" id="workforceZip" href="/api/reports/workforce-inventory-package/" target="_blank">Download ZIP</a>
+        <a class="btn" id="workforceZip" href="/api/reports/workforce-inventory-package/" target="_blank">Download
+          ZIP</a>
       </div>
       <div class="card">
         <div class="title">🗂️ Client File Package (Printable)</div>
@@ -220,11 +288,15 @@
       </div>
       <div class="card">
         <div class="title">⏱️ Worker Clock-In Hours</div>
-        <div class="desc">PitStop / iPad portal punches — net paid hours with lunch deducted. Honors start/end dates above.</div>
-        <a class="btn" id="pitstopHoursPackage" href="/api/reports/pitstop-hours-package/" target="_blank">Download ZIP (print + CSV)</a>
-        <a class="btn secondary" id="pitstopHoursPrint" href="/api/reports/pitstop-hours/print/" target="_blank">Printable HTML</a>
+        <div class="desc">PitStop / iPad portal punches — net paid hours with lunch deducted. Honors start/end dates
+          above.</div>
+        <a class="btn" id="pitstopHoursPackage" href="/api/reports/pitstop-hours-package/" target="_blank">Download ZIP
+          (print + CSV)</a>
+        <a class="btn secondary" id="pitstopHoursPrint" href="/api/reports/pitstop-hours/print/"
+          target="_blank">Printable HTML</a>
         <a class="btn secondary" id="pitstopHoursCsv" href="/api/reports/pitstop-hours/" target="_blank">CSV only</a>
-        <a class="btn secondary" id="pitstopHoursCsvComplete" href="/api/reports/pitstop-hours/?only_complete=1" target="_blank">Completed only</a>
+        <a class="btn secondary" id="pitstopHoursCsvComplete" href="/api/reports/pitstop-hours/?only_complete=1"
+          target="_blank">Completed only</a>
       </div>
     </section>
     <section class="support-note">
@@ -310,4 +382,5 @@
     applyLinks();
   </script>
 </body>
+
 </html>

@@ -1,9 +1,9 @@
 <template>
   <section class="staff-card p-4 space-y-3">
-    <h3 class="font-semibold flex items-center gap-1.5">
-      <span class="material-symbols-outlined text-orange-600" aria-hidden="true">search</span>
-      Find a client
-    </h3>
+    <div class="staff-panel-header">
+      <span class="material-symbols-outlined" aria-hidden="true">search</span>
+      <h3>Find a client</h3>
+    </div>
     <input
       v-model="query"
       type="search"
@@ -12,7 +12,7 @@
       @input="debouncedSearch"
     />
 
-    <p v-if="loading" class="text-sm text-stone-500">Searching…</p>
+    <CardSkeleton v-if="loading" variant="list" :count="3" />
     <p v-else-if="error" class="text-sm text-stone-500">{{ error }}</p>
     <p v-else-if="query.trim().length > 0 && results.length === 0" class="text-sm text-stone-500">
       No clients found.
@@ -21,7 +21,7 @@
       Start typing a name or phone number.
     </p>
 
-    <ul v-else class="space-y-2">
+    <ul v-else class="space-y-2 staff-fade-in">
       <li v-for="c in results" :key="c.id">
         <RouterLink
           :to="{ name: 'ClientDetail', params: { id: c.id } }"
@@ -47,6 +47,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { staffFetch } from '../../api'
+import CardSkeleton from './CardSkeleton.vue'
 
 interface ClientResult {
   id: number

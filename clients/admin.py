@@ -28,6 +28,7 @@ from .models_extensions import (
     ClientTextMessage,
     StaffFeedback,
 )
+from .models_classes import ClassTemplate, ClassSession, ClassEnrollment
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 from .citybuild_docs import (
     CITYBUILD_PROGRAMS,
@@ -2265,4 +2266,163 @@ class StaffFeedbackAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return bool(request.user and request.user.is_superuser)
+
+
+class ClassEnrollmentInline(admin.TabularInline):
+    model = ClassEnrollment
+    extra = 0
+    fields = ['client', 'status', 'registered_by', 'notes']
+    autocomplete_fields = ['client']
+
+
+@admin.register(ClassTemplate)
+class ClassTemplateAdmin(admin.ModelAdmin):
+    list_display = [
+        'name',
+        'category',
+        'recurrence_summary',
+        'start_time',
+        'end_time',
+        'capacity',
+        'is_active',
+        'upcoming_sessions_count',
+    ]
+    list_filter = ['category', 'recurrence', 'is_active']
+    search_fields = ['name', 'description', 'facilitator', 'location']
+    readonly_fields = ['created_at', 'updated_at']
+    actions = ['generate_sessions_action']
+
+    fieldsets = (
+        ('Class Info', {
+            'fields': ('name', 'category', 'description', 'location', 'facilitator', 'capacity', 'is_active'),
+        }),
+        ('Default Schedule', {
+            'fields': ('start_time', 'end_time'),
+        }),
+        ('Recurrence', {
+            'fields': ('recurrence', 'recurrence_weekday', 'recurrence_week_of_month'),
+            'description': (
+                'Does not repeat: add sessions manually below on the Class Sessions page. '
+                'Weekly: pick a weekday. Monthly: pick a weekday and which week of the month '
+                '(e.g. 2nd Tuesday). Then use the "Generate upcoming sessions" action here.'
+            ),
+        }),
+        ('Timestamps', {
+            'classes': ('collapse',),
+            'fields': ('created_at', 'updated_at'),
+        }),
+    )
+
+    def upcoming_sessions_count(self, obj):
+        return obj.sessions.filter(status='scheduled', session_date__gte=timezone.localdate()).count()
+    upcoming_sessions_count.short_description = 'Upcoming sessions'
+
+    @admin.action(description='Generate upcoming sessions (next 60 days)')
+    def generate_sessions_action(self, request, queryset):
+        total_created = 0
+        skipped_one_time = 0
+        for template in queryset:
+            if template.recurrence == 'none':
+                skipped_one_time += 1
+                continue
+            created = template.generate_upcoming_sessions(horizon_days=60)
+            total_created += len(created)
+        if total_created:
+            self.message_user(request, f'Created {total_created} upcoming session(s).', messages.SUCCESS)
+        if skipped_one_time:
+            self.message_user(
+                request,
+                f'Skipped {skipped_one_time} one-time template(s) — add sessions manually for those on the Class Sessions page.',
+                messages.WARNING,
+            )
+        if not total_created and not skipped_one_time:
+            self.message_user(request, 'No new sessions to create — already up to date.', messages.INFO)
+
+
+@admin.register(ClassSession)
+class ClassSessionAdmin(admin.ModelAdmin):
+    list_display = [
+        'template',
+        'session_date',
+        'start_time',
+        'end_time',
+        'location',
+        'status',
+        'roster_display',
+    ]
+    list_filter = ['status', 'template__category', 'session_date']
+    search_fields = ['template__name', 'location', 'facilitator']
+    date_hierarchy = 'session_date'
+    autocomplete_fields = ['template']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [ClassEnrollmentInline]
+    actions = ['mark_completed_action', 'mark_cancelled_action', 'export_roster_csv_action']
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related('template')
+            .annotate(
+                _enrolled_count=Count(
+                    'enrollments', filter=Q(enrollments__status__in=['registered', 'attended'])
+                )
+            )
+        )
+
+    def roster_display(self, obj):
+        enrolled = getattr(obj, '_enrolled_count', obj.enrolled_count)
+        return f'{enrolled} / {obj.capacity}'
+    roster_display.short_description = 'Enrolled'
+
+    @admin.action(description='Mark selected sessions completed')
+    def mark_completed_action(self, request, queryset):
+        updated = queryset.update(status='completed')
+        self.message_user(request, f'{updated} session(s) marked completed.')
+
+    @admin.action(description='Mark selected sessions cancelled')
+    def mark_cancelled_action(self, request, queryset):
+        updated = queryset.update(status='cancelled')
+        self.message_user(request, f'{updated} session(s) marked cancelled.')
+
+    @admin.action(description='Export roster to CSV')
+    def export_roster_csv_action(self, request, queryset):
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = (
+            f'attachment; filename="class_roster_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        )
+        writer = csv.writer(response)
+        writer.writerow(['Class', 'Date', 'Client', 'Phone', 'Status', 'Registered By', 'Registered At'])
+        for session in queryset.select_related('template').prefetch_related('enrollments__client'):
+            for enrollment in session.enrollments.select_related('client').all():
+                writer.writerow([
+                    session.template.name,
+                    session.session_date.isoformat(),
+                    enrollment.client.full_name,
+                    enrollment.client.phone,
+                    enrollment.get_status_display(),
+                    enrollment.registered_by,
+                    enrollment.registered_at.strftime('%Y-%m-%d %H:%M') if enrollment.registered_at else '',
+                ])
+        return response
+
+
+@admin.register(ClassEnrollment)
+class ClassEnrollmentAdmin(admin.ModelAdmin):
+    list_display = ['client_link', 'session_display', 'status', 'registered_by', 'registered_at']
+    list_filter = ['status', 'session__template__category']
+    search_fields = ['client__first_name', 'client__last_name', 'client__phone', 'session__template__name']
+    autocomplete_fields = ['client', 'session']
+    readonly_fields = ['registered_at']
+
+    def client_link(self, obj):
+        url = reverse('admin:clients_client_change', args=[obj.client_id])
+        return format_html('<a href="{}"><strong>{}</strong></a>', url, obj.client.full_name)
+    client_link.short_description = 'Client'
+    client_link.admin_order_field = 'client__last_name'
+
+    def session_display(self, obj):
+        return f'{obj.session.template.name} — {obj.session.session_date}'
+    session_display.short_description = 'Class Session'
+    session_display.admin_order_field = 'session__session_date'
 

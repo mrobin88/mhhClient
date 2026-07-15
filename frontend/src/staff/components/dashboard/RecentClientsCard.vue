@@ -1,14 +1,14 @@
 <template>
-  <section class="staff-card p-4 space-y-3">
-    <h3 class="font-semibold flex items-center gap-1.5">
-      <span class="material-symbols-outlined text-orange-600" aria-hidden="true">person_add</span>
-      Recently added
-    </h3>
+  <section class="staff-card p-4">
+    <div class="staff-panel-header">
+      <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
+      <h3>Recently added</h3>
+    </div>
 
-    <p v-if="loading" class="text-sm text-stone-500">Loading…</p>
+    <CardSkeleton v-if="loading" variant="list" :count="4" />
     <p v-else-if="error" class="text-sm text-stone-500">{{ error }}</p>
     <p v-else-if="clients.length === 0" class="text-sm text-stone-500">No clients yet.</p>
-    <ul v-else class="space-y-2">
+    <ul v-else class="space-y-2 staff-fade-in">
       <li v-for="c in clients" :key="c.id">
         <RouterLink
           :to="{ name: 'ClientDetail', params: { id: c.id } }"
@@ -28,6 +28,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { staffFetch } from '../../api'
+import CardSkeleton from './CardSkeleton.vue'
 
 interface RecentClient {
   id: number

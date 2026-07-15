@@ -1,13 +1,13 @@
 <template>
-  <section class="staff-card p-4 space-y-3">
-    <h3 class="font-semibold flex items-center gap-1.5">
-      <span class="material-symbols-outlined text-orange-600" aria-hidden="true">monitoring</span>
-      Usage this month
-    </h3>
+  <section class="staff-card p-4">
+    <div class="staff-panel-header">
+      <span class="material-symbols-outlined" aria-hidden="true">monitoring</span>
+      <h3>Usage this month</h3>
+    </div>
 
-    <p v-if="loading" class="text-sm text-stone-500">Loading…</p>
+    <CardSkeleton v-if="loading" variant="stats" :count="4" />
     <p v-else-if="error" class="text-sm text-stone-500">{{ error }}</p>
-    <div v-else-if="stats" class="staff-stat-grid">
+    <div v-else-if="stats" class="staff-stat-grid staff-fade-in">
       <div class="staff-stat-tile">
         <p class="staff-stat-value">{{ stats.total_active_clients }}</p>
         <p class="staff-stat-label">Active clients</p>
@@ -31,6 +31,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { staffFetch } from '../../api'
+import CardSkeleton from './CardSkeleton.vue'
 
 interface UsageStats {
   total_active_clients: number

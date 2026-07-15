@@ -12,7 +12,8 @@
           <p class="font-bold text-sm truncate">{{ user?.display_name }}</p>
         </div>
       </div>
-      <button type="button" class="text-sm font-semibold text-stone-600 shrink-0" @click="logout">
+      <button type="button" class="staff-btn staff-btn-ghost shrink-0" @click="logout">
+        <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">logout</span>
         Sign out
       </button>
     </header>
@@ -34,6 +35,10 @@
         <span class="material-symbols-outlined" aria-hidden="true">chat</span>
         <span class="staff-nav-label">Messages</span>
         <span v-if="unreadCount > 0" class="staff-nav-badge">{{ unreadCount }}</span>
+      </RouterLink>
+      <RouterLink to="/classes">
+        <span class="material-symbols-outlined" aria-hidden="true">event</span>
+        <span class="staff-nav-label">Classes</span>
       </RouterLink>
       <RouterLink to="/create-skill">
         <span class="material-symbols-outlined" aria-hidden="true">school</span>
@@ -69,7 +74,7 @@ const showChrome = computed(() => {
 
 const mainClass = computed(() => {
   if (!showChrome.value) return 'min-h-screen'
-  const widthClass = route.name === 'Dashboard' ? 'staff-main-wide' : 'max-w-lg'
+  const widthClass = ['Dashboard', 'Classes'].includes(String(route.name)) ? 'staff-main-wide' : 'max-w-lg'
   return `staff-main-pad ${widthClass} mx-auto p-4`
 })
 

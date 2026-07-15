@@ -1,17 +1,17 @@
 <template>
-  <section class="staff-card p-4 space-y-3">
-    <h3 class="font-semibold flex items-center gap-1.5">
-      <span class="material-symbols-outlined text-orange-600" aria-hidden="true">forum</span>
-      Feedback for the team
-    </h3>
-    <p class="text-xs text-stone-500">
+  <section class="staff-card p-4">
+    <div class="staff-panel-header">
+      <span class="material-symbols-outlined" aria-hidden="true">forum</span>
+      <h3>Feedback for the team</h3>
+    </div>
+    <p class="text-xs text-stone-500 mb-2">
       Only superusers can read submissions in Django admin — not shown to other staff.
     </p>
 
     <textarea
       v-model="message"
       rows="3"
-      class="staff-input"
+      class="staff-input mb-3"
       placeholder="What would make this dashboard or your day-to-day work better?"
       maxlength="4000"
     />

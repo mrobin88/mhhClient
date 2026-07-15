@@ -1,15 +1,15 @@
 <template>
-  <section class="staff-card p-4 space-y-3">
-    <h3 class="font-semibold flex items-center gap-1.5">
-      <span class="material-symbols-outlined text-orange-600" aria-hidden="true">history</span>
-      Recent activity
-    </h3>
-    <p v-if="caveat" class="text-[11px] text-stone-500 -mt-2">{{ caveat }}</p>
+  <section class="staff-card p-4">
+    <div class="staff-panel-header">
+      <span class="material-symbols-outlined" aria-hidden="true">history</span>
+      <h3>Recent activity</h3>
+    </div>
+    <p v-if="caveat" class="staff-panel-note">{{ caveat }}</p>
 
-    <p v-if="loading" class="text-sm text-stone-500">Loading…</p>
+    <CardSkeleton v-if="loading" variant="list" :count="5" />
     <p v-else-if="error" class="text-sm text-stone-500">{{ error }}</p>
     <p v-else-if="entries.length === 0" class="text-sm text-stone-500">No recent admin activity.</p>
-    <ul v-else class="space-y-2">
+    <ul v-else class="space-y-2 staff-fade-in">
       <li
         v-for="entry in entries"
         :key="entry.id"
@@ -28,6 +28,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { staffFetch } from '../../api'
+import CardSkeleton from './CardSkeleton.vue'
 
 interface ActivityEntry {
   id: number

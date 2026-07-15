@@ -7,6 +7,7 @@ import StaffClientList from './components/StaffClientList.vue'
 import StaffClientDetail from './components/StaffClientDetail.vue'
 import StaffMessages from './components/StaffMessages.vue'
 import StaffCreateSkill from './components/StaffCreateSkill.vue'
+import StaffClasses from './components/StaffClasses.vue'
 
 export function createStaffRouter() {
   return createRouter({
@@ -25,6 +26,7 @@ export function createStaffRouter() {
       { path: '/clients', name: 'Clients', component: StaffClientList },
       { path: '/clients/:id', name: 'ClientDetail', component: StaffClientDetail },
       { path: '/messages', name: 'Messages', component: StaffMessages },
+      { path: '/classes', name: 'Classes', component: StaffClasses },
       { path: '/create-skill', name: 'CreateSkill', component: StaffCreateSkill },
     ],
   })

@@ -58,6 +58,19 @@ from .dashboard_views import (
     dashboard_document_upload,
     staff_feedback_submit,
 )
+from .class_views import (
+    staff_upcoming_classes,
+    staff_class_roster,
+    staff_class_enroll,
+    staff_class_unenroll,
+    staff_client_classes,
+    staff_class_templates,
+    staff_class_template_create,
+    staff_class_template_sessions,
+    staff_class_template_generate_sessions,
+    staff_class_session_create,
+    staff_class_enrollment_status,
+)
 
 router = DefaultRouter()
 router.register(r'clients', ClientViewSet)
@@ -126,4 +139,31 @@ urlpatterns = [
     path('staff/dashboard/document-types/', dashboard_document_types, name='dashboard-document-types'),
     path('staff/dashboard/document-upload/', dashboard_document_upload, name='dashboard-document-upload'),
     path('staff/feedback/', staff_feedback_submit, name='staff-feedback-submit'),
+
+    # Classes & Trainings
+    path('staff/classes/upcoming/', staff_upcoming_classes, name='staff-classes-upcoming'),
+    path('staff/classes/<int:session_id>/roster/', staff_class_roster, name='staff-classes-roster'),
+    path('staff/classes/<int:session_id>/enroll/', staff_class_enroll, name='staff-classes-enroll'),
+    path('staff/classes/<int:session_id>/unenroll/', staff_class_unenroll, name='staff-classes-unenroll'),
+    path('staff/clients/<int:pk>/classes/', staff_client_classes, name='staff-client-classes'),
+
+    # Staff-managed class templates (no admin needed for day-to-day scheduling)
+    path('staff/classes/templates/', staff_class_templates, name='staff-class-templates'),
+    path('staff/classes/templates/create/', staff_class_template_create, name='staff-class-template-create'),
+    path(
+        'staff/classes/templates/<int:template_id>/sessions/',
+        staff_class_template_sessions,
+        name='staff-class-template-sessions',
+    ),
+    path(
+        'staff/classes/templates/<int:template_id>/generate-sessions/',
+        staff_class_template_generate_sessions,
+        name='staff-class-template-generate-sessions',
+    ),
+    path('staff/classes/sessions/create/', staff_class_session_create, name='staff-class-session-create'),
+    path(
+        'staff/classes/enrollments/<int:enrollment_id>/status/',
+        staff_class_enrollment_status,
+        name='staff-class-enrollment-status',
+    ),
 ]

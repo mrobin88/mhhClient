@@ -1,14 +1,14 @@
 <template>
-  <section class="staff-card p-4 space-y-3">
-    <h3 class="font-semibold flex items-center gap-1.5">
-      <span class="material-symbols-outlined text-orange-600" aria-hidden="true">donut_large</span>
-      Clients by program
-    </h3>
+  <section class="staff-card p-4">
+    <div class="staff-panel-header">
+      <span class="material-symbols-outlined" aria-hidden="true">donut_large</span>
+      <h3>Clients by program</h3>
+    </div>
 
-    <p v-if="loading" class="text-sm text-stone-500">Loading…</p>
+    <CardSkeleton v-if="loading" variant="block" block-height="220px" />
     <p v-else-if="error" class="text-sm text-stone-500">{{ error }}</p>
     <p v-else-if="rows.length === 0" class="text-sm text-stone-500">No client data yet.</p>
-    <div v-else class="relative" style="height: 220px;">
+    <div v-else class="relative staff-fade-in" style="height: 220px;">
       <canvas ref="canvasEl" role="img" aria-label="Clients grouped by program"></canvas>
     </div>
   </section>
@@ -18,6 +18,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Chart, type ChartConfiguration } from 'chart.js/auto'
 import { staffFetch } from '../../api'
+import CardSkeleton from './CardSkeleton.vue'
 
 interface ProgramRow {
   program: string

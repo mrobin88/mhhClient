@@ -1,9 +1,9 @@
 <template>
   <section class="staff-card p-4 space-y-3">
-    <h3 class="font-semibold flex items-center gap-1.5">
-      <span class="material-symbols-outlined text-orange-600" aria-hidden="true">upload_file</span>
-      Upload a document
-    </h3>
+    <div class="staff-panel-header">
+      <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+      <h3>Upload a document</h3>
+    </div>
 
     <div class="space-y-1">
       <label class="text-xs font-semibold text-stone-600">Client</label>
