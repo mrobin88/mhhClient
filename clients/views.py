@@ -20,11 +20,10 @@ from rest_framework.throttling import ScopedRateThrottle
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from .models import Client, CaseNote, Document, GuardCardEnrollment, PitStopApplication
+from .models import Client, CaseNote, Document, PitStopApplication
 from .serializers import (
     ClientSerializer,
     CaseNoteSerializer,
-    GuardCardEnrollmentSerializer,
     PitStopApplicationSerializer,
 )
 from .throttles import PublicClientCreateThrottle
@@ -157,18 +156,6 @@ class ClientViewSet(viewsets.ModelViewSet):
         - doc_other (+ optional doc_other_name)
         """
         client = serializer.save()
-
-        if client.training_interest == 'guard_card':
-            GuardCardEnrollment.objects.get_or_create(
-                client=client,
-                defaults={
-                    'can_work_us': str(self.request.data.get('guard_card_can_work_us', '')).lower() in {'1', 'true', 'yes'},
-                    'is_veteran': str(self.request.data.get('guard_card_is_veteran', '')).lower() in {'1', 'true', 'yes'},
-                    'barrier': self.request.data.get('guard_card_barrier') or GuardCardEnrollment.BARRIER_NONE,
-                    'barrier_notes': self.request.data.get('guard_card_barrier_notes') or None,
-                    'notes': self.request.data.get('guard_card_notes') or None,
-                },
-            )
 
         files = getattr(self.request, 'FILES', None)
         if not files:
@@ -541,18 +528,3 @@ class PitStopApplicationViewSet(viewsets.ModelViewSet):
         return Response(data)
 
 
-class GuardCardEnrollmentViewSet(viewsets.ModelViewSet):
-    queryset = GuardCardEnrollment.objects.select_related('client').all()
-    serializer_class = GuardCardEnrollmentSerializer
-    permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = [
-        'orientation_completed',
-        'training_in_progress',
-        'guard_card_obtained',
-        'barrier',
-        'next_follow_up_date',
-    ]
-    search_fields = ['client__first_name', 'client__last_name', 'client__phone', 'client__email']
-    ordering_fields = ['next_follow_up_date', 'created_at', 'updated_at']
-    ordering = ['next_follow_up_date', 'client__last_name']
