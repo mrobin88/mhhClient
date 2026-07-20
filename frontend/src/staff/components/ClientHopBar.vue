@@ -35,26 +35,30 @@ const props = defineProps<{
   active?: 'profile' | 'notes' | 'messages' | 'classes' | 'skill'
 }>()
 
-const links = computed(() => [
-  {
-    key: 'notes' as const,
-    label: 'Notes',
-    to: { name: 'ClientDetail', params: { id: props.clientId }, query: { focus: 'notes' } },
-  },
-  {
-    key: 'classes' as const,
-    label: 'Classes',
-    to: { name: 'ClientDetail', params: { id: props.clientId }, query: { focus: 'classes' } },
-  },
-  {
-    key: 'messages' as const,
-    label: 'Messages',
-    to: { name: 'Messages', query: { client: String(props.clientId) } },
-  },
-  {
-    key: 'skill' as const,
-    label: 'Skill note',
-    to: { name: 'CreateSkill', query: { client: String(props.clientId) } },
-  },
-])
+const links = computed(() => {
+  const id = Number(props.clientId)
+  if (!Number.isFinite(id) || id <= 0) return []
+  return [
+    {
+      key: 'notes' as const,
+      label: 'Notes',
+      to: { name: 'ClientDetail', params: { id }, query: { focus: 'notes' } },
+    },
+    {
+      key: 'classes' as const,
+      label: 'Classes',
+      to: { name: 'ClientDetail', params: { id }, query: { focus: 'classes' } },
+    },
+    {
+      key: 'messages' as const,
+      label: 'Messages',
+      to: { name: 'Messages', query: { client: String(id) } },
+    },
+    {
+      key: 'skill' as const,
+      label: 'Skill note',
+      to: { name: 'CreateSkill', query: { client: String(id) } },
+    },
+  ]
+})
 </script>

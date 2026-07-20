@@ -85,7 +85,7 @@ const showChrome = computed(() => {
 
 const mainClass = computed(() => {
   if (!showChrome.value) return 'min-h-screen'
-  const widthClass = ['Dashboard', 'Classes', 'ClientDetail', 'Tickets', 'TicketDetail'].includes(
+  const widthClass = ['Dashboard', 'Classes', 'ClientDetail', 'Tickets', 'TicketDetail', 'Messages'].includes(
     String(route.name),
   )
     ? 'staff-main-wide'

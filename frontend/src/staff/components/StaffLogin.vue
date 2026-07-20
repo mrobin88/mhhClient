@@ -118,8 +118,13 @@ async function submit() {
     emit('logged-in', body.user)
     const redirect = typeof router.currentRoute.value.query.redirect === 'string'
       ? router.currentRoute.value.query.redirect
-      : '/clients'
-    router.replace(redirect.startsWith('/') ? redirect : '/clients')
+      : '/dashboard'
+    // Only honor in-app paths; never bounce back to login/auth screens.
+    const safe =
+      redirect.startsWith('/') &&
+      !redirect.startsWith('//') &&
+      !['/login', '/forgot-password'].some((p) => redirect === p || redirect.startsWith(`${p}/`))
+    router.replace(safe ? redirect : '/dashboard')
   } catch (e) {
     error.value = networkErrorMessage(e)
   } finally {
