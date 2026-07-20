@@ -97,9 +97,10 @@
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
+  min-height: 3rem;
   border-radius: 0.5rem;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   border: 1px solid transparent;
   transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
@@ -112,7 +113,7 @@
 .staff-btn-primary {
   background: var(--staff-accent);
   color: #fff;
-  padding: 0.75rem 1.25rem;
+  padding: 0.95rem 1.35rem;
   box-shadow: 0 1px 2px rgba(28, 25, 23, 0.1);
 }
 .staff-btn-primary:not(:disabled):hover {
@@ -128,7 +129,7 @@
   background: #fff;
   color: var(--staff-ink);
   border: 1px solid var(--staff-border);
-  padding: 0.75rem 1rem;
+  padding: 0.95rem 1.15rem;
 }
 .staff-btn-secondary:not(:disabled):hover {
   border-color: var(--staff-accent);
@@ -138,7 +139,8 @@
 .staff-btn-ghost {
   background: transparent;
   color: var(--staff-muted);
-  padding: 0.5rem 0.7rem;
+  min-height: 2.5rem;
+  padding: 0.6rem 0.85rem;
   border: 1px solid transparent;
 }
 .staff-btn-ghost:not(:disabled):hover {
@@ -154,6 +156,15 @@
   font-size: 0.95rem;
   background: #fff;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+/* Browsers show a drag handle on textareas by default — looks unfinished in forms.
+   Keep height fixed via rows/min-height; content scrolls inside instead. */
+textarea.staff-input,
+.staff-app textarea {
+  resize: none;
+  min-height: 6.5rem;
+  line-height: 1.45;
+  overflow-y: auto;
 }
 .staff-input:hover {
   border-color: #d6d3d1;
@@ -413,4 +424,254 @@ select.staff-input:disabled {
   color: var(--staff-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* Slim help bubbles — hover or tap the ? to see plain-language tips. */
+.staff-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.staff-tip-btn {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1px solid #d6d3d1;
+  background: #fff;
+  color: #78716c;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  padding: 0;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.staff-tip-btn:hover,
+.staff-tip-open .staff-tip-btn,
+.staff-tip-btn:focus-visible {
+  border-color: var(--staff-accent);
+  color: var(--staff-accent-dark);
+  background: #fff8f2;
+  outline: none;
+}
+.staff-tip-bubble {
+  position: absolute;
+  z-index: 50;
+  left: 50%;
+  bottom: calc(100% + 0.4rem);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 15.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.55rem;
+  background: #1c1917;
+  color: #fafaf9;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  box-shadow: 0 8px 20px rgba(28, 25, 23, 0.22);
+  pointer-events: auto;
+  white-space: normal;
+  text-align: left;
+}
+.staff-tip-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1c1917;
+}
+.staff-panel-header .staff-tip {
+  margin-left: 0.15rem;
+}
+.staff-nav a {
+  position: relative;
+}
+.staff-nav .staff-tip {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+}
+.staff-nav .staff-tip-btn {
+  width: 0.95rem;
+  height: 0.95rem;
+  font-size: 0.58rem;
+}
+.staff-nav .staff-tip-bubble {
+  bottom: auto;
+  top: calc(100% + 0.35rem);
+  left: auto;
+  right: 0;
+  transform: none;
+  max-width: 11rem;
+}
+.staff-nav .staff-tip-bubble::after {
+  top: auto;
+  bottom: 100%;
+  left: auto;
+  right: 0.55rem;
+  transform: none;
+  border-top-color: transparent;
+  border-bottom-color: #1c1917;
+}
+.staff-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+.staff-chip {
+  border: 1px solid var(--staff-border);
+  background: #fff;
+  color: var(--staff-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.staff-chip:hover {
+  border-color: var(--staff-accent);
+  color: var(--staff-accent-dark);
+}
+.staff-chip-active {
+  background: #fff8f2;
+  border-color: var(--staff-accent);
+  color: var(--staff-accent-dark);
+}
+.staff-field-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+@media (min-width: 480px) {
+  .staff-field-grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.staff-field label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--staff-muted);
+  margin-bottom: 0.25rem;
+}
+
+/* Client hop bar — always-visible path back to a person's main page + related areas */
+.staff-client-hop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(180deg, #fffaf5 0%, #fff 100%);
+  border: 1px solid #fed7aa;
+  border-radius: 0.75rem;
+}
+.staff-client-hop-name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--staff-ink);
+  text-decoration: none;
+}
+.staff-client-hop-name:hover {
+  color: var(--staff-accent-dark);
+}
+.staff-client-hop-name .material-symbols-outlined {
+  color: var(--staff-accent);
+  font-size: 22px;
+}
+.staff-client-hop-main-label {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--staff-accent-dark);
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+}
+.staff-client-hop-current {
+  color: var(--staff-accent-dark);
+}
+.staff-client-hop-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.staff-client-hop-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--staff-muted);
+  background: #fff;
+  border: 1px solid var(--staff-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  text-decoration: none;
+}
+.staff-client-hop-chip:hover {
+  border-color: var(--staff-accent);
+  color: var(--staff-accent-dark);
+  background: #fff8f2;
+}
+.staff-client-hop-chip-active {
+  border-color: var(--staff-accent);
+  color: var(--staff-accent-dark);
+  background: #fff8f2;
+}
+.staff-activity-link {
+  color: var(--staff-accent-dark);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.staff-activity-link:hover {
+  color: var(--staff-accent);
+}
+
+/* Segmented priority / toggle controls */
+.staff-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.staff-seg-btn {
+  flex: 1 1 auto;
+  min-width: 2.6rem;
+  min-height: 2.4rem;
+  border: 1px solid var(--staff-border);
+  background: #fff;
+  color: var(--staff-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.45rem;
+  cursor: pointer;
+}
+.staff-seg-btn:hover {
+  border-color: var(--staff-accent);
+  color: var(--staff-accent-dark);
+}
+.staff-seg-btn-active {
+  background: #fff8f2;
+  border-color: var(--staff-accent);
+  color: var(--staff-accent-dark);
+}
+.staff-seg-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

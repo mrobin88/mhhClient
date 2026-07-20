@@ -3,6 +3,7 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">event</span>
       <h3>Upcoming Classes &amp; Trainings</h3>
+      <StaffTip text="Next Orientation, JRT, and workshops. Tap a class to peek at the roster. Use Manage to create or edit." />
       <RouterLink
         to="/classes"
         class="text-xs font-semibold text-orange-600 shrink-0"
@@ -64,6 +65,7 @@ import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { staffFetch } from '../../api'
 import CardSkeleton from './CardSkeleton.vue'
+import StaffTip from '../StaffTip.vue'
 
 interface UpcomingSession {
   id: number

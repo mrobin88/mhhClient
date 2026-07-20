@@ -3,6 +3,7 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">donut_large</span>
       <h3>Clients by program</h3>
+      <StaffTip text="How many people are in each program (CAPSA, City Build, Pit Stop, General)." />
     </div>
 
     <CardSkeleton v-if="loading" variant="block" block-height="220px" />
@@ -19,6 +20,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Chart, type ChartConfiguration } from 'chart.js/auto'
 import { staffFetch } from '../../api'
 import CardSkeleton from './CardSkeleton.vue'
+import StaffTip from '../StaffTip.vue'
 
 interface ProgramRow {
   program: string

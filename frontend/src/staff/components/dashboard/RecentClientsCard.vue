@@ -3,6 +3,7 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
       <h3>Recently added</h3>
+      <StaffTip text="Newest people who signed up. Tap a name to open their page and add them to a class." />
     </div>
 
     <CardSkeleton v-if="loading" variant="list" :count="4" />
@@ -29,6 +30,7 @@
 import { onMounted, ref } from 'vue'
 import { staffFetch } from '../../api'
 import CardSkeleton from './CardSkeleton.vue'
+import StaffTip from '../StaffTip.vue'
 
 interface RecentClient {
   id: number

@@ -57,6 +57,13 @@ from .dashboard_views import (
     dashboard_document_upload,
     staff_feedback_submit,
 )
+from .ticket_views import (
+    staff_tickets,
+    staff_ticket_detail,
+    staff_ticket_attachments,
+    staff_ticket_assignees,
+    staff_ticket_meta,
+)
 from .class_views import (
     staff_upcoming_classes,
     staff_class_roster,
@@ -137,6 +144,11 @@ urlpatterns = [
     path('staff/dashboard/document-types/', dashboard_document_types, name='dashboard-document-types'),
     path('staff/dashboard/document-upload/', dashboard_document_upload, name='dashboard-document-upload'),
     path('staff/feedback/', staff_feedback_submit, name='staff-feedback-submit'),
+    path('staff/tickets/', staff_tickets, name='staff-tickets'),
+    path('staff/tickets/meta/', staff_ticket_meta, name='staff-ticket-meta'),
+    path('staff/tickets/assignees/', staff_ticket_assignees, name='staff-ticket-assignees'),
+    path('staff/tickets/<int:pk>/', staff_ticket_detail, name='staff-ticket-detail'),
+    path('staff/tickets/<int:pk>/attachments/', staff_ticket_attachments, name='staff-ticket-attachments'),
 
     # Classes & Trainings
     path('staff/classes/upcoming/', staff_upcoming_classes, name='staff-classes-upcoming'),

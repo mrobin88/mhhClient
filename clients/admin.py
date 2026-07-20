@@ -27,6 +27,8 @@ from .models_extensions import (
     WorkerTimePunch,
     ClientTextMessage,
     StaffFeedback,
+    StaffTicket,
+    StaffTicketAttachment,
 )
 from .models_classes import ClassTemplate, ClassSession, ClassEnrollment
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
@@ -2100,7 +2102,7 @@ class WorkerDailyFeedbackAdmin(admin.ModelAdmin):
 
 @admin.register(StaffFeedback)
 class StaffFeedbackAdmin(admin.ModelAdmin):
-    """Staff Dashboard feedback — superuser-only, by design (submitter is not surfaced elsewhere)."""
+    """Legacy feedback — prefer StaffTicket going forward."""
 
     list_display = ['preview', 'submitted_by', 'created_at']
     list_filter = ['created_at']
@@ -2127,6 +2129,46 @@ class StaffFeedbackAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return bool(request.user and request.user.is_superuser)
+
+
+class StaffTicketAttachmentInline(admin.TabularInline):
+    model = StaffTicketAttachment
+    extra = 0
+    readonly_fields = ['original_name', 'content_type', 'uploaded_by', 'created_at', 'file']
+    can_delete = True
+
+
+@admin.register(StaffTicket)
+class StaffTicketAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'title',
+        'status',
+        'priority',
+        'resolution',
+        'submitted_by',
+        'assignee',
+        'updated_at',
+    ]
+    list_filter = ['status', 'priority', 'resolution', 'updated_at']
+    search_fields = [
+        'title',
+        'description',
+        'submitted_by__username',
+        'submitted_by__first_name',
+        'submitted_by__last_name',
+        'assignee__username',
+    ]
+    autocomplete_fields = ['submitted_by', 'assignee', 'duplicate_of']
+    readonly_fields = ['created_at', 'updated_at', 'resolved_at']
+    inlines = [StaffTicketAttachmentInline]
+    ordering = ['-updated_at']
+    fieldsets = (
+        (None, {'fields': ('title', 'description', 'tags')}),
+        ('Triage', {'fields': ('status', 'resolution', 'priority', 'assignee', 'duplicate_of')}),
+        ('People', {'fields': ('submitted_by',)}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at', 'resolved_at')}),
+    )
 
 
 class ClassEnrollmentInline(admin.TabularInline):

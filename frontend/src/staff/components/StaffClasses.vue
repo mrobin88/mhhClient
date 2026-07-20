@@ -4,18 +4,18 @@
       <div class="staff-panel-header">
         <span class="material-symbols-outlined" aria-hidden="true">event</span>
         <h3>Classes &amp; Trainings</h3>
+        <StaffTip text="Create Orientation, Job Readiness Training (JRT), resume workshops, and other classes. Set them to repeat weekly or monthly, then mark who showed up." />
         <button
           type="button"
           class="staff-btn staff-btn-secondary shrink-0"
-          style="padding: 0.45rem 0.8rem; font-size: 0.78rem;"
           @click="toggleCreateForm"
         >
           {{ showCreateForm ? 'Cancel' : '+ New class' }}
         </button>
       </div>
       <p class="text-xs text-stone-500 mb-3">
-        Add classes, schedule recurring sessions, and track who attends — all from here,
-        no admin portal or code changes needed.
+        Add classes, schedule recurring sessions, and track who attends — all from here.
+        You can also enroll someone from their client page.
       </p>
 
       <form v-if="showCreateForm" class="space-y-3 border border-stone-200 rounded-xl p-3 mb-3" @submit.prevent="submitCreate">
@@ -228,6 +228,7 @@ import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import { useToast } from '../composables/useToast'
 import CardSkeleton from './dashboard/CardSkeleton.vue'
+import StaffTip from './StaffTip.vue'
 
 const toast = useToast()
 

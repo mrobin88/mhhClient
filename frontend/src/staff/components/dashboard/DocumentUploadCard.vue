@@ -3,13 +3,19 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
       <h3>Upload a document</h3>
+      <StaffTip text="Attach an ID, resume, or other file to a client’s record. Find the person first, pick the document type, then upload." />
     </div>
 
     <div class="space-y-1">
       <label class="text-xs font-semibold text-stone-600">Client</label>
-      <div v-if="selectedClient" class="flex items-center justify-between staff-stat-tile">
-        <span class="text-sm font-semibold">{{ selectedClient.full_name }}</span>
-        <button type="button" class="text-xs font-semibold text-orange-600" @click="clearClient">
+      <div v-if="selectedClient" class="flex items-center justify-between gap-2 staff-stat-tile">
+        <RouterLink
+          :to="{ name: 'ClientDetail', params: { id: selectedClient.id } }"
+          class="staff-activity-link text-sm truncate"
+        >
+          {{ selectedClient.full_name }}
+        </RouterLink>
+        <button type="button" class="text-xs font-semibold text-orange-600 shrink-0" @click="clearClient">
           Change
         </button>
       </div>
@@ -64,9 +70,11 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { staffFetch } from '../../api'
 import { friendlyError, networkErrorMessage } from '../../utils/errors'
 import { useToast } from '../../composables/useToast'
+import StaffTip from '../StaffTip.vue'
 
 interface ClientOption {
   id: number

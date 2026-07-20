@@ -9,6 +9,12 @@
     background-color: #f8fafc;
     color: #1e293b;
   }
+
+  /* Default browser textareas show a corner drag handle — disable globally
+     so forms look finished. Content scrolls inside a fixed height instead. */
+  textarea {
+    resize: none;
+  }
 }
 
 @layer components {

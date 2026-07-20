@@ -1,11 +1,22 @@
 <template>
   <section class="space-y-3">
     <div class="staff-card p-4">
-      <h2 class="font-bold text-lg">Training / skill note</h2>
-      <p class="text-sm text-stone-600 mt-1">
-        Log workforce training progress for a client (saved as a training case note).
+      <div class="staff-panel-header">
+        <span class="material-symbols-outlined" aria-hidden="true">school</span>
+        <h3>Training / skill note</h3>
+        <StaffTip text="Log workforce training for a client. After you pick someone, use Main page to jump to their full record anytime." />
+      </div>
+      <p class="text-sm text-stone-600">
+        Saved as a training case note on the client’s page.
       </p>
     </div>
+
+    <ClientHopBar
+      v-if="selectedClient"
+      :client-id="selectedClient.id"
+      :client-name="selectedClient.full_name"
+      active="skill"
+    />
 
     <form class="staff-card p-4 space-y-4 relative" @submit.prevent="submit">
       <div
@@ -36,6 +47,15 @@
             </button>
           </li>
         </ul>
+        <p v-if="selectedClient" class="text-sm mt-2">
+          Working with
+          <RouterLink
+            :to="{ name: 'ClientDetail', params: { id: selectedClient.id } }"
+            class="staff-activity-link"
+          >
+            {{ selectedClient.full_name }}
+          </RouterLink>
+        </p>
         <p v-if="fieldErrors.client" class="text-sm text-red-700 mt-1">{{ fieldErrors.client }}</p>
       </div>
 
@@ -66,21 +86,24 @@
       <button type="button" class="staff-btn staff-btn-secondary" @click="resetForm">Add another</button>
       <RouterLink
         v-if="selectedClient"
-        :to="{ name: 'ClientDetail', params: { id: selectedClient.id } }"
+        :to="{ name: 'ClientDetail', params: { id: selectedClient.id }, query: { focus: 'notes' } }"
         class="block text-sm font-semibold text-orange-600"
       >
-        View {{ selectedClient.full_name }}
+        View notes for {{ selectedClient.full_name }}
       </RouterLink>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import { useToast } from '../composables/useToast'
 import BulldozerLoader from './BulldozerLoader.vue'
+import ClientHopBar from './ClientHopBar.vue'
+import StaffTip from './StaffTip.vue'
 
 interface ClientOption {
   id: number
@@ -88,6 +111,8 @@ interface ClientOption {
   phone: string
 }
 
+const route = useRoute()
+const router = useRouter()
 const toast = useToast()
 const clientQuery = ref('')
 const clientOptions = ref<ClientOption[]>([])
@@ -119,6 +144,27 @@ function selectClient(c: ClientOption) {
   clientQuery.value = c.full_name
   clientOptions.value = []
   fieldErrors.client = ''
+  router.replace({ name: 'CreateSkill', query: { client: String(c.id) } })
+}
+
+async function loadClientFromQuery() {
+  const raw = route.query.client
+  const id = Number(Array.isArray(raw) ? raw[0] : raw)
+  if (!Number.isFinite(id) || id <= 0) return
+  if (selectedClient.value?.id === id) return
+  try {
+    const resp = await staffFetch(`/api/staff/clients/${id}/`)
+    if (!resp.ok) return
+    const body = await resp.json()
+    selectedClient.value = {
+      id: body.id,
+      full_name: body.full_name,
+      phone: body.phone || '',
+    }
+    clientQuery.value = body.full_name
+  } catch {
+    /* ignore — staff can still search */
+  }
 }
 
 function resetForm() {
@@ -128,6 +174,7 @@ function resetForm() {
   nextSteps.value = ''
   selectedClient.value = null
   clientQuery.value = ''
+  router.replace({ name: 'CreateSkill' })
 }
 
 async function submit() {
@@ -166,4 +213,7 @@ async function submit() {
     busy.value = false
   }
 }
+
+onMounted(loadClientFromQuery)
+watch(() => route.query.client, loadClientFromQuery)
 </script>

@@ -1,7 +1,11 @@
 <template>
   <section class="space-y-3">
     <div class="staff-card p-4">
-      <h2 class="font-bold text-lg mb-3">Find a client</h2>
+      <div class="staff-panel-header">
+        <span class="material-symbols-outlined" aria-hidden="true">group</span>
+        <h3>Find a client</h3>
+        <StaffTip text="Search by name or phone, then tap the person. On their page you can fix contact info and sign them up for Orientation or JRT." />
+      </div>
       <input
         v-model="query"
         type="search"
@@ -39,6 +43,7 @@ import { useRouter } from 'vue-router'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import SkeletonClientList from './SkeletonClientList.vue'
+import StaffTip from './StaffTip.vue'
 
 interface ClientRow {
   id: number

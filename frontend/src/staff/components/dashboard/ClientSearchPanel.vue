@@ -3,6 +3,7 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">search</span>
       <h3>Find a client</h3>
+      <StaffTip text="Type a name or phone. Tap the person to open their page — update info or enroll in JRT / orientation there." />
     </div>
     <input
       v-model="query"
@@ -48,6 +49,7 @@
 import { ref } from 'vue'
 import { staffFetch } from '../../api'
 import CardSkeleton from './CardSkeleton.vue'
+import StaffTip from '../StaffTip.vue'
 
 interface ClientResult {
   id: number

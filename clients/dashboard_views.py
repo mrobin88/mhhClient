@@ -29,7 +29,6 @@ from .views import (
     MAX_SUPPORTING_DOC_UPLOAD_BYTES,
     _validate_uploaded_file,
 )
-from .models_extensions import StaffFeedback
 
 logger = logging.getLogger('clients')
 User = get_user_model()
@@ -100,6 +99,60 @@ def dashboard_program_distribution(request):
     return Response({'results': data, 'category_count': len(data)})
 
 
+def _client_ids_for_log_entries(entries):
+    """
+    Map LogEntry.id -> client_id when the logged object is a Client or
+    another clients.* model that points at a Client (case notes, docs, etc.).
+    Lets the staff dashboard turn "Ada Xie - general - 07/15/2026" into a link.
+    """
+    from .models import CaseNote, Document, PitStopApplication
+    from .models_classes import ClassEnrollment
+
+    by_model = {}
+    for e in entries:
+        if not e.content_type_id or not e.object_id:
+            continue
+        key = (e.content_type.app_label, e.content_type.model)
+        by_model.setdefault(key, []).append(e)
+
+    resolved = {}
+
+    client_entries = by_model.get(('clients', 'client'), [])
+    for e in client_entries:
+        try:
+            resolved[e.id] = int(e.object_id)
+        except (TypeError, ValueError):
+            pass
+
+    def _map_fk(model_key, Model, client_field='client_id'):
+        bucket = by_model.get(model_key, [])
+        if not bucket:
+            return
+        ids = []
+        for e in bucket:
+            try:
+                ids.append(int(e.object_id))
+            except (TypeError, ValueError):
+                continue
+        if not ids:
+            return
+        rows = Model.objects.filter(pk__in=ids).values_list('id', client_field)
+        by_pk = {pk: client_id for pk, client_id in rows if client_id}
+        for e in bucket:
+            try:
+                oid = int(e.object_id)
+            except (TypeError, ValueError):
+                continue
+            if oid in by_pk:
+                resolved[e.id] = by_pk[oid]
+
+    _map_fk(('clients', 'casenote'), CaseNote)
+    _map_fk(('clients', 'document'), Document)
+    _map_fk(('clients', 'pitstopapplication'), PitStopApplication)
+    _map_fk(('clients', 'classenrollment'), ClassEnrollment)
+    return resolved
+
+
 @api_view(['GET'])
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
@@ -117,10 +170,11 @@ def dashboard_activity_feed(request):
 
     limit = min(int(request.GET.get('limit') or 15), 50)
     action_labels = {1: 'Added', 2: 'Changed', 3: 'Deleted'}
-    entries = (
+    entries = list(
         LogEntry.objects.select_related('user', 'content_type')
         .order_by('-action_time')[:limit]
     )
+    client_ids = _client_ids_for_log_entries(entries)
     data = [
         {
             'id': e.id,
@@ -130,6 +184,7 @@ def dashboard_activity_feed(request):
             'object_repr': e.object_repr,
             'change_message': e.get_change_message(),
             'action_time': e.action_time,
+            'client_id': client_ids.get(e.id),
         }
         for e in entries
     ]
@@ -295,19 +350,29 @@ def dashboard_document_upload(request):
 @permission_classes([IsAuthenticated])
 def staff_feedback_submit(request):
     """
-    Feedback Module: free-text, staff-authenticated so we know who to thank,
-    but the submitter is never surfaced back through this API or any staff UI —
-    only superusers can see it, in Django admin.
+    Backward-compatible endpoint: creates a StaffTicket (open, P2).
+    Prefer POST /api/staff/tickets/ for full ticket fields + attachments.
     """
     err = _staff_guard(request)
     if err:
         return err
 
-    message = (request.data.get('message') or '').strip()
+    from .models_extensions import StaffTicket
+
+    message = (request.data.get('message') or request.data.get('description') or '').strip()
     if not message:
         return Response({'message': ['Enter your feedback before submitting.']}, status=status.HTTP_400_BAD_REQUEST)
     if len(message) > 4000:
         return Response({'message': ['Keep feedback under 4000 characters.']}, status=status.HTTP_400_BAD_REQUEST)
 
-    StaffFeedback.objects.create(message=message, submitted_by=request.user)
-    return Response({'message': 'Thanks — your feedback was submitted.'}, status=status.HTTP_201_CREATED)
+    title = (request.data.get('title') or '').strip() or (message[:80] + ('…' if len(message) > 80 else ''))
+    ticket = StaffTicket.objects.create(
+        title=title[:200],
+        description=message,
+        priority=request.data.get('priority') or 'p2',
+        submitted_by=request.user,
+    )
+    return Response(
+        {'message': 'Ticket created.', 'id': ticket.id},
+        status=status.HTTP_201_CREATED,
+    )

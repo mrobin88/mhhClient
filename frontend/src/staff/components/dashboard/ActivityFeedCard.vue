@@ -3,6 +3,7 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">history</span>
       <h3>Recent activity</h3>
+      <StaffTip text="What staff recently changed. Tap a client name (like Ada Xie - general - date) to open their main page." />
     </div>
     <p v-if="caveat" class="staff-panel-note">{{ caveat }}</p>
 
@@ -18,7 +19,15 @@
         <span class="font-semibold">{{ entry.actor }}</span>
         {{ entry.action.toLowerCase() }}
         <span class="text-stone-600">{{ entry.model }}</span>
-        <span class="text-stone-500">— {{ entry.object_repr }}</span>
+        —
+        <RouterLink
+          v-if="entry.client_id"
+          :to="{ name: 'ClientDetail', params: { id: entry.client_id } }"
+          class="staff-activity-link"
+        >
+          {{ entry.object_repr }}
+        </RouterLink>
+        <span v-else class="text-stone-500">{{ entry.object_repr }}</span>
         <span class="block text-xs text-stone-400">{{ formatWhen(entry.action_time) }}</span>
       </li>
     </ul>
@@ -27,8 +36,10 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { staffFetch } from '../../api'
 import CardSkeleton from './CardSkeleton.vue'
+import StaffTip from '../StaffTip.vue'
 
 interface ActivityEntry {
   id: number
@@ -38,6 +49,7 @@ interface ActivityEntry {
   object_repr: string
   change_message: string
   action_time: string
+  client_id?: number | null
 }
 
 const entries = ref<ActivityEntry[]>([])

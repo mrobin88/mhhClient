@@ -26,23 +26,33 @@
       <RouterLink to="/dashboard">
         <span class="material-symbols-outlined" aria-hidden="true">dashboard</span>
         <span class="staff-nav-label">Dashboard</span>
+        <StaffTip text="Home screen: recent clients, upcoming classes, search, and quick tools." />
       </RouterLink>
       <RouterLink to="/clients">
         <span class="material-symbols-outlined" aria-hidden="true">group</span>
         <span class="staff-nav-label">Clients</span>
+        <StaffTip text="Find a person, open their page, update info, and sign them up for classes." />
       </RouterLink>
       <RouterLink to="/messages">
         <span class="material-symbols-outlined" aria-hidden="true">chat</span>
         <span class="staff-nav-label">Messages</span>
         <span v-if="unreadCount > 0" class="staff-nav-badge">{{ unreadCount }}</span>
+        <StaffTip text="Text message threads with clients. The badge shows unread replies." />
       </RouterLink>
       <RouterLink to="/classes">
         <span class="material-symbols-outlined" aria-hidden="true">event</span>
         <span class="staff-nav-label">Classes</span>
+        <StaffTip text="Create Orientation, JRT, and workshops. Set weekly/monthly schedules and mark attendance." />
+      </RouterLink>
+      <RouterLink to="/tickets">
+        <span class="material-symbols-outlined" aria-hidden="true">confirmation_number</span>
+        <span class="staff-nav-label">Tickets</span>
+        <StaffTip text="Report bugs with screenshots, set urgency, and track what’s fixed." />
       </RouterLink>
       <RouterLink to="/create-skill">
         <span class="material-symbols-outlined" aria-hidden="true">school</span>
         <span class="staff-nav-label">Skill note</span>
+        <StaffTip text="Log a skill or training note for a client when they complete something." />
       </RouterLink>
     </nav>
   </div>
@@ -53,6 +63,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearStaffSession, staffFetch } from '../api'
 import ToastStack from './ToastStack.vue'
+import StaffTip from './StaffTip.vue'
 
 import type { StaffUser } from '../types'
 
@@ -74,7 +85,11 @@ const showChrome = computed(() => {
 
 const mainClass = computed(() => {
   if (!showChrome.value) return 'min-h-screen'
-  const widthClass = ['Dashboard', 'Classes'].includes(String(route.name)) ? 'staff-main-wide' : 'max-w-lg'
+  const widthClass = ['Dashboard', 'Classes', 'ClientDetail', 'Tickets', 'TicketDetail'].includes(
+    String(route.name),
+  )
+    ? 'staff-main-wide'
+    : 'max-w-lg'
   return `staff-main-pad ${widthClass} mx-auto p-4`
 })
 

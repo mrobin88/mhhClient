@@ -3,6 +3,7 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">monitoring</span>
       <h3>Usage this month</h3>
+      <StaffTip text="Quick counts of how busy the CRM has been — active clients, recent updates, and uploads." />
     </div>
 
     <CardSkeleton v-if="loading" variant="stats" :count="4" />
@@ -32,6 +33,7 @@
 import { onMounted, ref } from 'vue'
 import { staffFetch } from '../../api'
 import CardSkeleton from './CardSkeleton.vue'
+import StaffTip from '../StaffTip.vue'
 
 interface UsageStats {
   total_active_clients: number

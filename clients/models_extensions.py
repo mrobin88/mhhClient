@@ -551,11 +551,9 @@ class WorkerSessionToken(models.Model):
 
 class StaffFeedback(models.Model):
     """
-    Anonymous-to-staff feedback from the Staff Dashboard.
+    Legacy anonymous-to-staff feedback from the Staff Dashboard.
 
-    submitted_by is stored for accountability but is intentionally never
-    exposed through staff-facing APIs/serializers — only superusers can see
-    it, via Django admin.
+    New submissions go to StaffTicket. Kept for historical admin records.
     """
 
     message = models.TextField(help_text='Free-text feedback from staff.')
@@ -570,12 +568,141 @@ class StaffFeedback(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        verbose_name = 'Staff Feedback'
-        verbose_name_plural = 'Staff Feedback'
+        verbose_name = 'Staff Feedback (legacy)'
+        verbose_name_plural = 'Staff Feedback (legacy)'
 
     def __str__(self):
         preview = (self.message or '').strip().replace('\n', ' ')[:60]
         return preview or f'Feedback #{self.pk}'
+
+
+class StaffTicket(models.Model):
+    """Staff SPA ticket / feedback issue tracking."""
+
+    STATUS_OPEN = 'open'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_BLOCKED = 'blocked'
+    STATUS_RESOLVED = 'resolved'
+    STATUS_CLOSED = 'closed'
+    STATUS_CHOICES = [
+        (STATUS_OPEN, 'Open'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_BLOCKED, 'Blocked'),
+        (STATUS_RESOLVED, 'Resolved'),
+        (STATUS_CLOSED, 'Closed'),
+    ]
+
+    RESOLUTION_FIXED = 'fixed'
+    RESOLUTION_WONTFIX = 'wontfix'
+    RESOLUTION_WORKING_AS_INTENDED = 'working_as_intended'
+    RESOLUTION_OBSOLETE = 'obsolete'
+    RESOLUTION_DUPLICATE = 'duplicate'
+    RESOLUTION_CANNOT_REPRODUCE = 'cannot_reproduce'
+    RESOLUTION_NOT_REPRODUCIBLE = 'not_reproducible'
+    RESOLUTION_INFEASIBLE = 'infeasible'
+    RESOLUTION_CHOICES = [
+        (RESOLUTION_FIXED, 'Fixed / Resolved'),
+        (RESOLUTION_WONTFIX, 'WontFix (Intended Behavior)'),
+        (RESOLUTION_WORKING_AS_INTENDED, 'WorkingAsIntended'),
+        (RESOLUTION_OBSOLETE, 'Obsolete'),
+        (RESOLUTION_DUPLICATE, 'Duplicate'),
+        (RESOLUTION_CANNOT_REPRODUCE, 'CannotReproduce'),
+        (RESOLUTION_NOT_REPRODUCIBLE, 'NotReproducible'),
+        (RESOLUTION_INFEASIBLE, 'Infeasible'),
+    ]
+
+    PRIORITY_CHOICES = [
+        ('p0', 'P0 — Critical'),
+        ('p1', 'P1 — High'),
+        ('p2', 'P2 — Medium'),
+        ('p3', 'P3 — Low'),
+        ('p4', 'P4 — Nice to have'),
+    ]
+
+    TAG_CHOICES = [
+        ('frontend', 'Frontend'),
+        ('backend', 'Backend'),
+        ('database', 'Database'),
+        ('ui', 'UI / UX'),
+        ('auth', 'Auth'),
+        ('classes', 'Classes'),
+        ('messaging', 'Messaging'),
+        ('documents', 'Documents'),
+        ('other', 'Other'),
+    ]
+
+    title = models.CharField(max_length=200)
+    description = models.TextField(help_text='What is needed / what went wrong.')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    resolution = models.CharField(max_length=30, choices=RESOLUTION_CHOICES, blank=True, default='')
+    priority = models.CharField(max_length=5, choices=PRIORITY_CHOICES, default='p2')
+    tags = models.JSONField(default=list, blank=True, help_text='List of tag keys, e.g. ["frontend","ui"].')
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='submitted_tickets',
+    )
+    assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_tickets',
+    )
+    duplicate_of = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='duplicates',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-updated_at', '-created_at']
+        verbose_name = 'Staff Ticket'
+        verbose_name_plural = 'Staff Tickets'
+        indexes = [
+            models.Index(fields=['status', 'priority']),
+            models.Index(fields=['submitted_by', 'status']),
+            models.Index(fields=['assignee', 'status']),
+        ]
+
+    def __str__(self):
+        return f'#{self.pk} {self.title}'
+
+    @property
+    def is_terminal(self):
+        return self.status in {self.STATUS_RESOLVED, self.STATUS_CLOSED}
+
+
+class StaffTicketAttachment(models.Model):
+    """Screenshot or document attached to a staff ticket."""
+
+    ticket = models.ForeignKey(StaffTicket, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='staff_tickets/%Y/%m/')
+    original_name = models.CharField(max_length=255, blank=True)
+    content_type = models.CharField(max_length=100, blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ticket_attachments',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = 'Staff Ticket Attachment'
+        verbose_name_plural = 'Staff Ticket Attachments'
+
+    def __str__(self):
+        return self.original_name or f'Attachment #{self.pk}'
 
 
 class WorkerDailyFeedback(models.Model):

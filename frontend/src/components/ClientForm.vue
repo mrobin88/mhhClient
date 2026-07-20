@@ -1259,12 +1259,13 @@ async function handleSubmit() {
 
 .step-btn {
   flex: 1;
-  min-height: 2.85rem;
+  min-height: 3.25rem;
   border-radius: 0.75rem;
   border: 1px solid #cbd5e1;
   background: #fff;
   color: #334155;
   font-weight: 600;
+  font-size: 1rem;
 }
 
 .step-btn-primary {
@@ -1438,8 +1439,9 @@ async function handleSubmit() {
 textarea.form-input {
   display: block;
   min-height: 7rem;
-  resize: vertical;
+  resize: none;
   line-height: 1.5;
+  overflow-y: auto;
 }
 
 .registration-form .form-input,
@@ -1515,7 +1517,7 @@ textarea.form-input {
 
 .registration-form .submit-button {
   width: 100%;
-  min-height: 3.35rem;
+  min-height: 3.75rem;
   transform: none !important;
 }
 

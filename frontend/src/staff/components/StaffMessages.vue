@@ -1,9 +1,20 @@
 <template>
   <section class="space-y-3">
     <div class="staff-card p-4">
-      <h2 class="font-bold text-lg">Client messages</h2>
-      <p class="text-sm text-stone-600 mt-1">SMS threads with program clients (updates every 20s)</p>
+      <div class="staff-panel-header">
+        <span class="material-symbols-outlined" aria-hidden="true">chat</span>
+        <h3>Client messages</h3>
+        <StaffTip text="SMS threads with clients. Open a thread, then use Main page to jump to their full record." />
+      </div>
+      <p class="text-sm text-stone-600">Updates every 20 seconds. Tap a name to open the conversation.</p>
     </div>
+
+    <ClientHopBar
+      v-if="selectedThread"
+      :client-id="selectedThread.client_id"
+      :client-name="selectedThread.client_name"
+      active="messages"
+    />
 
     <BulldozerLoader v-if="loading && threads.length === 0" label="Loading messages…" />
 
@@ -20,7 +31,7 @@
           type="button"
           class="staff-card w-full text-left p-4"
           :class="{ 'ring-2 ring-orange-400': selectedId === thread.client_id }"
-          @click="selectedId = thread.client_id"
+          @click="selectThread(thread.client_id)"
         >
           <div class="flex justify-between gap-2">
             <p class="font-semibold truncate">{{ thread.client_name }}</p>
@@ -38,7 +49,14 @@
     </ul>
 
     <div v-if="selectedThread" class="staff-card p-4 space-y-3 max-h-[50vh] overflow-y-auto">
-      <h3 class="font-semibold">{{ selectedThread.client_name }}</h3>
+      <h3 class="font-semibold">
+        <RouterLink
+          :to="{ name: 'ClientDetail', params: { id: selectedThread.client_id } }"
+          class="staff-activity-link"
+        >
+          {{ selectedThread.client_name }}
+        </RouterLink>
+      </h3>
       <div
         v-for="msg in selectedThread.messages"
         :key="msg.id"
@@ -62,10 +80,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import BulldozerLoader from './BulldozerLoader.vue'
+import ClientHopBar from './ClientHopBar.vue'
+import StaffTip from './StaffTip.vue'
 
 interface MessageRow {
   id: number
@@ -84,6 +105,8 @@ interface Thread {
   messages: MessageRow[]
 }
 
+const route = useRoute()
+const router = useRouter()
 const threads = ref<Thread[]>([])
 const loading = ref(true)
 const error = ref('')
@@ -104,6 +127,19 @@ function formatTime(iso: string) {
   })
 }
 
+function selectThread(clientId: number) {
+  selectedId.value = clientId
+  router.replace({ name: 'Messages', query: { client: String(clientId) } })
+}
+
+function applyQueryClient() {
+  const raw = route.query.client
+  const id = Number(Array.isArray(raw) ? raw[0] : raw)
+  if (Number.isFinite(id) && id > 0) {
+    selectedId.value = id
+  }
+}
+
 async function load() {
   if (!threads.value.length) loading.value = true
   error.value = ''
@@ -115,6 +151,7 @@ async function load() {
       return
     }
     threads.value = body.threads || []
+    applyQueryClient()
     if (!selectedId.value && threads.value.length) {
       selectedId.value = threads.value[0].client_id
     }
@@ -124,6 +161,8 @@ async function load() {
     loading.value = false
   }
 }
+
+watch(() => route.query.client, applyQueryClient)
 
 onMounted(() => {
   load()
