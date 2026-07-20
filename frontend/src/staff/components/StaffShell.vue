@@ -5,13 +5,17 @@
       v-if="showChrome"
       class="sticky top-0 z-40 bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between"
     >
-      <div class="flex items-center gap-2 min-w-0">
+      <RouterLink
+        to="/dashboard"
+        class="staff-home-link flex items-center gap-2 min-w-0 rounded-lg pr-2 -ml-1 pl-1 py-0.5"
+        title="Go to staff home"
+      >
         <span class="material-symbols-outlined text-orange-600" aria-hidden="true">badge</span>
         <div class="min-w-0">
           <p class="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">MHH Staff</p>
           <p class="font-bold text-sm truncate">{{ user?.display_name }}</p>
         </div>
-      </div>
+      </RouterLink>
       <button type="button" class="staff-btn staff-btn-ghost shrink-0" @click="logout">
         <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">logout</span>
         Sign out
@@ -24,9 +28,9 @@
 
     <nav v-if="showChrome" class="staff-nav">
       <RouterLink to="/dashboard">
-        <span class="material-symbols-outlined" aria-hidden="true">dashboard</span>
-        <span class="staff-nav-label">Dashboard</span>
-        <StaffTip text="Home screen: recent clients, upcoming classes, search, and quick tools." />
+        <span class="material-symbols-outlined" aria-hidden="true">home</span>
+        <span class="staff-nav-label">Home</span>
+        <StaffTip text="Staff home — recent clients, classes, search, and quick tools." />
       </RouterLink>
       <RouterLink to="/clients">
         <span class="material-symbols-outlined" aria-hidden="true">group</span>

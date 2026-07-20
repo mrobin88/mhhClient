@@ -8,30 +8,62 @@
     <form v-if="!done" class="staff-card p-6 space-y-4" @submit.prevent="submit">
       <div>
         <label class="block text-sm font-semibold mb-2">New password</label>
-        <input
-          v-model="password"
-          :type="showPw ? 'text' : 'password'"
-          class="staff-input"
-          minlength="8"
-          required
-        />
+        <div class="staff-password-field">
+          <input
+            v-model="password"
+            :type="showPw ? 'text' : 'password'"
+            class="staff-input"
+            minlength="8"
+            autocomplete="new-password"
+            required
+          />
+          <button
+            type="button"
+            class="staff-password-toggle"
+            :aria-label="showPw ? 'Hide password' : 'Show password'"
+            :aria-pressed="showPw"
+            @click="showPw = !showPw"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">
+              {{ showPw ? 'visibility_off' : 'visibility' }}
+            </span>
+          </button>
+        </div>
       </div>
       <div>
         <label class="block text-sm font-semibold mb-2">Confirm password</label>
-        <input
-          v-model="confirm"
-          :type="showPw ? 'text' : 'password'"
-          class="staff-input"
-          required
-        />
+        <div class="staff-password-field">
+          <input
+            v-model="confirm"
+            :type="showPw ? 'text' : 'password'"
+            class="staff-input"
+            autocomplete="new-password"
+            required
+          />
+          <button
+            type="button"
+            class="staff-password-toggle"
+            :aria-label="showPw ? 'Hide password' : 'Show password'"
+            :aria-pressed="showPw"
+            @click="showPw = !showPw"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">
+              {{ showPw ? 'visibility_off' : 'visibility' }}
+            </span>
+          </button>
+        </div>
       </div>
-      <button type="button" class="text-sm font-semibold text-orange-600" @click="showPw = !showPw">
-        {{ showPw ? 'Hide passwords' : 'Show passwords' }}
-      </button>
       <p v-if="error" class="text-sm text-red-700">{{ error }}</p>
       <button type="submit" class="staff-btn staff-btn-primary w-full" :disabled="busy || !validToken">
         {{ busy ? 'Saving…' : 'Update password' }}
       </button>
+      <p class="text-center text-xs text-stone-500">
+        Need help?
+        <a
+          href="mailto:mrobin@missionhiringhall.org"
+          class="font-semibold text-stone-700 hover:underline"
+        >mrobin@missionhiringhall.org</a>
+      </p>
     </form>
 
     <div v-else class="staff-card p-6 text-center space-y-3">

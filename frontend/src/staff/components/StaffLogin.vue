@@ -22,21 +22,25 @@
 
       <div>
         <label class="block text-sm font-semibold text-stone-700 mb-2">Password</label>
-        <div class="relative">
+        <div class="staff-password-field">
           <input
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
             autocomplete="current-password"
-            class="staff-input pr-24"
+            class="staff-input"
             :class="{ 'staff-input-error': fieldErrors.password }"
             required
           />
           <button
             type="button"
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-orange-600"
+            class="staff-password-toggle"
+            :aria-label="showPassword ? 'Hide password' : 'Show password'"
+            :aria-pressed="showPassword"
             @click="showPassword = !showPassword"
           >
-            {{ showPassword ? 'Hide' : 'Show' }}
+            <span class="material-symbols-outlined" aria-hidden="true">
+              {{ showPassword ? 'visibility_off' : 'visibility' }}
+            </span>
           </button>
         </div>
         <p v-if="fieldErrors.password" class="text-sm text-red-700 mt-1">{{ fieldErrors.password }}</p>
@@ -51,11 +55,18 @@
         <span v-else>Sign in</span>
       </button>
 
-      <p class="text-center">
+      <div class="text-center space-y-2">
         <RouterLink to="/forgot-password" class="text-sm font-semibold text-orange-600 hover:underline">
           Forgot password?
         </RouterLink>
-      </p>
+        <p class="text-xs text-stone-500">
+          Need help?
+          <a
+            href="mailto:mrobin@missionhiringhall.org"
+            class="font-semibold text-stone-700 hover:underline"
+          >mrobin@missionhiringhall.org</a>
+        </p>
+      </div>
     </form>
 
     <BulldozerLoader v-if="busy" label="Signing you in…" class="staff-card p-8" />

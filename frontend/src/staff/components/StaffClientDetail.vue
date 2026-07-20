@@ -1,7 +1,7 @@
 <template>
   <section class="space-y-3">
-    <button type="button" class="text-sm font-semibold text-orange-600" @click="router.back()">
-      ← Back
+    <button type="button" class="text-sm font-semibold text-orange-600" @click="router.push({ name: 'Dashboard' })">
+      ← Home
     </button>
 
     <BulldozerLoader v-if="loading" label="Loading client…" />

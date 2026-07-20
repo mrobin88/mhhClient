@@ -6,6 +6,13 @@
       <p class="text-stone-600 mt-2 text-sm">
         Enter the email on your staff account. We will email reset steps if it matches.
       </p>
+      <p class="text-stone-600 mt-3 text-sm">
+        Stuck? Email
+        <a
+          href="mailto:mrobin@missionhiringhall.org"
+          class="font-semibold text-orange-600 hover:underline"
+        >mrobin@missionhiringhall.org</a>
+      </p>
     </div>
 
     <form v-if="!sent" class="staff-card p-6 space-y-4" @submit.prevent="submit">
@@ -34,6 +41,13 @@
       <p class="text-green-800 font-semibold">Check your inbox</p>
       <p class="text-sm text-stone-600">
         If that email is registered, you will receive a link shortly. Check spam if needed.
+      </p>
+      <p class="text-sm text-stone-600">
+        Still need help?
+        <a
+          href="mailto:mrobin@missionhiringhall.org"
+          class="font-semibold text-orange-600 hover:underline"
+        >mrobin@missionhiringhall.org</a>
       </p>
       <RouterLink to="/login" class="staff-btn staff-btn-primary w-full inline-flex mt-2">
         Return to sign in
