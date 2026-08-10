@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django import forms
 from django.db import connection
 from django.utils.html import format_html, format_html_join
 from django.urls import reverse
@@ -31,6 +32,7 @@ from .models_extensions import (
     StaffTicketAttachment,
 )
 from .models_classes import ClassTemplate, ClassSession, ClassEnrollment
+from .models_partners import Partner, PartnerReferral, PartnerApiAuditLog
 from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
 from .citybuild_docs import (
     CITYBUILD_PROGRAMS,
@@ -2328,4 +2330,186 @@ class ClassEnrollmentAdmin(admin.ModelAdmin):
         return f'{obj.session.template.name} — {obj.session.session_date}'
     session_display.short_description = 'Class Session'
     session_display.admin_order_field = 'session__session_date'
+
+
+# ── Partner referral ingest ──────────────────────────────────────────────────
+
+class PartnerAdminForm(forms.ModelForm):
+    generate_api_key = forms.BooleanField(
+        required=False,
+        initial=True,
+        label='Generate new API key',
+        help_text='Creates a new key and shows it once after save. Old key stops working.',
+    )
+
+    class Meta:
+        model = Partner
+        fields = (
+            'name',
+            'slug',
+            'contact_name',
+            'contact_email',
+            'is_active',
+            'notes',
+            'generate_api_key',
+        )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.api_key_hash:
+            self.fields['generate_api_key'].initial = False
+            self.fields['generate_api_key'].help_text = (
+                f'Current key prefix: {self.instance.api_key_prefix}… '
+                'Check this box only to rotate the key.'
+            )
+
+
+@admin.register(Partner)
+class PartnerAdmin(admin.ModelAdmin):
+    form = PartnerAdminForm
+    list_display = [
+        'name',
+        'slug',
+        'is_active',
+        'api_key_prefix',
+        'request_count',
+        'referral_count',
+        'contact_email',
+        'updated_at',
+    ]
+    list_filter = ['is_active']
+    search_fields = ['name', 'slug', 'contact_name', 'contact_email']
+    prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = [
+        'api_key_prefix',
+        'api_key_created_at',
+        'request_count',
+        'created_at',
+        'updated_at',
+    ]
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'slug', 'is_active', 'contact_name', 'contact_email', 'notes'),
+        }),
+        ('API access', {
+            'fields': ('generate_api_key', 'api_key_prefix', 'api_key_created_at', 'request_count'),
+            'description': (
+                'Partners POST to /api/partners/v1/referrals/ with '
+                'Authorization: Bearer &lt;key&gt;. Write-only; no client list access.'
+            ),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def referral_count(self, obj):
+        return obj.referrals.count()
+    referral_count.short_description = 'Referrals'
+
+    def save_model(self, request, obj, form, change):
+        generate = form.cleaned_data.get('generate_api_key')
+        raw_key = None
+        if generate or not obj.api_key_hash:
+            raw_key = obj.set_api_key()
+        super().save_model(request, obj, form, change)
+        if raw_key:
+            messages.warning(
+                request,
+                format_html(
+                    '<strong>Copy this API key now — it will not be shown again.</strong><br>'
+                    '<code style="font-size:14px;user-select:all;">{}</code><br>'
+                    'Partner: <strong>{}</strong> · Endpoint: '
+                    '<code>POST /api/partners/v1/referrals/</code>',
+                    raw_key,
+                    obj.name,
+                ),
+            )
+
+
+@admin.register(PartnerReferral)
+class PartnerReferralAdmin(admin.ModelAdmin):
+    list_display = [
+        'full_name',
+        'partner',
+        'external_id',
+        'phone',
+        'email',
+        'status',
+        'linked_client',
+        'created_at',
+        'updated_at',
+    ]
+    list_filter = ['status', 'partner']
+    search_fields = [
+        'first_name',
+        'last_name',
+        'phone',
+        'email',
+        'external_id',
+        'partner__name',
+    ]
+    autocomplete_fields = ['linked_client', 'partner']
+    readonly_fields = ['created_at', 'updated_at', 'external_id', 'partner']
+    list_editable = ['status']
+    date_hierarchy = 'created_at'
+
+    fieldsets = (
+        (None, {
+            'fields': (
+                'partner',
+                'external_id',
+                'status',
+                'first_name',
+                'last_name',
+                'phone',
+                'email',
+                'notes',
+            ),
+        }),
+        ('Staff review', {
+            'fields': ('staff_notes', 'linked_client'),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+        }),
+    )
+
+    def full_name(self, obj):
+        return f'{obj.first_name} {obj.last_name}'
+    full_name.short_description = 'Name'
+    full_name.admin_order_field = 'last_name'
+
+
+@admin.register(PartnerApiAuditLog)
+class PartnerApiAuditLogAdmin(admin.ModelAdmin):
+    list_display = [
+        'created_at',
+        'partner',
+        'method',
+        'status_code',
+        'external_id',
+        'detail',
+        'ip_address',
+    ]
+    list_filter = ['status_code', 'partner']
+    search_fields = ['external_id', 'detail', 'path', 'partner__name']
+    readonly_fields = [
+        'partner',
+        'method',
+        'path',
+        'status_code',
+        'external_id',
+        'detail',
+        'ip_address',
+        'created_at',
+    ]
+    date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 

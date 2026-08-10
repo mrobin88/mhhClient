@@ -40,6 +40,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         worker: resolve(__dirname, 'worker/index.html'),
         staff: resolve(__dirname, 'staff/index.html'),
+        partners: resolve(__dirname, 'partners/index.html'),
       },
     },
   },

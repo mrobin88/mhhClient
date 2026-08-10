@@ -10,6 +10,10 @@
       "/staff/",
       "/staff/*",
       "/staff.html",
+      "/partners",
+      "/partners/",
+      "/partners/*",
+      "/partners.html",
       "/assets/*",
       "*.css",
       "*.js",
@@ -29,6 +33,10 @@
     {
       "route": "/staff.html",
       "serve": "/staff/index.html"
+    },
+    {
+      "route": "/partners.html",
+      "serve": "/partners/index.html"
     },
     {
       "route": "/checkin.html",
