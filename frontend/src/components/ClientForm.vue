@@ -102,6 +102,18 @@
 
                 <button
                   type="button"
+                  @click="form.training_interest = 'guard_card'"
+                  :class="[
+                    'program-btn-compact',
+                    form.training_interest === 'guard_card' ? 'program-btn-active' : 'program-btn-inactive'
+                  ]"
+                >
+                  <span class="mr-2">🛡️</span>
+                  <span>Security Guard Card Training</span>
+                </button>
+
+                <button
+                  type="button"
                   @click="form.training_interest = 'general'"
                   :class="[
                     'program-btn-compact',
@@ -762,6 +774,12 @@ watch(stepOrder, (steps) => {
 })
 
 const nextStep = () => {
+  // Program drives later steps (Pit Stop adds one), so it cannot be skipped —
+  // a blank value would silently save as "General" on the backend.
+  if (currentStep.value === 'program' && !form.value.training_interest) {
+    formAttempted.value = true
+    return
+  }
   if (!isLastStep.value) currentStepIndex.value += 1
 }
 

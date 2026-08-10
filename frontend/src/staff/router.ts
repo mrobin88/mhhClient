@@ -10,6 +10,7 @@ import StaffCreateSkill from './components/StaffCreateSkill.vue'
 import StaffClasses from './components/StaffClasses.vue'
 import StaffTickets from './components/StaffTickets.vue'
 import StaffTicketDetail from './components/StaffTicketDetail.vue'
+import StaffHowItWorks from './components/StaffHowItWorks.vue'
 
 export function createStaffRouter() {
   return createRouter({
@@ -32,6 +33,7 @@ export function createStaffRouter() {
       { path: '/tickets', name: 'Tickets', component: StaffTickets },
       { path: '/tickets/:id', name: 'TicketDetail', component: StaffTicketDetail },
       { path: '/create-skill', name: 'CreateSkill', component: StaffCreateSkill },
+      { path: '/how-it-works', name: 'HowItWorks', component: StaffHowItWorks },
     ],
   })
 }

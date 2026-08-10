@@ -2,14 +2,8 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.shortcuts import redirect
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import render
-
-def home_redirect(request):
-    """Redirect to frontend application"""
-    # Update this URL to your actual frontend URL
-    return redirect('https://your-frontend-domain.com')
 
 def api_info(request):
     """Styled home hub for admin, APIs, and reporting."""
@@ -23,6 +17,7 @@ def api_info(request):
                     'items': [
                         {'name': 'Staff Admin', 'path': '/admin/', 'description': 'Manage clients, workers, staffing, and documents.'},
                         {'name': 'Staff SPA', 'path': 'https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff/', 'description': 'Mobile-friendly staff workspace (same login as admin).'},
+                        {'name': 'How everything works', 'path': 'https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff/#/how-it-works', 'description': 'Single guide to every app, the client path, and what runs automatically.'},
                         {'name': 'Reports Hub', 'path': '/api/reports/', 'description': 'Download filtered CSV and ZIP exports.'},
                         {'name': 'Health Check', 'path': '/health', 'description': 'Service heartbeat for platform monitoring.'},
                     ],
@@ -33,6 +28,14 @@ def api_info(request):
                         {'name': 'API Root', 'path': '/api/', 'description': 'Browsable root for all API endpoints.'},
                         {'name': 'Clients API', 'path': '/api/clients/', 'description': 'Client records and workflow data.'},
                         {'name': 'PitStop Applications', 'path': '/api/pitstop-applications/', 'description': 'PitStop application intake endpoints.'},
+                        {'name': 'Partner referrals (POST)', 'path': '/api/partners/v1/referrals/', 'description': 'Write-only partner ingest (API key).'},
+                    ],
+                },
+                {
+                    'title': 'Partners',
+                    'items': [
+                        {'name': 'Partner API docs', 'path': 'https://blue-glacier-0c5f06410.3.azurestaticapps.net/partners/', 'description': 'Technical docs for write-only partner referral ingest.'},
+                        {'name': 'Partners in Admin', 'path': '/admin/clients/partner/', 'description': 'Create partners, rotate keys, review referrals.'},
                     ],
                 },
                 {

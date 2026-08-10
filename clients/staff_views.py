@@ -91,6 +91,8 @@ def staff_clients(request):
         return Response({'error': 'Staff access required.'}, status=status.HTTP_403_FORBIDDEN)
 
     q = (request.GET.get('q') or '').strip()
+    program = (request.GET.get('program') or '').strip()
+    stage = (request.GET.get('stage') or '').strip()
     limit = min(int(request.GET.get('limit') or 40), 100)
     queryset = Client.objects.all().order_by('-updated_at')
     if q:
@@ -104,6 +106,10 @@ def staff_clients(request):
         if digits:
             filters |= Q(phone__icontains=digits)
         queryset = queryset.filter(filters)
+    if program in dict(Client.TRAINING_INTEREST_CHOICES):
+        queryset = queryset.filter(training_interest=program)
+    if stage in dict(Client.PIT_STOP_STAGE_CHOICES):
+        queryset = queryset.filter(pit_stop_stage=stage)
     clients = queryset[:limit]
     return Response(StaffClientListSerializer(clients, many=True).data)
 
@@ -156,6 +162,71 @@ def staff_client_notes(request, pk):
     serializer.is_valid(raise_exception=True)
     note = serializer.save(staff_member=staff_display_name(request.user))
     return Response(StaffCaseNoteSerializer(note).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_client_pitstop_promote(request, pk):
+    """
+    Give a Pit Stop client worker portal access.
+
+    Creating the WorkerAccount is what moves the client to the 'worker' stage
+    (see WorkerAccount.save), so staff no longer need Django admin for this.
+    """
+    if not request.user.is_staff:
+        return Response({'error': 'Staff access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        client = Client.objects.get(pk=pk)
+    except Client.DoesNotExist:
+        return Response({'error': 'Client not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    from .models_extensions import WorkerAccount
+    from .phone_utils import default_worker_pin_from_phone, normalize_login_phone
+
+    if getattr(client, 'worker_account', None) is not None:
+        return Response(
+            {'error': 'This client already has worker portal access.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    normalized_phone = normalize_login_phone(client.phone)
+    if len(normalized_phone) < 10:
+        return Response(
+            {
+                'error': (
+                    'A valid 10-digit phone number is required for worker login. '
+                    'Update the phone on this client first.'
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if WorkerAccount.objects.filter(phone=normalized_phone).exists():
+        return Response(
+            {'error': 'Another worker already uses this phone number for login.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    account = WorkerAccount(
+        client=client,
+        phone=normalized_phone,
+        is_active=True,
+        worker_status=WorkerAccount.STATUS_ACTIVE,
+        created_by=request.user.username,
+    )
+    account.set_pin(default_worker_pin_from_phone(normalized_phone))
+    account.save()
+
+    client.refresh_from_db()
+    return Response(
+        {
+            'message': 'Worker portal access created. PIN is the last 4 digits of their phone.',
+            'client': StaffClientDetailSerializer(client).data,
+        },
+        status=status.HTTP_201_CREATED,
+    )
 
 
 def _staff_reset_email_link(request, user):

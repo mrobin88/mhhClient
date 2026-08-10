@@ -343,36 +343,3 @@ def dashboard_document_upload(request):
         },
         status=status.HTTP_201_CREATED,
     )
-
-
-@api_view(['POST'])
-@authentication_classes([StaffSessionAuthentication])
-@permission_classes([IsAuthenticated])
-def staff_feedback_submit(request):
-    """
-    Backward-compatible endpoint: creates a StaffTicket (open, P2).
-    Prefer POST /api/staff/tickets/ for full ticket fields + attachments.
-    """
-    err = _staff_guard(request)
-    if err:
-        return err
-
-    from .models_extensions import StaffTicket
-
-    message = (request.data.get('message') or request.data.get('description') or '').strip()
-    if not message:
-        return Response({'message': ['Enter your feedback before submitting.']}, status=status.HTTP_400_BAD_REQUEST)
-    if len(message) > 4000:
-        return Response({'message': ['Keep feedback under 4000 characters.']}, status=status.HTTP_400_BAD_REQUEST)
-
-    title = (request.data.get('title') or '').strip() or (message[:80] + ('…' if len(message) > 80 else ''))
-    ticket = StaffTicket.objects.create(
-        title=title[:200],
-        description=message,
-        priority=request.data.get('priority') or 'p2',
-        submitted_by=request.user,
-    )
-    return Response(
-        {'message': 'Ticket created.', 'id': ticket.id},
-        status=status.HTTP_201_CREATED,
-    )

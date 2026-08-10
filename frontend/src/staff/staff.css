@@ -741,3 +741,122 @@ select.staff-input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* "How everything works" reference page: long-form reading, so it uses a
+   quieter type scale than the task screens. */
+.staff-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.staff-guide-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  position: sticky;
+  top: 3.6rem;
+  z-index: 5;
+  padding: 0.5rem;
+  border: 1px solid var(--staff-border);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+}
+.staff-guide-toc a {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--staff-muted);
+  border: 1px solid var(--staff-border);
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  text-decoration: none;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.staff-guide-toc a:hover {
+  background: #fff8f2;
+  border-color: var(--staff-accent);
+  color: var(--staff-accent-dark);
+}
+.staff-guide-section {
+  scroll-margin-top: 7.5rem;
+}
+.staff-guide-section h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
+.staff-guide-lead {
+  font-size: 0.85rem;
+  color: var(--staff-muted);
+  margin: 0 0 0.75rem;
+  line-height: 1.5;
+}
+.staff-guide-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+@media (min-width: 720px) {
+  .staff-guide-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.staff-guide-item {
+  border: 1px solid var(--staff-border);
+  border-left: 3px solid var(--staff-accent);
+  border-radius: 0.5rem;
+  background: #fdfcfa;
+  padding: 0.6rem 0.75rem;
+}
+.staff-guide-item-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 0;
+}
+.staff-guide-item-who {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--staff-accent-dark);
+  margin: 0.1rem 0 0.25rem;
+}
+.staff-guide-item-body {
+  font-size: 0.8rem;
+  color: var(--staff-muted);
+  line-height: 1.5;
+  margin: 0.2rem 0 0;
+}
+.staff-guide-item-limit {
+  font-size: 0.75rem;
+  color: var(--staff-danger);
+  margin: 0.35rem 0 0;
+}
+.staff-guide-steps {
+  list-style: decimal;
+  padding-left: 1.15rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.staff-guide-steps li {
+  font-size: 0.8rem;
+  color: var(--staff-muted);
+  line-height: 1.5;
+}
+.staff-guide-step-title {
+  display: block;
+  font-weight: 700;
+  color: var(--staff-ink);
+}
+.staff-guide-note {
+  font-size: 0.78rem;
+  color: var(--staff-muted);
+  line-height: 1.5;
+  margin: 0.75rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.5rem;
+  background: #fff8f2;
+  border: 1px solid #fed7aa;
+}

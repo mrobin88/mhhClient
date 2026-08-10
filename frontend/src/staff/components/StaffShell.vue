@@ -16,10 +16,16 @@
           <p class="font-bold text-sm truncate">{{ user?.display_name }}</p>
         </div>
       </RouterLink>
-      <button type="button" class="staff-btn staff-btn-ghost shrink-0" @click="logout">
-        <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">logout</span>
-        Sign out
-      </button>
+      <div class="flex items-center gap-1 shrink-0">
+        <RouterLink to="/how-it-works" class="staff-btn staff-btn-ghost" title="How everything works">
+          <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">menu_book</span>
+          Guide
+        </RouterLink>
+        <button type="button" class="staff-btn staff-btn-ghost" @click="logout">
+          <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">logout</span>
+          Sign out
+        </button>
+      </div>
     </header>
 
     <main :class="mainClass">
@@ -89,9 +95,15 @@ const showChrome = computed(() => {
 
 const mainClass = computed(() => {
   if (!showChrome.value) return 'min-h-screen'
-  const widthClass = ['Dashboard', 'Classes', 'ClientDetail', 'Tickets', 'TicketDetail', 'Messages'].includes(
-    String(route.name),
-  )
+  const widthClass = [
+    'Dashboard',
+    'Classes',
+    'ClientDetail',
+    'Tickets',
+    'TicketDetail',
+    'Messages',
+    'HowItWorks',
+  ].includes(String(route.name))
     ? 'staff-main-wide'
     : 'max-w-lg'
   return `staff-main-pad ${widthClass} mx-auto p-4`

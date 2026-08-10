@@ -53,4 +53,8 @@ python manage.py migrate
 
 ## Docs
 
-- Staff guide: `STAFF_GUIDE.md`
+- **How everything works** — the maintained guide for staff and admins lives in the staff app at
+  `/staff/#/how-it-works` ([StaffHowItWorks.vue](frontend/src/staff/components/StaffHowItWorks.vue)).
+  Update that page rather than adding new markdown files.
+- Staff links and quick fixes: `STAFF_GUIDE.md`
+- Partner referral ingest API: `/partners/` ([PartnersApp.vue](frontend/src/partners/PartnersApp.vue))

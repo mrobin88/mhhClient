@@ -1113,6 +1113,113 @@ class StaffSpaApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('message', response.json())
 
+    def test_client_list_filters_by_program_and_stage(self):
+        Client.objects.create(
+            first_name='Pit',
+            last_name='Applicant',
+            phone='4155551111',
+            gender='M',
+            training_interest='pit_stop',
+            pit_stop_stage=Client.PIT_STOP_STAGE_APPLICANT,
+        )
+        Client.objects.create(
+            first_name='Pit',
+            last_name='Worker',
+            phone='4155552222',
+            gender='M',
+            training_interest='pit_stop',
+            pit_stop_stage=Client.PIT_STOP_STAGE_WORKER,
+        )
+        self.http.login(username='case_mgr', password='staffpass123')
+
+        program_resp = self.http.get('/api/staff/clients/?program=pit_stop')
+        self.assertEqual(program_resp.status_code, 200)
+        self.assertEqual(len(program_resp.json()), 2)
+
+        stage_resp = self.http.get('/api/staff/clients/?program=pit_stop&stage=applicant')
+        self.assertEqual(stage_resp.status_code, 200)
+        stage_payload = stage_resp.json()
+        self.assertEqual(len(stage_payload), 1)
+        self.assertEqual(stage_payload[0]['full_name'], 'Pit Applicant')
+
+    def test_guard_card_is_a_valid_program(self):
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.patch(
+            f'/api/staff/clients/{self.client_record.pk}/',
+            data={'training_interest': 'guard_card'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()['training_interest_display'],
+            'Security Guard Card Training',
+        )
+
+
+class StaffPitStopPromoteTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='pit_mgr',
+            password='staffpass123',
+            email='pit@example.com',
+            role='case_manager',
+        )
+        self.client_record = Client.objects.create(
+            first_name='Andre',
+            last_name='Diaz',
+            phone='4155553434',
+            gender='M',
+            training_interest='pit_stop',
+            pit_stop_stage=Client.PIT_STOP_STAGE_ACTIVE_PARTICIPANT,
+        )
+        self.http = DjangoTestClient()
+        self.url = f'/api/staff/clients/{self.client_record.pk}/pitstop/promote/'
+
+    def test_promote_creates_worker_account_and_sets_stage(self):
+        self.http.login(username='pit_mgr', password='staffpass123')
+        response = self.http.post(self.url, content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+
+        account = WorkerAccount.objects.get(client=self.client_record)
+        self.assertEqual(account.phone, '4155553434')
+        self.assertTrue(account.is_active)
+        self.assertTrue(account.check_pin('3434'))
+
+        self.client_record.refresh_from_db()
+        self.assertEqual(self.client_record.pit_stop_stage, Client.PIT_STOP_STAGE_WORKER)
+        self.assertTrue(response.json()['client']['worker_portal']['portal_access'])
+
+    def test_promote_twice_is_rejected(self):
+        self.http.login(username='pit_mgr', password='staffpass123')
+        self.http.post(self.url, content_type='application/json')
+        second = self.http.post(self.url, content_type='application/json')
+        self.assertEqual(second.status_code, 400)
+        self.assertEqual(WorkerAccount.objects.filter(client=self.client_record).count(), 1)
+
+    def test_promote_without_usable_phone_fails(self):
+        Client.objects.filter(pk=self.client_record.pk).update(phone='555')
+        self.http.login(username='pit_mgr', password='staffpass123')
+        response = self.http.post(self.url, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('phone', response.json()['error'].lower())
+        self.assertFalse(WorkerAccount.objects.filter(client=self.client_record).exists())
+
+    def test_promote_requires_staff(self):
+        User = get_user_model()
+        # 'volunteer' is the one role StaffUser.save() does not promote to is_staff.
+        User.objects.create_user(
+            username='outsider',
+            password='outsider123',
+            email='outsider@example.com',
+            role='volunteer',
+            is_staff=False,
+        )
+        self.http.login(username='outsider', password='outsider123')
+        response = self.http.post(self.url, content_type='application/json')
+        self.assertIn(response.status_code, (401, 403))
+        self.assertFalse(WorkerAccount.objects.filter(client=self.client_record).exists())
+
 
 @override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
 class PublicClientRegistrationTests(TestCase):

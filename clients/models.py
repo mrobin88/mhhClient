@@ -66,6 +66,7 @@ class Client(models.Model):
         ('capsa', 'CAPSA'),
         ('citybuild', 'City Build'),
         ('pit_stop', 'Pit Stop'),
+        ('guard_card', 'Security Guard Card Training'),
         ('general', 'General Employment Assistance'),
     ]
     

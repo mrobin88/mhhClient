@@ -132,6 +132,62 @@
         </button>
       </div>
 
+      <!-- Pit Stop lifecycle (only for Pit Stop clients) -->
+      <div v-if="form.training_interest === 'pit_stop'" id="client-pitstop" class="staff-card p-4 relative">
+        <div
+          v-if="promoteBusy"
+          class="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center z-10"
+        >
+          <BulldozerLoader label="Setting up portal access…" />
+        </div>
+        <div class="staff-panel-header">
+          <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+          <h3>Pit Stop</h3>
+          <StaffTip text="Where this person is in the Pit Stop process. Applicant means they signed up but have not been accepted yet. Worker means they can clock in on the worker portal." />
+        </div>
+
+        <div class="staff-field mb-3">
+          <label for="cd-stage">
+            Stage
+            <StaffTip text="Change this as they move through the process, then tap Save changes above." />
+          </label>
+          <select id="cd-stage" v-model="form.pit_stop_stage" class="staff-input">
+            <option v-for="opt in PIT_STOP_STAGE_OPTIONS" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+
+        <div v-if="workerPortal" class="rounded-lg border border-stone-200 bg-stone-50 p-3 space-y-1">
+          <p class="text-sm font-semibold text-stone-800">
+            Worker portal: {{ workerPortal.portal_access ? 'On' : 'Turned off' }}
+          </p>
+          <p class="text-sm text-stone-600">Login phone: {{ workerPortal.login_phone }}</p>
+          <p class="text-sm text-stone-600">Roster status: {{ workerPortal.worker_status_display }}</p>
+          <p class="text-sm text-stone-600">
+            Last clock in: {{ workerPortal.last_clock_in ? formatDateTime(workerPortal.last_clock_in) : 'Never' }}
+          </p>
+          <p class="text-xs text-stone-500 pt-1">
+            To turn portal access off or reset a PIN, use Django admin → Worker Accounts.
+          </p>
+        </div>
+
+        <div v-else class="space-y-2">
+          <p class="text-sm text-stone-600">
+            This person does not have worker portal access yet. Giving access creates their login so
+            they can clock in and out. Their PIN is the last 4 digits of their phone.
+          </p>
+          <button
+            type="button"
+            class="staff-btn staff-btn-primary w-full"
+            :disabled="promoteBusy"
+            @click="promoteToWorker"
+          >
+            Give worker portal access
+          </button>
+        </div>
+      </div>
+
       <!-- Classes & Orientation -->
       <div id="client-classes" class="staff-card p-4 relative">
         <div
@@ -309,7 +365,16 @@ const PROGRAM_OPTIONS = [
   { value: 'capsa', label: 'CAPSA' },
   { value: 'citybuild', label: 'City Build' },
   { value: 'pit_stop', label: 'Pit Stop' },
+  { value: 'guard_card', label: 'Security Guard Card Training' },
   { value: 'general', label: 'General Employment Assistance' },
+]
+
+const PIT_STOP_STAGE_OPTIONS = [
+  { value: 'applicant', label: 'Applicant — not yet accepted' },
+  { value: 'waitlisted', label: 'Waitlisted' },
+  { value: 'active_participant', label: 'Active participant' },
+  { value: 'worker', label: 'Worker (has portal login)' },
+  { value: 'exited', label: 'Exited program' },
 ]
 
 const EMPLOYMENT_OPTIONS = [
@@ -339,6 +404,16 @@ const CATEGORY_CHIPS = [
   { value: 'other', label: 'Other' },
 ]
 
+interface WorkerPortal {
+  has_account: boolean
+  login_phone: string
+  portal_access: boolean
+  worker_status: string
+  worker_status_display: string
+  last_login?: string | null
+  last_clock_in?: string | null
+}
+
 interface ClientDetail {
   id: number
   full_name: string
@@ -349,6 +424,9 @@ interface ClientDetail {
   email?: string | null
   status: string
   training_interest: string
+  pit_stop_stage: string
+  pit_stop_stage_display?: string
+  worker_portal?: WorkerPortal | null
   employment_status: string
   language: string
   address?: string | null
@@ -398,6 +476,7 @@ const emptyForm = () => ({
   email: '',
   status: 'active',
   training_interest: 'general',
+  pit_stop_stage: 'applicant',
   employment_status: 'unemployed',
   language: 'en',
   address: '',
@@ -417,6 +496,7 @@ const error = ref('')
 const noteContent = ref('')
 const noteBusy = ref(false)
 const saveBusy = ref(false)
+const promoteBusy = ref(false)
 
 const upcomingSessions = ref<UpcomingSession[]>([])
 const enrolledClasses = ref<ClientClassEnrollment[]>([])
@@ -426,6 +506,21 @@ const classesLoading = ref(true)
 const categoryFilter = ref('')
 
 const formDirty = computed(() => JSON.stringify(form) !== savedSnapshot.value)
+
+const workerPortal = computed(() => client.value?.worker_portal || null)
+
+function formatDateTime(value: string) {
+  const d = new Date(value)
+  return Number.isNaN(d.getTime())
+    ? value
+    : d.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+}
 
 const filteredSessions = computed(() => {
   if (!categoryFilter.value) return upcomingSessions.value
@@ -452,6 +547,7 @@ function syncForm(c: ClientDetail) {
   form.email = c.email || ''
   form.status = c.status || 'active'
   form.training_interest = c.training_interest || 'general'
+  form.pit_stop_stage = c.pit_stop_stage || 'applicant'
   form.employment_status = c.employment_status || 'unemployed'
   form.language = c.language || 'en'
   form.address = c.address || ''
@@ -542,6 +638,7 @@ async function saveClient() {
         email: form.email.trim() || null,
         status: form.status,
         training_interest: form.training_interest,
+        pit_stop_stage: form.pit_stop_stage,
         employment_status: form.employment_status,
         language: form.language,
         address: form.address.trim() || null,
@@ -564,6 +661,37 @@ async function saveClient() {
     toast.error(networkErrorMessage(e))
   } finally {
     saveBusy.value = false
+  }
+}
+
+async function promoteToWorker() {
+  if (formDirty.value) {
+    toast.error('Save your changes first, then give portal access.')
+    return
+  }
+  const ok = window.confirm(
+    `Give ${displayName.value} worker portal access? They will be able to log in and clock in with their phone and a PIN (last 4 digits of their phone).`,
+  )
+  if (!ok) return
+
+  promoteBusy.value = true
+  try {
+    const resp = await staffFetch(`/api/staff/clients/${clientId()}/pitstop/promote/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok) {
+      toast.error(friendlyError(body, 'Could not give portal access.'))
+      return
+    }
+    client.value = body.client
+    syncForm(body.client)
+    toast.success(body.message || 'Worker portal access created.')
+  } catch (e) {
+    toast.error(networkErrorMessage(e))
+  } finally {
+    promoteBusy.value = false
   }
 }
 

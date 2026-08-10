@@ -43,6 +43,7 @@ from .staff_views import (
     staff_clients,
     staff_client_detail,
     staff_client_notes,
+    staff_client_pitstop_promote,
     staff_password_reset,
     staff_password_reset_confirm,
     staff_messages,
@@ -55,7 +56,6 @@ from .dashboard_views import (
     dashboard_usage_stats,
     dashboard_document_types,
     dashboard_document_upload,
-    staff_feedback_submit,
 )
 from .ticket_views import (
     staff_tickets,
@@ -77,6 +77,7 @@ from .class_views import (
     staff_class_session_create,
     staff_class_enrollment_status,
 )
+from .partner_views import PartnerReferralIngestView
 
 router = DefaultRouter()
 router.register(r'clients', ClientViewSet)
@@ -131,6 +132,11 @@ urlpatterns = [
     path('staff/clients/', staff_clients, name='staff-clients'),
     path('staff/clients/<int:pk>/', staff_client_detail, name='staff-client-detail'),
     path('staff/clients/<int:pk>/notes/', staff_client_notes, name='staff-client-notes'),
+    path(
+        'staff/clients/<int:pk>/pitstop/promote/',
+        staff_client_pitstop_promote,
+        name='staff-client-pitstop-promote',
+    ),
     path('staff/password-reset/', staff_password_reset, name='staff-password-reset'),
     path('staff/password-reset/confirm/', staff_password_reset_confirm, name='staff-password-reset-confirm'),
     path('staff/messages/', staff_messages, name='staff-messages'),
@@ -143,7 +149,6 @@ urlpatterns = [
     path('staff/dashboard/usage-stats/', dashboard_usage_stats, name='dashboard-usage-stats'),
     path('staff/dashboard/document-types/', dashboard_document_types, name='dashboard-document-types'),
     path('staff/dashboard/document-upload/', dashboard_document_upload, name='dashboard-document-upload'),
-    path('staff/feedback/', staff_feedback_submit, name='staff-feedback-submit'),
     path('staff/tickets/', staff_tickets, name='staff-tickets'),
     path('staff/tickets/meta/', staff_ticket_meta, name='staff-ticket-meta'),
     path('staff/tickets/assignees/', staff_ticket_assignees, name='staff-ticket-assignees'),
@@ -175,5 +180,12 @@ urlpatterns = [
         'staff/classes/enrollments/<int:enrollment_id>/status/',
         staff_class_enrollment_status,
         name='staff-class-enrollment-status',
+    ),
+
+    # Partner write-only ingest (API key; not staff session)
+    path(
+        'partners/v1/referrals/',
+        PartnerReferralIngestView.as_view(),
+        name='partner-referral-ingest',
     ),
 ]
