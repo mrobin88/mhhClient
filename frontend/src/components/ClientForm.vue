@@ -440,7 +440,10 @@
 
             <!-- Optional supporting documents -->
             <div class="mt-6">
-              <p class="text-sm text-slate-700 font-semibold mb-3">Optional documents (you can upload now or later)</p>
+              <p class="text-sm text-slate-700 font-semibold mb-1">Optional documents (you can upload now or later)</p>
+              <p class="text-sm text-slate-600 mb-3">
+                Take a picture of the paper or the card, not a picture of your face.
+              </p>
 
               <div class="docs-well">
                 <div class="docs-scroll">
@@ -466,10 +469,12 @@
                   </div>
 
                   <div class="doc-tile">
-                    <div class="doc-title">Photo Release Form</div>
-                    <div class="doc-subtitle">Signed form</div>
-                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'photo_release')" />
-                    <div v-if="docFiles.photo_release" class="doc-filename">{{ docFiles.photo_release.name }}</div>
+                    <div class="doc-title">Signed forms</div>
+                    <div class="doc-subtitle">Nothing to upload here</div>
+                    <p class="doc-note">
+                      You do not need to send a signed paper form right now. Staff will sign forms
+                      with you in person when you come in.
+                    </p>
                   </div>
 
                   <div class="doc-tile">
@@ -1452,6 +1457,13 @@ async function handleSubmit() {
   color: #0f766e;
   font-weight: 600;
   word-break: break-word;
+}
+
+.doc-note {
+  font-size: 0.8rem;
+  color: #475569;
+  line-height: 1.45;
+  margin: 0;
 }
 
 textarea.form-input {
