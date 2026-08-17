@@ -267,6 +267,9 @@ PITSTOP_APPLICATION_ALERT_EMAILS = os.getenv(
 AZURE_COMMUNICATION_CONNECTION_STRING = os.getenv('AZURE_COMMUNICATION_CONNECTION_STRING', '')
 AZURE_COMMUNICATION_SMS_FROM = os.getenv('AZURE_COMMUNICATION_SMS_FROM', '')
 SMS_FOLLOWUP_ENABLED = os.getenv('SMS_FOLLOWUP_ENABLED', 'false').lower() == 'true'
+# Separate switch on purpose: class confirmations can be proven in production
+# without also turning on the 30/60/90/120-day follow-up blasts.
+SMS_CLASS_CONFIRMATION_ENABLED = os.getenv('SMS_CLASS_CONFIRMATION_ENABLED', 'false').lower() == 'true'
 SMS_INTERNAL_ONLY = os.getenv('SMS_INTERNAL_ONLY', 'false').lower() == 'true'
 SMS_APPEND_COMPLIANCE_FOOTER = os.getenv('SMS_APPEND_COMPLIANCE_FOOTER', 'true').lower() == 'true'
 SMS_COMPLIANCE_FOOTER = os.getenv('SMS_COMPLIANCE_FOOTER', ' Reply STOP to opt out.')

@@ -258,7 +258,7 @@ const screens = [
   {
     name: 'Messages',
     body: 'Text message threads with clients. The badge counts unread replies.',
-    cannot: 'send a new text from here — outgoing texts go out from admin actions and scheduled jobs.',
+    cannot: 'send a new text from here — the only text that goes out is the class confirmation when you sign someone up.',
   },
   {
     name: 'Classes',
@@ -284,8 +284,12 @@ const automatic = [
     body: 'Giving someone worker portal access moves them to the Worker stage on its own.',
   },
   {
+    name: 'Class confirmation text',
+    body: 'When you add someone to a class, they get a text with the date, time, and place. You see the exact message on their client page before you press Add, and it tells you if no text is going out. This is the only text the app sends on its own.',
+  },
+  {
     name: 'Progress text messages',
-    body: 'Check-in texts at 30, 60, 90, and 120 days after intake. These are turned OFF unless tech enables them, so do not assume a client was contacted.',
+    body: 'Check-in texts at 30, 60, 90, and 120 days after intake. These are turned OFF, so do not assume a client was contacted.',
   },
   {
     name: 'Partner referrals',

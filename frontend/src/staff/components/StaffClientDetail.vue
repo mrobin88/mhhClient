@@ -279,6 +279,24 @@
               Add
             </button>
           </div>
+          <div v-if="selectedSessionId" class="mt-2 rounded-xl border border-stone-200 bg-stone-50 p-3">
+            <p class="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+              Confirmation text
+              <StaffTip text="This is the exact message the client gets when you press Add. Read it back to them if they are on the phone." />
+            </p>
+            <p v-if="textPreviewLoading" class="text-xs text-stone-400">Loading message…</p>
+            <template v-else-if="textPreview">
+              <p class="text-sm text-stone-700 whitespace-pre-line">{{ textPreview.body }}</p>
+              <p v-if="textPreview.will_send" class="text-xs text-emerald-700 font-semibold mt-1.5">
+                Sends to {{ textPreview.to_phone }} when you press Add.
+              </p>
+              <p v-else class="text-xs text-amber-700 font-semibold mt-1.5">
+                No text will be sent — {{ textPreview.reason }} Tell them the date and time before
+                they leave.
+              </p>
+            </template>
+          </div>
+
           <p v-if="upcomingSessions.length === 0" class="text-xs text-stone-400 mt-1.5">
             No upcoming classes scheduled yet —
             <RouterLink to="/classes" class="text-orange-600 font-semibold">create one on the Classes page</RouterLink>.
@@ -457,6 +475,13 @@ interface UpcomingSession {
   spots_remaining: number
 }
 
+interface ClassTextPreview {
+  will_send: boolean
+  reason: string
+  to_phone: string
+  body: string
+}
+
 interface ClientClassEnrollment {
   enrollment_id: number
   session_id: number
@@ -504,6 +529,8 @@ const selectedSessionId = ref<number | ''>('')
 const classBusy = ref(false)
 const classesLoading = ref(true)
 const categoryFilter = ref('')
+const textPreview = ref<ClassTextPreview | null>(null)
+const textPreviewLoading = ref(false)
 
 const formDirty = computed(() => JSON.stringify(form) !== savedSnapshot.value)
 
@@ -695,6 +722,30 @@ async function promoteToWorker() {
   }
 }
 
+async function loadTextPreview(sessionId: number) {
+  textPreviewLoading.value = true
+  textPreview.value = null
+  try {
+    const resp = await staffFetch(
+      `/api/staff/classes/${sessionId}/text-preview/?client_id=${clientId()}`,
+    )
+    if (!resp.ok) return
+    textPreview.value = await resp.json()
+  } catch {
+    // The preview is a convenience; enrolling still works without it.
+  } finally {
+    textPreviewLoading.value = false
+  }
+}
+
+watch(selectedSessionId, (sessionId) => {
+  if (!sessionId) {
+    textPreview.value = null
+    return
+  }
+  loadTextPreview(Number(sessionId))
+})
+
 async function enrollInClass() {
   if (!selectedSessionId.value) return
   classBusy.value = true
@@ -710,6 +761,7 @@ async function enrollInClass() {
       return
     }
     toast.success(body?.message || 'Added to class.')
+    if (body?.text_warning) toast.error(body.text_warning)
     selectedSessionId.value = ''
     await loadClasses()
   } catch (e) {

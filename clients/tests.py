@@ -15,6 +15,7 @@ from rest_framework.test import APIClient
 from clients.admin import ClientAdmin
 from clients.models import CaseNote, Client
 from clients.models import Document
+from clients.models_classes import ClassEnrollment, ClassSession, ClassTemplate
 from clients.notifications import _to_e164_us, _compose_sms_body, send_phone_text_message
 from clients.models_extensions import (
     ClientTextMessage,
@@ -547,6 +548,7 @@ class ClientAdminTextMissingDocumentsTests(TestCase):
         AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake',
         AZURE_COMMUNICATION_SMS_FROM='+15555550123',
         SMS_FORCE_EMAIL_BACKUP=True,
+        SMS_FOLLOWUP_ENABLED=True,
     )
     @patch('clients.notifications.send_text_message')
     @patch('clients.admin.send_mail')
@@ -578,6 +580,20 @@ class ClientAdminTextMissingDocumentsTests(TestCase):
         self.assertIn('Consent Form', kwargs['body'])
         self.assertNotIn('Intake Form', kwargs['body'])
         send_mail_mock.assert_called_once()
+
+    @override_settings(
+        AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake',
+        AZURE_COMMUNICATION_SMS_FROM='+15555550123',
+        SMS_FOLLOWUP_ENABLED=False,
+    )
+    @patch('clients.notifications.send_text_message')
+    def test_reminder_texts_stay_off_so_class_signup_is_the_only_text(self, send_text_mock):
+        request = type('Req', (), {'user': None})()
+        with patch.object(self.admin, 'message_user') as message_user:
+            self.admin.text_missing_documents(request, Client.objects.filter(pk=self.client_record.pk))
+
+        send_text_mock.assert_not_called()
+        self.assertIn('turned off', message_user.call_args.args[1])
 
 
 class SmsPhoneFormattingTests(TestCase):
@@ -1221,6 +1237,202 @@ class StaffPitStopPromoteTests(TestCase):
         self.assertFalse(WorkerAccount.objects.filter(client=self.client_record).exists())
 
 
+@override_settings(
+    AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake',
+    AZURE_COMMUNICATION_SMS_FROM='+15555550123',
+    SMS_CLASS_CONFIRMATION_ENABLED=True,
+)
+class ClassConfirmationSmsTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='class_mgr',
+            password='staffpass123',
+            email='classes@example.com',
+            role='case_manager',
+        )
+        self.client_record = Client.objects.create(
+            first_name='Marco',
+            last_name='Reyes',
+            phone='4155557788',
+            gender='M',
+            training_interest='general',
+        )
+        self.template = ClassTemplate.objects.create(
+            name='Job Readiness Training',
+            category='job_readiness',
+            location='3120 Mission St',
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+        )
+        self.session = ClassSession.objects.create(
+            template=self.template,
+            session_date=timezone.localdate() + timedelta(days=7),
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+            location='3120 Mission St',
+            capacity=20,
+        )
+        self.http = DjangoTestClient()
+        self.http.login(username='class_mgr', password='staffpass123')
+        self.url = f'/api/staff/classes/{self.session.pk}/enroll/'
+
+    @staticmethod
+    def _sent_result():
+        class SmsResult:
+            successful = True
+            message_id = 'msg-class-1'
+            http_status_code = 202
+            error_message = None
+
+        return [SmsResult()]
+
+    @patch('clients.notifications._sms_client')
+    def test_enrolling_texts_the_client_the_date_and_time(self, sms_client_mock):
+        sms_client_mock.return_value.send.return_value = self._sent_result()
+
+        response = self.http.post(
+            self.url,
+            data={'client_id': self.client_record.pk},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['text_outcome'], 'sent')
+
+        log = ClientTextMessage.objects.get(client=self.client_record)
+        self.assertEqual(log.purpose, ClientTextMessage.PURPOSE_CLASS_CONFIRMATION)
+        self.assertEqual(log.status, ClientTextMessage.STATUS_SENT)
+        self.assertEqual(log.to_phone, '+14155557788')
+        self.assertIn('Job Readiness Training', log.body)
+        self.assertIn('9:00 AM', log.body)
+        self.assertIn('3120 Mission St', log.body)
+        self.assertIn('Marco', log.body)
+
+    @patch('clients.notifications._sms_client')
+    def test_no_text_when_feature_is_off(self, sms_client_mock):
+        with override_settings(SMS_CLASS_CONFIRMATION_ENABLED=False):
+            response = self.http.post(
+                self.url,
+                data={'client_id': self.client_record.pk},
+                content_type='application/json',
+            )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['text_outcome'], 'disabled')
+        sms_client_mock.assert_not_called()
+        self.assertFalse(ClientTextMessage.objects.exists())
+
+    @patch('clients.notifications._sms_client')
+    def test_no_text_for_a_class_that_already_happened(self, sms_client_mock):
+        past = ClassSession.objects.create(
+            template=self.template,
+            session_date=timezone.localdate() - timedelta(days=3),
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+            capacity=20,
+        )
+        response = self.http.post(
+            f'/api/staff/classes/{past.pk}/enroll/',
+            data={'client_id': self.client_record.pk},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['text_outcome'], 'skipped')
+        sms_client_mock.assert_not_called()
+
+    @patch('clients.notifications._sms_client')
+    def test_reenrolling_does_not_text_twice(self, sms_client_mock):
+        sms_client_mock.return_value.send.return_value = self._sent_result()
+
+        self.http.post(
+            self.url,
+            data={'client_id': self.client_record.pk},
+            content_type='application/json',
+        )
+        self.http.post(
+            f'/api/staff/classes/{self.session.pk}/unenroll/',
+            data={'client_id': self.client_record.pk},
+            content_type='application/json',
+        )
+        again = self.http.post(
+            self.url,
+            data={'client_id': self.client_record.pk},
+            content_type='application/json',
+        )
+
+        self.assertEqual(again.status_code, 201)
+        self.assertEqual(ClientTextMessage.objects.count(), 1)
+        self.assertEqual(sms_client_mock.return_value.send.call_count, 1)
+
+    @patch('clients.notifications._sms_client')
+    def test_enrollment_still_succeeds_when_sms_provider_fails(self, sms_client_mock):
+        sms_client_mock.side_effect = RuntimeError('Azure unreachable')
+
+        response = self.http.post(
+            self.url,
+            data={'client_id': self.client_record.pk},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['text_outcome'], 'failed')
+        self.assertTrue(response.json()['text_warning'])
+        self.assertTrue(
+            ClassEnrollment.objects.filter(
+                session=self.session, client=self.client_record, status='registered'
+            ).exists()
+        )
+
+    def _preview(self, session=None, client_record=None):
+        session = session or self.session
+        client_record = client_record or self.client_record
+        return self.http.get(
+            f'/api/staff/classes/{session.pk}/text-preview/',
+            data={'client_id': client_record.pk},
+        )
+
+    @patch('clients.notifications._sms_client')
+    def test_preview_shows_the_message_before_staff_press_add(self, sms_client_mock):
+        response = self._preview()
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body['will_send'])
+        self.assertEqual(body['to_phone'], '4155557788')
+        self.assertIn('Job Readiness Training', body['body'])
+        self.assertIn('9:00 AM', body['body'])
+        sms_client_mock.assert_not_called()
+        self.assertFalse(ClientTextMessage.objects.exists())
+
+    def test_preview_is_the_same_wording_that_gets_sent(self):
+        preview_body = self._preview().json()['body']
+        with patch('clients.notifications._sms_client') as sms_client_mock:
+            sms_client_mock.return_value.send.return_value = self._sent_result()
+            self.http.post(
+                self.url,
+                data={'client_id': self.client_record.pk},
+                content_type='application/json',
+            )
+        self.assertEqual(ClientTextMessage.objects.get().body, preview_body)
+
+    def test_preview_warns_staff_when_texting_is_turned_off(self):
+        with override_settings(SMS_CLASS_CONFIRMATION_ENABLED=False):
+            body = self._preview().json()
+        self.assertFalse(body['will_send'])
+        self.assertIn('turned off', body['reason'])
+
+    def test_preview_warns_staff_when_there_is_no_phone_number(self):
+        no_phone = Client.objects.create(first_name='Ana', last_name='Silva', phone='', gender='F')
+        body = self._preview(client_record=no_phone).json()
+        self.assertFalse(body['will_send'])
+        self.assertIn('No phone number', body['reason'])
+
+    def test_preview_requires_staff(self):
+        anon = DjangoTestClient()
+        response = anon.get(
+            f'/api/staff/classes/{self.session.pk}/text-preview/',
+            data={'client_id': self.client_record.pk},
+        )
+        self.assertIn(response.status_code, (401, 403))
+
+
 @override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
 class PublicClientRegistrationTests(TestCase):
     @classmethod
@@ -1253,6 +1465,14 @@ class PublicClientRegistrationTests(TestCase):
         client = Client.objects.get(pk=response.json()['id'])
         self.assertFalse(client.documents.filter(doc_type='id').exists())
 
+    def test_public_registration_accepts_json(self):
+        """The signup form posts JSON now that it no longer uploads files."""
+        response = self.api.post('/api/clients/', self._registration_payload(), format='json')
+        self.assertEqual(response.status_code, 201)
+        client = Client.objects.get(pk=response.json()['id'])
+        self.assertEqual(client.first_name, 'Public')
+        self.assertFalse(client.documents.exists())
+
     def test_public_registration_accepts_optional_government_id(self):
         response = self.api.post(
             '/api/clients/',
@@ -1265,3 +1485,80 @@ class PublicClientRegistrationTests(TestCase):
         self.assertEqual(response.status_code, 201)
         client = Client.objects.get(pk=response.json()['id'])
         self.assertTrue(client.documents.filter(doc_type='id').exists())
+
+    def test_registration_keeps_a_typed_in_area_for_someone_outside_sf(self):
+        response = self.api.post(
+            '/api/clients/',
+            {
+                **self._registration_payload(),
+                'sf_resident': 'no',
+                'neighborhood': 'outside_sf',
+                'neighborhood_other': 'Daly City',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        client = Client.objects.get(pk=response.json()['id'])
+        self.assertEqual(client.neighborhood, 'outside_sf')
+        self.assertEqual(client.neighborhood_other, 'Daly City')
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
+class SelfServeDocumentUploadTests(TestCase):
+    """The signup form attaches files after the client record exists."""
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        self.api = APIClient()
+        self.url = '/api/kiosk/check-in/upload-document/'
+        self.client_record = Client.objects.create(
+            first_name='Upload',
+            last_name='Tester',
+            phone='4155551234',
+            gender='M',
+        )
+
+    def _post(self, **overrides):
+        payload = {
+            'client_id': self.client_record.pk,
+            'phone': '4155551234',
+            'doc_type': 'resume',
+            'file': SimpleUploadedFile('resume.pdf', b'%PDF-1.4 fake', content_type='application/pdf'),
+        }
+        payload.update(overrides)
+        return self.api.post(self.url, payload, format='multipart')
+
+    def test_resume_upload_also_fills_the_client_resume_field(self):
+        response = self._post()
+        self.assertEqual(response.status_code, 201)
+        self.client_record.refresh_from_db()
+        self.assertTrue(self.client_record.documents.filter(doc_type='resume').exists())
+        self.assertTrue(self.client_record.has_resume)
+
+    def test_id_upload_still_works_without_a_doc_type(self):
+        response = self._post(
+            doc_type='',
+            file=SimpleUploadedFile('license.jpg', b'fakejpeg', content_type='image/jpeg'),
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(self.client_record.documents.filter(doc_type='id').exists())
+
+    def test_a_word_document_is_not_accepted_as_an_id(self):
+        response = self._post(
+            doc_type='id',
+            file=SimpleUploadedFile('resume.docx', b'fake', content_type='application/msword'),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_other_document_types_are_refused(self):
+        response = self._post(doc_type='ssn_card')
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_mismatched_phone_cannot_attach_files_to_someone_else(self):
+        response = self._post(phone='4155559999')
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(self.client_record.documents.exists())

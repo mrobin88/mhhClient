@@ -245,12 +245,64 @@ def staff_class_enroll(request, session_id):
             session=session, client=client, registered_by=staff_display_name(request.user)
         )
 
+    from .notifications import send_class_confirmation
+
+    text_outcome, text_detail = send_class_confirmation(client, session, enrollment)
+    message = f'Added {client.full_name} to {session.template.name} on {session.session_date}.'
+    if text_outcome == 'sent':
+        message = f'{message} {text_detail}'
+
     return Response(
         {
-            'message': f'Added {client.full_name} to {session.template.name} on {session.session_date}.',
+            'message': message,
             'enrollment_id': enrollment.id,
+            'text_outcome': text_outcome,
+            # Staff only need telling when a text was expected and did not go out.
+            'text_warning': text_detail if text_outcome == 'failed' else '',
         },
         status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['GET'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_class_text_preview(request, session_id):
+    """
+    The confirmation text this client would get for this class.
+
+    Staff sign people up over the phone or at the front desk, so they need to
+    see the exact message before they commit — and to know when no text is
+    going out so they can say the date and time out loud instead.
+    """
+    err = _staff_guard(request)
+    if err:
+        return err
+
+    client_id = request.query_params.get('client_id')
+    if not client_id:
+        return Response({'client_id': ['Select a client.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        session = ClassSession.objects.select_related('template').get(pk=session_id)
+    except ClassSession.DoesNotExist:
+        return Response({'error': 'Class session not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        client = Client.objects.get(pk=client_id)
+    except (Client.DoesNotExist, ValueError):
+        return Response({'client_id': ['Client not found.']}, status=status.HTTP_404_NOT_FOUND)
+
+    from .notifications import class_confirmation_preview
+
+    will_send, reason, body = class_confirmation_preview(client, session)
+    return Response(
+        {
+            'will_send': will_send,
+            'reason': reason,
+            'to_phone': client.phone or '',
+            'body': body,
+        }
     )
 
 

@@ -245,7 +245,11 @@ class ClientViewSet(viewsets.ModelViewSet):
                 client.phone,
                 client.get_gender_display(),
                 client.get_sf_resident_display(),
-                client.get_neighborhood_display(),
+                (
+                    f'{client.get_neighborhood_display()} ({client.neighborhood_other})'
+                    if client.neighborhood_other
+                    else client.get_neighborhood_display()
+                ),
                 client.get_demographic_info_display(),
                 client.get_language_display(),
                 client.get_highest_degree_display(),

@@ -1100,6 +1100,18 @@ class ClientAdmin(admin.ModelAdmin):
             )
             return
 
+        # Class sign-up confirmations are the only texts approved to go out to
+        # clients. Everything else stays behind the follow-up switch.
+        if not getattr(settings, 'SMS_FOLLOWUP_ENABLED', False):
+            self.message_user(
+                request,
+                'Document reminder texts are turned off. Class sign-up confirmations are the '
+                'only text this app sends right now. Set SMS_FOLLOWUP_ENABLED=true once the '
+                'office approves reminder texts.',
+                level=messages.WARNING,
+            )
+            return
+
         label_by_code = dict(Document.DOC_TYPE_CHOICES)
         sent = 0
         skipped = 0

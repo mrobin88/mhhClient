@@ -21,6 +21,21 @@ KIOSK_NOTE_AUTHOR = 'Self check-in (kiosk)'
 KIOSK_DOC_UPLOADER = 'Self upload (kiosk)'
 KIOSK_ID_DOC_MAX_BYTES = 10 * 1024 * 1024
 KIOSK_ID_ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.pdf'}
+KIOSK_RESUME_ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.txt'}
+
+# Document types a client may attach to their own record without staff involvement.
+SELF_UPLOAD_DOC_TYPES = {
+    'id': {
+        'title': 'Government Photo ID',
+        'extensions': KIOSK_ID_ALLOWED_EXTENSIONS,
+        'error': 'Only image files or PDF are allowed for Government Photo ID.',
+    },
+    'resume': {
+        'title': 'Resume',
+        'extensions': KIOSK_RESUME_ALLOWED_EXTENSIONS,
+        'error': 'Only PDF, Word, or text files are allowed for a resume.',
+    },
+}
 
 
 def _resolve_client_for_kiosk(phone_raw, client_id):
@@ -109,7 +124,9 @@ class KioskCheckInSubmitView(APIView):
 class KioskDocumentUploadView(APIView):
     """
     POST multipart { client_id, phone, doc_type, title, file, notes? }.
-    Lets returning clients add missing documents after check-in.
+
+    Used by the lobby kiosk after check-in and by the signup form once the
+    client record exists. Defaults to 'id' for older kiosk callers.
     """
 
     permission_classes = [AllowAny]
@@ -124,6 +141,14 @@ class KioskDocumentUploadView(APIView):
         if err:
             return err
 
+        doc_type = (request.data.get('doc_type') or 'id').strip().lower()
+        rules = SELF_UPLOAD_DOC_TYPES.get(doc_type)
+        if not rules:
+            return Response(
+                {'detail': 'That document type cannot be uploaded here.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         upload = request.FILES.get('file')
         if not upload:
             return Response({'detail': 'Select a file to upload.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -131,17 +156,12 @@ class KioskDocumentUploadView(APIView):
             return Response({'detail': 'File is too large. Max size is 10MB.'}, status=status.HTTP_400_BAD_REQUEST)
 
         ext = Path(getattr(upload, 'name', '') or '').suffix.lower()
-        if ext not in KIOSK_ID_ALLOWED_EXTENSIONS:
-            return Response(
-                {'detail': 'Only image files or PDF are allowed for Government Photo ID.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        doc_type = 'id'
+        if ext not in rules['extensions']:
+            return Response({'detail': rules['error']}, status=status.HTTP_400_BAD_REQUEST)
 
         title = (request.data.get('title') or '').strip()
         if not title:
-            title = 'Government Photo ID'
+            title = rules['title']
 
         notes = (request.data.get('notes') or '').strip() or None
 
@@ -171,6 +191,12 @@ class KioskDocumentUploadView(APIView):
                 notes=notes,
             )
             created = True
+
+        if doc_type == 'resume':
+            # Point the client's resume field at the same stored file so
+            # "has resume" and the staff resume download keep working.
+            client.resume.name = doc.file.name
+            client.save(update_fields=['resume', 'updated_at'])
 
         return Response(
             {

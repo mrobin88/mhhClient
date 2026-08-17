@@ -297,7 +297,27 @@
                   <option value="tenderloin">Tenderloin</option>
                   <option value="western">Western Addition</option>
                   <option value="other">Other San Francisco Area</option>
+                  <option value="outside_sf">I live outside San Francisco</option>
                 </select>
+                <p class="text-xs text-slate-500">
+                  Pick the closest one. If your area is not on the list, choose one of the last two
+                  and type where you live.
+                </p>
+              </div>
+
+              <div
+                v-if="form.neighborhood === 'other' || form.neighborhood === 'outside_sf'"
+                class="form-field"
+              >
+                <label class="block text-sm font-semibold text-slate-700">
+                  Where do you live?
+                </label>
+                <input
+                  v-model="form.neighborhood_other"
+                  type="text"
+                  class="form-input"
+                  placeholder="Neighborhood or city, for example: Excelsior or Daly City"
+                />
               </div>
 
               <div class="form-field">
@@ -415,83 +435,52 @@
             </div>
           </div>
 
-          <!-- Resume & Documents -->
-          <div v-else-if="currentStep === 'documents'" class="form-section">
+          <div v-else-if="currentStep === 'documents'" class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="section-title font-semibold text-slate-800">Resume & Documents</h3>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">
-                Resume (Optional)
-                <span class="text-slate-400 text-sm ml-2">PDF, Word, or text files accepted</span>
-              </label>
-              <input 
-                type="file" 
-                @change="handleFileUpload" 
-                accept=".pdf,.doc,.docx,.txt"
-                class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-mission-100 file:text-mission-700 hover:file:bg-mission-200"
-              />
-              <p class="text-sm text-slate-600 mt-1">
-                Upload your resume to help us better understand your skills and experience
-              </p>
+              <h3 class="section-title font-semibold text-slate-800">Resume & ID (optional)</h3>
             </div>
 
-            <!-- Optional supporting documents -->
-            <div class="mt-6">
-              <p class="text-sm text-slate-700 font-semibold mb-1">Optional documents (you can upload now or later)</p>
-              <p class="text-sm text-slate-600 mb-3">
-                Take a picture of the paper or the card, not a picture of your face.
-              </p>
+            <p class="text-sm text-slate-600">
+              You can add these now or bring them with you. You do not need them to finish this
+              application. No signed forms are needed right now.
+            </p>
 
-              <div class="docs-well">
-                <div class="docs-scroll">
-                  <div class="doc-tile">
-                    <div class="doc-title">Proof of SF Residency</div>
-                    <div class="doc-subtitle">Utility bill, lease, mail</div>
-                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'sf_residency')" />
-                    <div v-if="docFiles.sf_residency" class="doc-filename">{{ docFiles.sf_residency.name }}</div>
-                  </div>
+            <div class="docs-well">
+              <div class="docs-scroll">
+                <div class="doc-tile">
+                  <div class="doc-title">Resume</div>
+                  <div class="doc-subtitle">PDF or Word file. Optional.</div>
+                  <input
+                    type="file"
+                    class="doc-input"
+                    accept=".pdf,.doc,.docx,.txt"
+                    @change="handleResumeUpload"
+                  />
+                  <div v-if="resumeFile" class="doc-filename">{{ resumeFile.name }}</div>
+                </div>
 
-                  <div class="doc-tile">
-                    <div class="doc-title">High School Graduation</div>
-                    <div class="doc-subtitle">Diploma or GED</div>
-                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'hs_diploma')" />
-                    <div v-if="docFiles.hs_diploma" class="doc-filename">{{ docFiles.hs_diploma.name }}</div>
+                <div class="doc-tile">
+                  <div class="doc-title">Photo ID</div>
+                  <div class="doc-subtitle">
+                    Driver's license, state ID, or passport. Optional. Take a clear photo of the ID
+                    itself, not a photo of your face.
                   </div>
-
-                  <div class="doc-tile">
-                    <div class="doc-title">Identification</div>
-                    <div class="doc-subtitle">Driver's license, state ID, passport</div>
-                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'id')" />
-                    <div v-if="docFiles.id" class="doc-filename">{{ docFiles.id.name }}</div>
-                  </div>
-
-                  <div class="doc-tile">
-                    <div class="doc-title">Signed forms</div>
-                    <div class="doc-subtitle">Nothing to upload here</div>
-                    <p class="doc-note">
-                      You do not need to send a signed paper form right now. Staff will sign forms
-                      with you in person when you come in.
-                    </p>
-                  </div>
-
-                  <div class="doc-tile">
-                    <div class="doc-title">Additional Document</div>
-                    <div class="doc-subtitle">Name it (optional)</div>
-                    <input
-                      v-model="otherDocName"
-                      type="text"
-                      class="form-input !py-2 !px-3 !text-sm mb-3"
-                      placeholder="Example: OSHA card, certificate"
-                    />
-                    <input type="file" class="doc-input" :accept="docAccept" @change="(e) => handleDocUpload(e, 'other')" />
-                    <div v-if="docFiles.other" class="doc-filename">{{ docFiles.other.name }}</div>
-                  </div>
+                  <input
+                    type="file"
+                    class="doc-input"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                    @change="handleIdUpload"
+                  />
+                  <div v-if="idFile" class="doc-filename">{{ idFile.name }}</div>
                 </div>
               </div>
             </div>
+
+            <p class="text-xs text-slate-500">
+              Your application is saved first, so a file that fails to upload will never lose your
+              registration.
+            </p>
           </div>
 
           <!-- Pit Stop Specific Fields (shown after main application) -->
@@ -652,7 +641,22 @@
               <svg class="w-6 h-6 text-green-400 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
               </svg>
-              <p class="text-green-800 font-medium">Application submitted successfully! We'll contact you within 2-3 business days.</p>
+              <div>
+                <p class="text-green-800 font-medium">Application submitted successfully! We'll contact you within 2-3 business days.</p>
+                <p v-if="uploadWarning" class="text-amber-800 text-sm mt-2 font-semibold">
+                  {{ uploadWarning }}
+                </p>
+                <p class="text-green-800 text-sm mt-2">
+                  Please bring your ID, proof of San Francisco address, and your resume with you when
+                  you come in, even if you uploaded them. Staff will make copies and sign any forms
+                  with you. You do not need to send us signed forms right now.
+                </p>
+                <p class="text-green-800 text-sm mt-2 font-semibold">
+                  If you have not heard from us in one week, please call or email
+                  <a href="mailto:info@missionhiringhall.org" class="underline">info@missionhiringhall.org</a>
+                  to confirm your appointment and ask what happens next.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -692,6 +696,7 @@ const form = ref({
   zip_code: '',
   sf_resident: '',
   neighborhood: '',
+  neighborhood_other: '',
   demographic_info: '',
   language: '',
   language_other: '',
@@ -728,26 +733,19 @@ const pitstop = ref({
   education_history: '',
 })
 
-const resumeFile = ref(null)
-const docAccept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.txt'
-const docFiles = ref({
-  sf_residency: null,
-  hs_diploma: null,
-  id: null,
-  photo_release: null,
-  other: null,
-})
-const otherDocName = ref('')
-
 const error = ref('')
 const success = ref(false)
+const uploadWarning = ref('')
 const isSubmitting = ref(false)
 const formAttempted = ref(false)
 const currentStepIndex = ref(0)
+const resumeFile = ref(null)
+const idFile = ref(null)
 
 const stepOrder = computed(() => {
-  const steps = ['program', 'personal', 'address', 'background', 'employment', 'documents']
+  const steps = ['program', 'personal', 'address', 'background', 'employment']
   if (form.value.training_interest === 'pit_stop') steps.push('pitstop')
+  steps.push('documents')
   return steps
 })
 
@@ -757,8 +755,8 @@ const stepTitles = {
   address: 'Address',
   background: 'Background',
   employment: 'Employment',
-  documents: 'Documents',
   pitstop: 'Pit Stop',
+  documents: 'Resume & ID',
 }
 
 const totalSteps = computed(() => stepOrder.value.length)
@@ -792,33 +790,9 @@ const prevStep = () => {
   if (!isFirstStep.value) currentStepIndex.value -= 1
 }
 
-const MAX_TOTAL_UPLOAD_BYTES = 20 * 1024 * 1024 // 20MB total across resume + optional docs
-const MAX_DOC_IMAGE_DIMENSION = 1600
-const MAX_DOC_IMAGE_BYTES = 2 * 1024 * 1024
-
-const handleFileUpload = (event) => {
-  const file = event.target.files[0]
-  if (file) {
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      error.value = 'File size must be less than 5MB'
-      event.target.value = ''
-      return
-    }
-    
-    // Check file type
-    const allowedTypes = ['.pdf', '.doc', '.docx', '.txt']
-    const fileExtension = '.' + file.name.split('.').pop().toLowerCase()
-    if (!allowedTypes.includes(fileExtension)) {
-      error.value = 'Please upload a PDF, Word, or text file'
-      event.target.value = ''
-      return
-    }
-    
-    resumeFile.value = file
-    error.value = ''
-  }
-}
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+const MAX_ID_IMAGE_DIMENSION = 1600
+const MAX_ID_IMAGE_BYTES = 2 * 1024 * 1024
 
 const fileNameWithExtension = (originalName, extension) => {
   const idx = originalName.lastIndexOf('.')
@@ -842,13 +816,14 @@ const loadImageFromDataUrl = (dataUrl) =>
     img.src = dataUrl
   })
 
+// Phone cameras produce multi-megabyte photos that time out on slow connections.
 const compressImageFile = async (file) => {
   const dataUrl = await readFileAsDataUrl(file)
   const image = await loadImageFromDataUrl(dataUrl)
 
   const width = image.width || 1
   const height = image.height || 1
-  const scale = Math.min(1, MAX_DOC_IMAGE_DIMENSION / Math.max(width, height))
+  const scale = Math.min(1, MAX_ID_IMAGE_DIMENSION / Math.max(width, height))
   const targetWidth = Math.max(1, Math.round(width * scale))
   const targetHeight = Math.max(1, Math.round(height * scale))
 
@@ -862,13 +837,12 @@ const compressImageFile = async (file) => {
   let quality = 0.82
   let bestBlob = null
 
-  // Use JPEG for camera/photo uploads to reduce payload size.
   for (let i = 0; i < 4; i += 1) {
     // eslint-disable-next-line no-await-in-loop
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
     if (!blob) break
     bestBlob = blob
-    if (blob.size <= MAX_DOC_IMAGE_BYTES) break
+    if (blob.size <= MAX_ID_IMAGE_BYTES) break
     quality -= 0.12
   }
 
@@ -879,38 +853,88 @@ const compressImageFile = async (file) => {
   })
 }
 
-const handleDocUpload = async (event, key) => {
+const fileExtension = (name) => `.${String(name || '').split('.').pop().toLowerCase()}`
+
+const handleResumeUpload = (event) => {
   const file = event.target.files[0]
   if (!file) return
 
-  let processedFile = file
+  if (!['.pdf', '.doc', '.docx', '.txt'].includes(fileExtension(file.name))) {
+    error.value = 'Please upload your resume as a PDF, Word, or text file.'
+    event.target.value = ''
+    return
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    error.value = 'Resume must be smaller than 8MB.'
+    event.target.value = ''
+    return
+  }
 
+  resumeFile.value = file
+  error.value = ''
+}
+
+const handleIdUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  let processed = file
   if ((file.type || '').startsWith('image/')) {
     try {
-      processedFile = await compressImageFile(file)
+      processed = await compressImageFile(file)
     } catch (compressionError) {
       console.warn('Image compression skipped:', compressionError)
-      processedFile = file
+      processed = file
     }
   }
 
-  // Max 8MB for supporting docs
-  if (processedFile.size > 8 * 1024 * 1024) {
-    error.value = 'Document file size must be less than 8MB'
+  if (!['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'].includes(fileExtension(processed.name))) {
+    error.value = 'Please upload a photo or PDF of your ID.'
+    event.target.value = ''
+    return
+  }
+  if (processed.size > MAX_UPLOAD_BYTES) {
+    error.value = 'ID file must be smaller than 8MB.'
     event.target.value = ''
     return
   }
 
-  const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif']
-  const ext = '.' + processedFile.name.split('.').pop().toLowerCase()
-  if (!allowedExtensions.includes(ext)) {
-    error.value = 'Please upload PDF, Word, image, or text files'
-    event.target.value = ''
-    return
-  }
-
-  docFiles.value[key] = processedFile
+  idFile.value = processed
   error.value = ''
+}
+
+// Files go up after the client record exists, so a failed or slow upload can
+// never take the registration down with it.
+const attachDocuments = async (clientId, phone) => {
+  const pending = []
+  if (resumeFile.value) pending.push({ docType: 'resume', file: resumeFile.value })
+  if (idFile.value) pending.push({ docType: 'id', file: idFile.value })
+  if (!pending.length) return true
+
+  const url = getApiUrl('/api/kiosk/check-in/upload-document/')
+  let allSaved = true
+
+  for (const item of pending) {
+    const data = new FormData()
+    data.append('client_id', clientId)
+    data.append('phone', phone)
+    data.append('doc_type', item.docType)
+    data.append('file', item.file)
+
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const response = await axios.post(url, data, { validateStatus: () => true })
+      if (response.status !== 200 && response.status !== 201) {
+        console.warn('[Submit] Document upload failed', item.docType, response.status, response.data)
+        allSaved = false
+      }
+    } catch (uploadError) {
+      console.warn('[Submit] Document upload error', item.docType, uploadError)
+      allSaved = false
+    }
+  }
+
+  return allSaved
 }
 
 // Weekly schedule: multiple selections per day
@@ -1022,6 +1046,7 @@ const getResponseErrorMessage = (response) => {
 async function handleSubmit() {
   formAttempted.value = true
   error.value = ''
+  uploadWarning.value = ''
   success.value = false
   isSubmitting.value = true
 
@@ -1032,50 +1057,18 @@ async function handleSubmit() {
       return
     }
 
-    const selectedFiles = [
-      resumeFile.value,
-      docFiles.value.sf_residency,
-      docFiles.value.hs_diploma,
-      docFiles.value.id,
-      docFiles.value.photo_release,
-      docFiles.value.other,
-    ].filter(Boolean)
-
-    const totalBytes = selectedFiles.reduce((sum, file) => sum + (file?.size || 0), 0)
-    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
-      error.value = 'Total upload size is too large (max 20MB combined). Please remove one file or upload smaller files.'
-      return
-    }
-    const formData = new FormData()
-    
-    // Add form fields
+    const payload = {}
     Object.keys(form.value).forEach(key => {
       if (form.value[key] !== '') {
-        const value = key === 'dob' ? normalizeDateInput(form.value[key]) : form.value[key]
-        formData.append(key, value)
+        payload[key] = key === 'dob' ? normalizeDateInput(form.value[key]) : form.value[key]
       }
     })
-    
-    // Add resume file if selected
-    if (resumeFile.value) {
-      formData.append('resume', resumeFile.value)
-    }
 
-    // Add supporting documents (optional)
-    if (docFiles.value.sf_residency) formData.append('doc_sf_residency', docFiles.value.sf_residency)
-    if (docFiles.value.hs_diploma) formData.append('doc_hs_diploma', docFiles.value.hs_diploma)
-    if (docFiles.value.id) formData.append('doc_id', docFiles.value.id)
-    if (docFiles.value.photo_release) formData.append('doc_photo_release', docFiles.value.photo_release)
-    if (docFiles.value.other) {
-      formData.append('doc_other', docFiles.value.other)
-      if (otherDocName.value.trim()) formData.append('doc_other_name', otherDocName.value.trim())
-    }
-    
     const url = getApiUrl('/api/clients/')
     console.log('[Submit] POST', url)
-    const response = await axios.post(url, formData, {
+    const response = await axios.post(url, payload, {
       headers: {
-        'Content-Type': 'multipart/form-data'
+        'Content-Type': 'application/json'
       },
       validateStatus: () => true
     })
@@ -1083,10 +1076,20 @@ async function handleSubmit() {
     
     if (response.status === 201 || response.status === 200) {
       success.value = true
-      
+
+      const newClientId = response.data.id
+      const submittedPhone = form.value.phone
+      if (newClientId && (resumeFile.value || idFile.value)) {
+        const allSaved = await attachDocuments(newClientId, submittedPhone)
+        if (!allSaved) {
+          uploadWarning.value =
+            'Your application was saved, but we could not attach one of your files. Please bring it with you.'
+        }
+      }
+
       // If Pit Stop, create related application
       if (form.value.training_interest === 'pit_stop') {
-        const clientId = response.data.id
+        const clientId = newClientId
         try {
           await axios.post(getApiUrl('/api/pitstop-applications/'), {
             client: clientId,
@@ -1133,6 +1136,7 @@ async function handleSubmit() {
         zip_code: '',
         sf_resident: '',
         neighborhood: '',
+        neighborhood_other: '',
         demographic_info: '',
         language: '',
         language_other: '',
@@ -1143,6 +1147,9 @@ async function handleSubmit() {
         additional_notes: '',
       }
       
+      resumeFile.value = null
+      idFile.value = null
+
       // Reset pitstop
       pitstop.value = {
         can_work_us: false,
@@ -1157,16 +1164,6 @@ async function handleSubmit() {
         education_history: '',
       }
 
-      // Reset resume file
-      resumeFile.value = null
-      docFiles.value = { sf_residency: null, hs_diploma: null, id: null, photo_release: null, other: null }
-      otherDocName.value = ''
-      
-      // Reset file inputs
-      const fileInputs = document.querySelectorAll('input[type="file"]')
-      fileInputs.forEach((el) => {
-        try { el.value = '' } catch (_) {}
-      })
     } else {
       error.value = getResponseErrorMessage(response)
     }
@@ -1459,13 +1456,6 @@ async function handleSubmit() {
   word-break: break-word;
 }
 
-.doc-note {
-  font-size: 0.8rem;
-  color: #475569;
-  line-height: 1.45;
-  margin: 0;
-}
-
 textarea.form-input {
   display: block;
   min-height: 7rem;
@@ -1489,11 +1479,6 @@ textarea.form-input {
 
 .registration-form textarea.form-input {
   min-height: 8rem;
-}
-
-.registration-form input[type="file"] {
-  width: 100%;
-  font-size: 0.95rem;
 }
 
 .registration-form .section-header {

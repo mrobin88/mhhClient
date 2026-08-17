@@ -412,6 +412,87 @@ def send_text_message(
     return log, True
 
 
+def class_confirmation_body(client, session):
+    """
+    Short, plain-language confirmation. Many clients read English as a second
+    language, so this stays to one fact per sentence.
+    """
+    from django.utils import dateformat
+
+    first_name = (client.first_name or client.full_name or 'there').strip()
+    when = (
+        f'{dateformat.format(session.session_date, "l, F j")} at '
+        f'{dateformat.time_format(session.start_time, "g:i A")}'
+    )
+    parts = [f'Hi {first_name}, you are signed up for {session.template.name} on {when}.']
+    location = (session.location or session.template.location or '').strip()
+    if location:
+        parts.append(f'Where: {location}.')
+    parts.append('Mission Hiring Hall.')
+    return ' '.join(parts)
+
+
+def class_confirmation_preview(client, session, today=None):
+    """
+    The message a client would get, and whether it will actually go out.
+
+    Shared by the staff preview shown at sign-up time and by the real send, so
+    the wording staff read on screen is the wording that gets texted.
+
+    Returns (will_send, reason, body) where reason explains a 'no'.
+    """
+    body = class_confirmation_body(client, session)
+
+    if not getattr(settings, 'SMS_CLASS_CONFIRMATION_ENABLED', False):
+        return False, 'Class confirmation texts are turned off.', body
+    if not (client.phone or '').strip():
+        return False, 'No phone number on file.', body
+
+    today = today or timezone.localdate()
+    if session.status != 'scheduled' or session.session_date < today:
+        return False, 'That class is not upcoming.', body
+
+    return True, '', body
+
+
+def send_class_confirmation(client, session, enrollment, today=None):
+    """
+    Text a client the date and time of the class they were just signed up for.
+
+    Returns (outcome, detail) where outcome is 'sent', 'disabled', 'skipped', or
+    'failed'. Never raises: adding someone to a roster must not depend on the SMS
+    provider being reachable.
+    """
+    from .models_extensions import ClientTextMessage
+
+    will_send, reason, body = class_confirmation_preview(client, session, today=today)
+    if not will_send:
+        if not getattr(settings, 'SMS_CLASS_CONFIRMATION_ENABLED', False):
+            return 'disabled', reason
+        return 'skipped', f'No text sent. {reason}'
+
+    try:
+        log, attempted = send_text_message(
+            client=client,
+            body=body,
+            purpose=ClientTextMessage.PURPOSE_CLASS_CONFIRMATION,
+            dedupe_key=f'class-confirmation:{enrollment.pk}',
+            require_enabled_flag=False,
+        )
+    except Exception as exc:
+        logger.error(
+            'Class confirmation SMS failed for client %s session %s: %s',
+            client.pk, session.pk, exc, exc_info=True,
+        )
+        return 'failed', 'Text could not be sent.'
+
+    if log.status == ClientTextMessage.STATUS_SENT:
+        return 'sent', f'Text sent to {client.phone}.'
+    if not attempted:
+        return 'skipped', 'Text already sent for this class.'
+    return 'failed', log.error_message or 'Text could not be sent.'
+
+
 def progress_followup_body(client, checkpoint_days):
     first_name = (client.first_name or client.full_name or 'there').strip()
     return (

@@ -65,6 +65,7 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
             'staff_name',
             'sf_resident',
             'neighborhood',
+            'neighborhood_other',
             'demographic_info',
             'language',
             'employment_status',

@@ -76,7 +76,8 @@ class Client(models.Model):
         ('bayview', 'Bayview-Hunters Point'),
         ('tenderloin', 'Tenderloin'),
         ('western', 'Western Addition'),
-        ('other', 'Other San Francisco Area')
+        ('other', 'Other San Francisco Area'),
+        ('outside_sf', 'Outside San Francisco'),
     ]
     
     STATUS_CHOICES = [
@@ -119,6 +120,12 @@ class Client(models.Model):
     # San Francisco Residency & Background
     sf_resident = models.CharField(max_length=10, choices=[('yes', 'Yes'), ('no', 'No')], default='yes')
     neighborhood = models.CharField(max_length=20, choices=NEIGHBORHOOD_CHOICES, default='other')
+    neighborhood_other = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Neighborhood or city typed in when the list does not cover it.',
+    )
     demographic_info = models.CharField(max_length=20, choices=DEMOGRAPHIC_CHOICES, default='other')
     language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='en')
     language_other = models.CharField(max_length=50, blank=True, null=True)

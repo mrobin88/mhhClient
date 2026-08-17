@@ -68,6 +68,7 @@ from .class_views import (
     staff_upcoming_classes,
     staff_class_roster,
     staff_class_enroll,
+    staff_class_text_preview,
     staff_class_unenroll,
     staff_client_classes,
     staff_class_templates,
@@ -160,6 +161,11 @@ urlpatterns = [
     path('staff/classes/<int:session_id>/roster/', staff_class_roster, name='staff-classes-roster'),
     path('staff/classes/<int:session_id>/enroll/', staff_class_enroll, name='staff-classes-enroll'),
     path('staff/classes/<int:session_id>/unenroll/', staff_class_unenroll, name='staff-classes-unenroll'),
+    path(
+        'staff/classes/<int:session_id>/text-preview/',
+        staff_class_text_preview,
+        name='staff-classes-text-preview',
+    ),
     path('staff/clients/<int:pk>/classes/', staff_client_classes, name='staff-client-classes'),
 
     # Staff-managed class templates (no admin needed for day-to-day scheduling)

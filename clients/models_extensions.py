@@ -338,6 +338,7 @@ class ClientTextMessage(models.Model):
     STATUS_RECEIVED = 'received'
 
     PURPOSE_PROGRESS_FOLLOWUP = 'progress_followup'
+    PURPOSE_CLASS_CONFIRMATION = 'class_confirmation'
     PURPOSE_ASSIGNMENT = 'assignment'
     PURPOSE_GENERAL = 'general'
 
@@ -353,6 +354,7 @@ class ClientTextMessage(models.Model):
     ]
     PURPOSE_CHOICES = [
         (PURPOSE_PROGRESS_FOLLOWUP, 'Progress follow-up'),
+        (PURPOSE_CLASS_CONFIRMATION, 'Class confirmation'),
         (PURPOSE_ASSIGNMENT, 'Assignment'),
         (PURPOSE_GENERAL, 'General'),
     ]
