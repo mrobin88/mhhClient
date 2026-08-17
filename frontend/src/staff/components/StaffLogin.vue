@@ -6,6 +6,14 @@
       <p class="text-stone-600 mt-2 text-base">Find clients and add notes — simpler than Admin.</p>
     </div>
 
+    <p
+      v-if="sessionExpired"
+      class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4"
+    >
+      Your sign-in ran out, so that last action did not save. Sign in again and we will put you
+      back where you were.
+    </p>
+
     <form v-show="!busy" class="staff-card p-6 sm:p-8 space-y-5" @submit.prevent="submit">
       <div>
         <label class="block text-sm font-semibold text-stone-700 mb-2">Username</label>
@@ -74,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { setCsrfToken, staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
@@ -91,6 +99,7 @@ const showPassword = ref(false)
 const busy = ref(false)
 const error = ref('')
 const fieldErrors = reactive({ username: '', password: '' })
+const sessionExpired = computed(() => router.currentRoute.value.query.expired === '1')
 
 async function submit() {
   fieldErrors.username = ''

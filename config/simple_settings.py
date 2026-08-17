@@ -98,6 +98,11 @@ if not DEBUG:
     CSRF_COOKIE_SAMESITE = 'None'
     CSRF_COOKIE_SECURE = True
 
+# Staff keep the dashboard open all day. Refresh the session on every request so
+# nobody is signed out mid-task; the clock only runs while they are away.
+SESSION_COOKIE_AGE = int(os.getenv('SESSION_COOKIE_AGE_SECONDS', 60 * 60 * 24 * 14))
+SESSION_SAVE_EVERY_REQUEST = True
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [

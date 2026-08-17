@@ -7,7 +7,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { staffFetch } from './api'
+import { clearStaffSession, setSessionExpiredHandler, staffFetch } from './api'
 import StaffShell from './components/StaffShell.vue'
 import type { StaffUser } from './types'
 
@@ -32,6 +32,16 @@ async function loadSession() {
 function onLogout() {
   user.value = null
 }
+
+// A session can lapse while someone sits on a page, so the first thing they
+// hear about it is a failed save. Take them to sign-in and back to their work.
+setSessionExpiredHandler(() => {
+  const current = router.currentRoute.value
+  if (current.meta.guest) return
+  user.value = null
+  clearStaffSession()
+  router.replace({ name: 'Login', query: { redirect: current.fullPath, expired: '1' } })
+})
 
 onMounted(async () => {
   const authed = await loadSession()
