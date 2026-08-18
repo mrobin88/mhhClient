@@ -158,6 +158,44 @@
           </select>
         </div>
 
+        <div
+          v-if="pitStopApplication"
+          class="rounded-lg border border-stone-200 bg-stone-50 p-3 mb-3 space-y-1"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm font-semibold text-stone-800">Application</p>
+            <span class="text-xs font-bold text-orange-700">
+              {{ pitStopApplication.review_status_display }}
+            </span>
+          </div>
+          <p class="text-sm text-stone-600">
+            Age {{ pitStopApplication.age ?? 'unknown' }} · area code
+            {{ pitStopApplication.area_code || 'unknown' }}
+          </p>
+          <p class="text-sm text-stone-600">
+            Resume: {{ pitStopApplication.has_resume ? 'on file' : 'missing' }} ·
+            {{ pitStopApplication.position_applied_for }}
+          </p>
+          <p class="text-sm text-stone-600">
+            Available days:
+            {{ pitStopApplication.available_days.length ? pitStopApplication.available_days.join(', ') : 'none selected' }}
+          </p>
+          <p v-if="pitStopApplication.review_notes" class="text-sm text-stone-700 pt-1">
+            Review notes: {{ pitStopApplication.review_notes }}
+          </p>
+          <p class="text-xs text-stone-500 pt-1">
+            Interview decisions and review notes are edited in Django admin.
+          </p>
+          <a
+            :href="pitStopAdminUrl"
+            target="_blank"
+            rel="noopener"
+            class="inline-block text-xs font-semibold text-orange-600 pt-1"
+          >
+            Open this application in admin →
+          </a>
+        </div>
+
         <div v-if="workerPortal" class="rounded-lg border border-stone-200 bg-stone-50 p-3 space-y-1">
           <p class="text-sm font-semibold text-stone-800">
             Worker portal: {{ workerPortal.portal_access ? 'On' : 'Turned off' }}
@@ -360,6 +398,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { getApiUrl } from '../../config/api'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import { useToast } from '../composables/useToast'
@@ -432,6 +471,18 @@ interface WorkerPortal {
   last_clock_in?: string | null
 }
 
+interface PitStopApplication {
+  id: number
+  review_status: string
+  review_status_display: string
+  review_notes: string
+  age: number | null
+  area_code: string
+  has_resume: boolean
+  position_applied_for: string
+  available_days: string[]
+}
+
 interface ClientDetail {
   id: number
   full_name: string
@@ -445,6 +496,7 @@ interface ClientDetail {
   pit_stop_stage: string
   pit_stop_stage_display?: string
   worker_portal?: WorkerPortal | null
+  pit_stop_application?: PitStopApplication | null
   employment_status: string
   language: string
   address?: string | null
@@ -535,6 +587,12 @@ const textPreviewLoading = ref(false)
 const formDirty = computed(() => JSON.stringify(form) !== savedSnapshot.value)
 
 const workerPortal = computed(() => client.value?.worker_portal || null)
+const pitStopApplication = computed(() => client.value?.pit_stop_application || null)
+const pitStopAdminUrl = computed(() =>
+  pitStopApplication.value
+    ? getApiUrl(`/admin/clients/pitstopapplication/${pitStopApplication.value.id}/change/`)
+    : getApiUrl('/admin/clients/pitstopapplication/'),
+)
 
 function formatDateTime(value: string) {
   const d = new Date(value)

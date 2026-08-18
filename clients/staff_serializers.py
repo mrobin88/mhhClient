@@ -44,6 +44,7 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
         source='get_pit_stop_stage_display', read_only=True
     )
     worker_portal = serializers.SerializerMethodField()
+    pit_stop_application = serializers.SerializerMethodField()
 
     class Meta:
         model = Client
@@ -73,6 +74,7 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
             'training_interest_display',
             'pit_stop_stage',
             'pit_stop_stage_display',
+            'pit_stop_application',
             'worker_portal',
             'program_start_date',
             'program_completed_date',
@@ -97,6 +99,31 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
             'worker_status_display': account.get_worker_status_display(),
             'last_login': account.last_login,
             'last_clock_in': getattr(last_punch, 'clock_in_at', None),
+        }
+
+    def get_pit_stop_application(self, obj):
+        app = obj.pitstop_applications.order_by('-created_at').first()
+        if app is None:
+            return None
+        return {
+            'id': app.pk,
+            'review_status': app.review_status,
+            'review_status_display': app.get_review_status_display(),
+            'interviewed_on': app.interviewed_on,
+            'review_notes': app.review_notes,
+            'reviewed_by': app.reviewed_by,
+            'review_updated_at': app.review_updated_at,
+            'age': app.applicant_age,
+            'area_code': app.area_code,
+            'has_resume': app.has_resume,
+            'position_applied_for': app.position_applied_for,
+            'employment_desired': app.employment_desired,
+            'available_start_date': app.available_start_date,
+            'available_days': app.available_days_list,
+            'can_work_us': app.can_work_us,
+            'is_veteran': app.is_veteran,
+            'education_history': app.education_history,
+            'created_at': app.created_at,
         }
 
 

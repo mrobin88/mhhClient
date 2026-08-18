@@ -21,7 +21,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Client, Document
+from .models import Client, Document, PitStopApplication
 from .staff_auth import StaffSessionAuthentication
 from .staff_utils import staff_display_name
 from .views import (
@@ -71,6 +71,44 @@ def dashboard_recent_clients(request):
         for c in clients
     ]
     return Response({'results': data})
+
+
+@api_view(['GET'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def dashboard_new_pitstop_applications(request):
+    """Newest Pit Stop candidates still waiting for their first review."""
+    err = _staff_guard(request)
+    if err:
+        return err
+
+    limit = min(int(request.GET.get('limit') or 5), 20)
+    applications = (
+        PitStopApplication.objects.filter(review_status=PitStopApplication.REVIEW_NEW)
+        .select_related('client')
+        .order_by('-created_at')[:limit]
+    )
+    data = [
+        {
+            'id': app.id,
+            'client_id': app.client_id,
+            'full_name': app.client.full_name,
+            'age': app.applicant_age,
+            'area_code': app.area_code,
+            'has_resume': app.has_resume,
+            'open_availability': bool(app.available_days_list),
+            'created_at': app.created_at,
+        }
+        for app in applications
+    ]
+    return Response(
+        {
+            'results': data,
+            'total_new': PitStopApplication.objects.filter(
+                review_status=PitStopApplication.REVIEW_NEW
+            ).count(),
+        }
+    )
 
 
 @api_view(['GET'])

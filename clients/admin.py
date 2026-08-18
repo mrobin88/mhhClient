@@ -1564,31 +1564,171 @@ class DocumentAdmin(admin.ModelAdmin):
     check_storage_config.short_description = "🔍 Check Storage Configuration & Environment"
 
 
+class ApplicantAreaCodeFilter(admin.SimpleListFilter):
+    """Phones are stored in mixed formats, so match on normalized digits."""
+
+    title = 'area code'
+    parameter_name = 'area_code'
+
+    def lookups(self, request, model_admin):
+        codes = set()
+        for app in PitStopApplication.objects.select_related('client').only('client__phone'):
+            if app.area_code:
+                codes.add(app.area_code)
+        return [(code, code) for code in sorted(codes)]
+
+    def queryset(self, request, queryset):
+        wanted = self.value()
+        if not wanted:
+            return queryset
+        matching = [app.pk for app in queryset.select_related('client') if app.area_code == wanted]
+        return queryset.filter(pk__in=matching)
+
+
+class ApplicantAgeFilter(admin.SimpleListFilter):
+    title = 'age'
+    parameter_name = 'age_band'
+
+    BANDS = [
+        ('18_24', '18 to 24', 18, 24),
+        ('25_34', '25 to 34', 25, 34),
+        ('35_44', '35 to 44', 35, 44),
+        ('45_54', '45 to 54', 45, 54),
+        ('55_plus', '55 and up', 55, 120),
+    ]
+
+    def lookups(self, request, model_admin):
+        return [(slug, label) for slug, label, _, _ in self.BANDS] + [('unknown', 'No date of birth')]
+
+    @staticmethod
+    def _birthday_years_ago(years):
+        today = timezone.localdate()
+        try:
+            return today.replace(year=today.year - years)
+        except ValueError:  # Feb 29
+            return today.replace(year=today.year - years, day=28)
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if not value:
+            return queryset
+        if value == 'unknown':
+            return queryset.filter(client__dob__isnull=True)
+        for slug, _, low, high in self.BANDS:
+            if slug == value:
+                # Someone aged `low` was born on or before their birthday `low` years ago.
+                newest = self._birthday_years_ago(low)
+                oldest = self._birthday_years_ago(high + 1)
+                return queryset.filter(client__dob__lte=newest, client__dob__gt=oldest)
+        return queryset
+
+
+class ApplicantResumeFilter(admin.SimpleListFilter):
+    title = 'resume'
+    parameter_name = 'resume'
+
+    def lookups(self, request, model_admin):
+        return [('yes', 'Resume on file'), ('no', 'Missing a resume')]
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value not in {'yes', 'no'}:
+            return queryset
+        with_resume = [app.pk for app in queryset.select_related('client') if app.has_resume]
+        if value == 'yes':
+            return queryset.filter(pk__in=with_resume)
+        return queryset.exclude(pk__in=with_resume)
+
+
 @admin.register(PitStopApplication)
 class PitStopApplicationAdmin(admin.ModelAdmin):
-    list_display = ['client', 'pit_stop_stage_display', 'position_applied_for', 'employment_desired', 'can_work_us', 'is_veteran', 'open_availability_status', 'created_at']
-    list_filter = ['client__pit_stop_stage', 'employment_desired', 'can_work_us', 'is_veteran', 'created_at']
-    search_fields = ['client__first_name', 'client__last_name', 'position_applied_for']
+    """
+    The paper application, replaced. Everything needed to decide on someone is
+    on this screen: who they are, how to reach them, their resume, when they can
+    work, and where they are in review.
+    """
+
+    list_display = [
+        'client',
+        'review_status',
+        'applicant_age_display',
+        'area_code_display',
+        'phone_display',
+        'resume_display',
+        'open_availability_status',
+        'pit_stop_stage_display',
+        'created_at',
+    ]
+    list_editable = ['review_status']
+    list_filter = [
+        'review_status',
+        ApplicantAgeFilter,
+        ApplicantAreaCodeFilter,
+        ApplicantResumeFilter,
+        'client__pit_stop_stage',
+        'employment_desired',
+        'can_work_us',
+        'is_veteran',
+        'created_at',
+    ]
+    search_fields = [
+        'client__first_name',
+        'client__last_name',
+        'client__phone',
+        'position_applied_for',
+    ]
     autocomplete_fields = ['client']
     date_hierarchy = 'created_at'
-    readonly_fields = ['created_at', 'updated_at', 'open_availability_status']
-    actions = ['mark_as_exited_program']
+    readonly_fields = [
+        'created_at',
+        'updated_at',
+        'open_availability_status',
+        'applicant_summary',
+        'availability_detail',
+        'reviewed_by',
+        'review_updated_at',
+        'legacy_employment_history',
+    ]
+    actions = [
+        'mark_interviewed',
+        'mark_maybe',
+        'mark_moving_forward',
+        'mark_not_moving_forward',
+        'mark_as_exited_program',
+    ]
     fieldsets = (
+        ('Review', {
+            'fields': (
+                'review_status',
+                'interviewed_on',
+                'review_notes',
+                'reviewed_by',
+                'review_updated_at',
+            ),
+            'description': 'This replaces the paper application. Your name is recorded automatically.',
+        }),
+        ('Applicant', {
+            'fields': ('client', 'applicant_summary'),
+        }),
         ('Application', {
             'fields': (
-                'client',
                 'position_applied_for',
                 'employment_desired',
                 'available_start_date',
                 'can_work_us',
                 'is_veteran',
                 'open_availability_status',
+                'availability_detail',
             ),
-            'description': 'Availability is summarized for easier review.',
         }),
-        ('Additional applicant details', {
+        ('Education', {
             'classes': ('collapse',),
             'fields': ('education_history',),
+        }),
+        ('Older applications only', {
+            'classes': ('collapse',),
+            'fields': ('legacy_employment_history',),
+            'description': 'Work history is no longer collected — the resume covers it.',
         }),
         ('Timestamps', {
             'classes': ('collapse',),
@@ -1596,6 +1736,130 @@ class PitStopApplicationAdmin(admin.ModelAdmin):
         }),
     )
     exclude = ['weekly_schedule', 'employment_history']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('client')
+
+    def save_model(self, request, obj, form, change):
+        review_fields = {'review_status', 'interviewed_on', 'review_notes'}
+        if not change or review_fields & set(form.changed_data or []):
+            obj.reviewed_by = _staff_display_name(request.user)
+            obj.review_updated_at = timezone.now()
+        super().save_model(request, obj, form, change)
+
+    def _bulk_review(self, request, queryset, status, label):
+        updated = queryset.update(
+            review_status=status,
+            reviewed_by=_staff_display_name(request.user),
+            review_updated_at=timezone.now(),
+        )
+        self.message_user(request, f'{updated} application(s) marked "{label}".')
+
+    @admin.action(description='Mark interviewed')
+    def mark_interviewed(self, request, queryset):
+        self._bulk_review(request, queryset, PitStopApplication.REVIEW_INTERVIEWED, 'Interviewed')
+
+    @admin.action(description='Mark maybe')
+    def mark_maybe(self, request, queryset):
+        self._bulk_review(request, queryset, PitStopApplication.REVIEW_MAYBE, 'Maybe')
+
+    @admin.action(description='Mark moving forward')
+    def mark_moving_forward(self, request, queryset):
+        self._bulk_review(request, queryset, PitStopApplication.REVIEW_MOVING_FORWARD, 'Moving forward')
+
+    @admin.action(description='Mark not moving forward')
+    def mark_not_moving_forward(self, request, queryset):
+        self._bulk_review(
+            request, queryset, PitStopApplication.REVIEW_NOT_MOVING_FORWARD, 'Not moving forward'
+        )
+
+    @admin.display(description='Age', ordering='client__dob')
+    def applicant_age_display(self, obj):
+        age = obj.applicant_age
+        if age is None:
+            return format_html('<span style="color:#b91c1c;">No DOB</span>')
+        return age
+
+    @admin.display(description='Area')
+    def area_code_display(self, obj):
+        return obj.area_code or '—'
+
+    @admin.display(description='Phone', ordering='client__phone')
+    def phone_display(self, obj):
+        return obj.client.phone or '—'
+
+    @admin.display(description='Resume')
+    def resume_display(self, obj):
+        if obj.has_resume:
+            return format_html('<strong style="color:#15803d;">Yes</strong>')
+        return format_html('<strong style="color:#b91c1c;">Missing</strong>')
+
+    @admin.display(description='Applicant at a glance')
+    def applicant_summary(self, obj):
+        if not obj.client_id:
+            return '—'
+
+        client = obj.client
+        age = obj.applicant_age
+        rows = [
+            ('Name', client.full_name),
+            ('Age', age if age is not None else 'No date of birth on file'),
+            ('Phone', f'{client.phone or "—"} (area code {obj.area_code or "unknown"})'),
+            ('Email', client.email or '—'),
+            ('Lives in SF', 'Yes' if client.is_sf_resident else 'No'),
+            ('Neighborhood', client.neighborhood_other or client.get_neighborhood_display()),
+            ('Pit Stop stage', client.get_pit_stop_stage_display()),
+            ('Resume', 'On file' if obj.has_resume else 'MISSING — ask for it before deciding'),
+        ]
+        body = format_html_join(
+            '',
+            '<tr><th style="text-align:left;padding-right:12px;">{}</th><td>{}</td></tr>',
+            rows,
+        )
+        if client.resume:
+            link = format_html(
+                '<p style="margin-top:8px;"><a href="{}" target="_blank" rel="noopener">Open resume</a></p>',
+                reverse('client-resume-download', kwargs={'pk': client.pk}),
+            )
+        elif obj.has_resume:
+            link = format_html(
+                '<p style="margin-top:8px;"><a href="{}">Resume is filed under this client\'s documents</a></p>',
+                reverse('admin:clients_client_change', args=[client.pk]),
+            )
+        else:
+            link = ''
+        return format_html('<table>{}</table>{}', body, link)
+
+    @admin.display(description='Availability')
+    def availability_detail(self, obj):
+        schedule = obj.weekly_schedule or {}
+        rows = [(day, ', '.join(times)) for day, times in schedule.items() if times]
+        if not rows:
+            return 'No days selected.'
+        return format_html_join(
+            format_html('<br>'),
+            '<strong>{}</strong>: {}',
+            rows,
+        )
+
+    @admin.display(description='Work history from older applications')
+    def legacy_employment_history(self, obj):
+        entries = [e for e in (obj.employment_history or []) if any((e or {}).values())]
+        if not entries:
+            return 'Nothing recorded. Use the resume.'
+        rows = [
+            (
+                entry.get('company') or '—',
+                entry.get('title') or '—',
+                f"{entry.get('start_date') or '?'} to {entry.get('end_date') or '?'}",
+            )
+            for entry in entries
+        ]
+        return format_html_join(
+            format_html('<br>'),
+            '<strong>{}</strong> — {} ({})',
+            rows,
+        )
 
     def open_availability_status(self, obj):
         schedule = obj.weekly_schedule or {}

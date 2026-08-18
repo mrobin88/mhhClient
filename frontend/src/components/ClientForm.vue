@@ -176,7 +176,9 @@
               </div>
 
               <div class="form-field">
-                <label class="block text-sm font-semibold text-slate-700">Date of Birth</label>
+                <label class="block text-sm font-semibold text-slate-700">
+                  <span v-if="isPitStop" class="text-mission-600">*</span> Date of Birth
+                </label>
                 <input
                   v-model="form.dob"
                   type="text"
@@ -441,7 +443,11 @@
               <h3 class="section-title font-semibold text-slate-800">Resume & ID (optional)</h3>
             </div>
 
-            <p class="text-sm text-slate-600">
+            <p v-if="isPitStop" class="text-sm text-slate-700">
+              Pit Stop applications need a resume. Attach it here — we no longer ask you to type out
+              past jobs. Your ID is still optional and you can bring it with you.
+            </p>
+            <p v-else class="text-sm text-slate-600">
               You can add these now or bring them with you. You do not need them to finish this
               application. No signed forms are needed right now.
             </p>
@@ -449,8 +455,16 @@
             <div class="docs-well">
               <div class="docs-scroll">
                 <div class="doc-tile">
-                  <div class="doc-title">Resume</div>
-                  <div class="doc-subtitle">PDF or Word file. Optional.</div>
+                  <div class="doc-title">
+                    Resume
+                    <span v-if="isPitStop" class="text-mission-600">*</span>
+                  </div>
+                  <div class="doc-subtitle">
+                    PDF or Word file.
+                    {{ isPitStop
+                      ? 'Required for Pit Stop — it replaces the work history questions.'
+                      : 'Optional.' }}
+                  </div>
                   <input
                     type="file"
                     class="doc-input"
@@ -559,25 +573,13 @@
               </div>
             </div>
             <div>
-              <label class="form-label">Employment History (Last Job)</label>
-              <div class="p-4 bg-white rounded border space-y-3 mb-3">
-                <div class="form-stack">
-                  <input v-model="pitstop.employment_history[0].company" class="form-input" placeholder="Company name" />
-                  <input v-model="pitstop.employment_history[0].title" class="form-input" placeholder="Job title/role" />
-                  <input v-model="pitstop.employment_history[0].city" class="form-input" placeholder="City" />
-                  <input v-model="pitstop.employment_history[0].state" class="form-input" placeholder="State" />
-                  <input v-model="pitstop.employment_history[0].manager" class="form-input" placeholder="Manager name" />
-                  <input v-model="pitstop.employment_history[0].phone" class="form-input" placeholder="Manager phone" />
-                  <input v-model="pitstop.employment_history[0].start_date" type="date" class="form-input" />
-                  <input v-model="pitstop.employment_history[0].end_date" type="date" class="form-input" />
-                </div>
-                <textarea v-model="pitstop.employment_history[0].responsibilities" class="form-input" rows="2" placeholder="Responsibilities"></textarea>
-              </div>
-            </div>
-            <div>
               <label class="form-label">Education History</label>
               <textarea v-model="pitstop.education_history" class="form-input" rows="3" placeholder="Schools, certifications, etc."></textarea>
             </div>
+            <p class="text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3">
+              We no longer ask about past jobs here. Attach your resume on the last step instead —
+              Pit Stop applications need one.
+            </p>
           </div>
             </div>
           </Transition>
@@ -727,9 +729,6 @@ const pitstop = ref({
   available_start_date: '',
   employment_desired: [],
   weekly_schedule: {},
-  employment_history: [
-    { company: '', title: '', city: '', state: '', manager: '', phone: '', start_date: '', end_date: '', responsibilities: '' }
-  ],
   education_history: '',
 })
 
@@ -742,9 +741,11 @@ const currentStepIndex = ref(0)
 const resumeFile = ref(null)
 const idFile = ref(null)
 
+const isPitStop = computed(() => form.value.training_interest === 'pit_stop')
+
 const stepOrder = computed(() => {
   const steps = ['program', 'personal', 'address', 'background', 'employment']
-  if (form.value.training_interest === 'pit_stop') steps.push('pitstop')
+  if (isPitStop.value) steps.push('pitstop')
   steps.push('documents')
   return steps
 })
@@ -783,6 +784,13 @@ const nextStep = () => {
     formAttempted.value = true
     return
   }
+  // Pit Stop reviewers weigh age, so it cannot be blank on those applications.
+  if (currentStep.value === 'personal' && isPitStop.value && !form.value.dob) {
+    formAttempted.value = true
+    error.value = 'Pit Stop applications need your date of birth.'
+    return
+  }
+  error.value = ''
   if (!isLastStep.value) currentStepIndex.value += 1
 }
 
@@ -1057,6 +1065,13 @@ async function handleSubmit() {
       return
     }
 
+    // The resume is what replaced the work history questions, so a Pit Stop
+    // application without one cannot actually be reviewed.
+    if (isPitStop.value && !resumeFile.value) {
+      error.value = 'Pit Stop applications need a resume. Attach yours above before submitting.'
+      return
+    }
+
     const payload = {}
     Object.keys(form.value).forEach(key => {
       if (form.value[key] !== '') {
@@ -1089,32 +1104,20 @@ async function handleSubmit() {
 
       // If Pit Stop, create related application
       if (form.value.training_interest === 'pit_stop') {
-        const clientId = newClientId
+        const application = {
+          client: newClientId,
+          can_work_us: pitstop.value.can_work_us,
+          is_veteran: pitstop.value.is_veteran,
+          position_applied_for: pitstop.value.position_applied_for,
+          available_start_date: pitstop.value.available_start_date || null,
+          employment_desired: pitstop.value.employment_desired,
+          weekly_schedule: pitstop.value.weekly_schedule,
+          education_history: pitstop.value.education_history,
+        }
         try {
-          await axios.post(getApiUrl('/api/pitstop-applications/'), {
-            client: clientId,
-            can_work_us: pitstop.value.can_work_us,
-            is_veteran: pitstop.value.is_veteran,
-            position_applied_for: pitstop.value.position_applied_for,
-            available_start_date: pitstop.value.available_start_date || null,
-            employment_desired: pitstop.value.employment_desired,
-            weekly_schedule: pitstop.value.weekly_schedule,
-            employment_history: pitstop.value.employment_history,
-            education_history: pitstop.value.education_history,
-          })
+          await axios.post(getApiUrl('/api/pitstop-applications/'), application)
         } catch (pitstopError) {
-          console.error('Pit Stop application submission failed:', pitstopError)
-          console.error('Pit Stop data being sent:', {
-            client: clientId,
-            can_work_us: pitstop.value.can_work_us,
-            is_veteran: pitstop.value.is_veteran,
-            position_applied_for: pitstop.value.position_applied_for,
-            available_start_date: pitstop.value.available_start_date || null,
-            employment_desired: pitstop.value.employment_desired,
-            weekly_schedule: pitstop.value.weekly_schedule,
-            employment_history: pitstop.value.employment_history,
-            education_history: pitstop.value.education_history,
-          })
+          console.error('Pit Stop application submission failed:', pitstopError, application)
           // Don't throw error here - client was created successfully
           error.value = 'Client created successfully, but Pit Stop application failed to save. Please contact support.'
         }
@@ -1158,9 +1161,6 @@ async function handleSubmit() {
         available_start_date: '',
         employment_desired: [],
         weekly_schedule: {},
-        employment_history: [
-          { company: '', title: '', city: '', state: '', manager: '', phone: '', start_date: '', end_date: '', responsibilities: '' }
-        ],
         education_history: '',
       }
 

@@ -84,7 +84,16 @@ class PitStopApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PitStopApplication
         fields = '__all__'
-        read_only_fields = ['created_at', 'updated_at']
+        # The public signup form posts here, so review decisions stay staff-only.
+        read_only_fields = [
+            'created_at',
+            'updated_at',
+            'review_status',
+            'interviewed_on',
+            'review_notes',
+            'reviewed_by',
+            'review_updated_at',
+        ]
 
 
 # ========================================

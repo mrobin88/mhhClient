@@ -6,6 +6,7 @@
       <div class="staff-dashboard-grid">
         <UsageStatsCard />
         <RecentClientsCard />
+        <NewPitStopApplicationsCard />
         <UpcomingClassesCard />
         <ProgramDistributionChart />
         <ActivityFeedCard />
@@ -27,6 +28,7 @@ import type { StaffUser } from '../types'
 import DashboardHeader from './dashboard/DashboardHeader.vue'
 import UsageStatsCard from './dashboard/UsageStatsCard.vue'
 import RecentClientsCard from './dashboard/RecentClientsCard.vue'
+import NewPitStopApplicationsCard from './dashboard/NewPitStopApplicationsCard.vue'
 import UpcomingClassesCard from './dashboard/UpcomingClassesCard.vue'
 import ProgramDistributionChart from './dashboard/ProgramDistributionChart.vue'
 import ActivityFeedCard from './dashboard/ActivityFeedCard.vue'

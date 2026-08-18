@@ -51,6 +51,7 @@ from .staff_views import (
 )
 from .dashboard_views import (
     dashboard_recent_clients,
+    dashboard_new_pitstop_applications,
     dashboard_program_distribution,
     dashboard_activity_feed,
     dashboard_usage_stats,
@@ -145,6 +146,11 @@ urlpatterns = [
 
     # Staff Dashboard
     path('staff/dashboard/recent-clients/', dashboard_recent_clients, name='dashboard-recent-clients'),
+    path(
+        'staff/dashboard/new-pitstop-applications/',
+        dashboard_new_pitstop_applications,
+        name='dashboard-new-pitstop-applications',
+    ),
     path('staff/dashboard/program-distribution/', dashboard_program_distribution, name='dashboard-program-distribution'),
     path('staff/dashboard/activity-feed/', dashboard_activity_feed, name='dashboard-activity-feed'),
     path('staff/dashboard/usage-stats/', dashboard_usage_stats, name='dashboard-usage-stats'),

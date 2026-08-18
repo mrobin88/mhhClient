@@ -483,6 +483,21 @@ class PitStopApplication(models.Model):
         ('part_time', 'Part-time'),
         ('relief_list', 'Relief List'),
     ]
+
+    # Where an application sits in review. This replaces the paper stack: staff
+    # triage here first, and only accepted people get a Pit Stop stage change.
+    REVIEW_NEW = 'new'
+    REVIEW_INTERVIEWED = 'interviewed'
+    REVIEW_MAYBE = 'maybe'
+    REVIEW_MOVING_FORWARD = 'moving_forward'
+    REVIEW_NOT_MOVING_FORWARD = 'not_moving_forward'
+    REVIEW_STATUS_CHOICES = [
+        (REVIEW_NEW, 'New - needs review'),
+        (REVIEW_INTERVIEWED, 'Interviewed'),
+        (REVIEW_MAYBE, 'Maybe'),
+        (REVIEW_MOVING_FORWARD, 'Moving forward'),
+        (REVIEW_NOT_MOVING_FORWARD, 'Not moving forward'),
+    ]
     
     # Shift time slots used in weekly_schedule JSONField
     # Frontend uses: '7-4', '8-5', '9-6', '10-7', '11-8', '12-9', '18-3', '21-6', '23-8'
@@ -508,11 +523,28 @@ class PitStopApplication(models.Model):
         help_text='Weekly schedule: {"Mon": ["7-4", "8-5"], "Tue": ["9-5"], ...} - each day can have multiple time slots'
     )
 
-    # Employment history (last job)
-    employment_history = models.JSONField(default=list, help_text='Last job with fields: company, city, state, manager, phone, title, responsibilities, start_date, end_date')
+    # Employment history (last job). No longer collected — the resume covers it.
+    # Kept so applications taken before that change are still readable.
+    employment_history = models.JSONField(default=list, help_text='Retired. Older applications may still hold a last-job entry.')
 
     # Education history (free form)
     education_history = models.TextField(blank=True, null=True)
+
+    # Review pipeline — staff-only, never set by the applicant.
+    review_status = models.CharField(
+        max_length=30,
+        choices=REVIEW_STATUS_CHOICES,
+        default=REVIEW_NEW,
+        db_index=True,
+    )
+    interviewed_on = models.DateField(blank=True, null=True)
+    review_notes = models.TextField(
+        blank=True,
+        default='',
+        help_text='What used to get written on the paper application.',
+    )
+    reviewed_by = models.CharField(max_length=150, blank=True, default='')
+    review_updated_at = models.DateTimeField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -535,6 +567,35 @@ class PitStopApplication(models.Model):
     def get_times_for_day(self, day):
         """Get list of time slots for a specific day"""
         return self.weekly_schedule.get(day, [])
+
+    @property
+    def applicant_age(self):
+        """Read off the client so it can never go stale."""
+        return self.client.age
+
+    @property
+    def area_code(self):
+        """First three digits of the applicant's phone, for a read on where they live."""
+        from .phone_utils import phone_digits
+
+        digits = phone_digits(self.client.phone or '')
+        if len(digits) == 11 and digits.startswith('1'):
+            digits = digits[1:]
+        return digits[:3] if len(digits) == 10 else ''
+
+    @property
+    def has_resume(self):
+        """A resume replaces the work history questions, so reviewers need to see it."""
+        if self.client.resume:
+            return True
+        return self.client.documents.filter(doc_type='resume').exclude(file='').exists()
+
+    @property
+    def resume_file(self):
+        if self.client.resume:
+            return self.client.resume
+        doc = self.client.documents.filter(doc_type='resume').exclude(file='').order_by('-created_at').first()
+        return doc.file if doc else None
 
 
 class JobPlacement(models.Model):

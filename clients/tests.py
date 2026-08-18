@@ -14,7 +14,7 @@ from rest_framework.test import APIClient
 
 from clients.admin import ClientAdmin
 from clients.models import CaseNote, Client
-from clients.models import Document
+from clients.models import Document, PitStopApplication
 from clients.models_classes import ClassEnrollment, ClassSession, ClassTemplate
 from clients.notifications import _to_e164_us, _compose_sms_body, send_phone_text_message
 from clients.models_extensions import (
@@ -1171,6 +1171,63 @@ class StaffSpaApiTests(TestCase):
             'Security Guard Card Training',
         )
 
+    def test_dashboard_surfaces_only_new_pitstop_applications(self):
+        new_client = Client.objects.create(
+            first_name='New',
+            last_name='Candidate',
+            phone='6285551212',
+            gender='F',
+            dob=date(1999, 4, 2),
+            training_interest='pit_stop',
+        )
+        reviewed_client = Client.objects.create(
+            first_name='Reviewed',
+            last_name='Candidate',
+            phone='4155551313',
+            gender='M',
+            dob=date(1989, 4, 2),
+            training_interest='pit_stop',
+        )
+        PitStopApplication.objects.create(
+            client=new_client,
+            position_applied_for='Pit Stop Attendant',
+        )
+        PitStopApplication.objects.create(
+            client=reviewed_client,
+            position_applied_for='Pit Stop Attendant',
+            review_status=PitStopApplication.REVIEW_INTERVIEWED,
+        )
+        self.http.login(username='case_mgr', password='staffpass123')
+
+        response = self.http.get('/api/staff/dashboard/new-pitstop-applications/')
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['total_new'], 1)
+        self.assertEqual([row['full_name'] for row in body['results']], ['New Candidate'])
+        self.assertEqual(body['results'][0]['area_code'], '628')
+
+    def test_client_detail_includes_pitstop_application_summary(self):
+        self.client_record.training_interest = 'pit_stop'
+        self.client_record.dob = date(1990, 6, 4)
+        self.client_record.save(update_fields=['training_interest', 'dob'])
+        PitStopApplication.objects.create(
+            client=self.client_record,
+            position_applied_for='Pit Stop Attendant',
+            review_status=PitStopApplication.REVIEW_MAYBE,
+            review_notes='Strong interview; check schedule.',
+            weekly_schedule={'Monday': ['7-4']},
+        )
+        self.http.login(username='case_mgr', password='staffpass123')
+
+        response = self.http.get(f'/api/staff/clients/{self.client_record.pk}/')
+
+        self.assertEqual(response.status_code, 200)
+        app = response.json()['pit_stop_application']
+        self.assertEqual(app['review_status'], PitStopApplication.REVIEW_MAYBE)
+        self.assertEqual(app['review_notes'], 'Strong interview; check schedule.')
+        self.assertEqual(app['available_days'], ['Monday'])
+
 
 class StaffPitStopPromoteTests(TestCase):
     def setUp(self):
@@ -1501,6 +1558,145 @@ class PublicClientRegistrationTests(TestCase):
         client = Client.objects.get(pk=response.json()['id'])
         self.assertEqual(client.neighborhood, 'outside_sf')
         self.assertEqual(client.neighborhood_other, 'Daly City')
+
+
+class PitStopApplicationReviewTests(TestCase):
+    """The review pipeline that replaced the paper application stack."""
+
+    def setUp(self):
+        self.api = APIClient()
+        self.client_record = Client.objects.create(
+            first_name='Dana',
+            last_name='Ruiz',
+            phone='(628) 555-0142',
+            gender='F',
+            dob=date(1994, 5, 20),
+            training_interest='pit_stop',
+        )
+        self.application = PitStopApplication.objects.create(
+            client=self.client_record,
+            position_applied_for='Pit Stop Attendant',
+        )
+
+    def test_a_new_application_starts_in_needs_review(self):
+        self.assertEqual(self.application.review_status, PitStopApplication.REVIEW_NEW)
+
+    def test_age_and_area_code_come_from_the_client_record(self):
+        self.assertEqual(self.application.area_code, '628')
+        expected_age = self.client_record.age
+        self.assertEqual(self.application.applicant_age, expected_age)
+
+    def test_area_code_handles_a_leading_country_code(self):
+        self.client_record.phone = '+1 415 555 0199'
+        self.client_record.save(update_fields=['phone'])
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.area_code, '415')
+
+    def test_age_is_blank_rather_than_wrong_without_a_birth_date(self):
+        self.client_record.dob = None
+        self.client_record.save(update_fields=['dob'])
+        self.application.refresh_from_db()
+        self.assertIsNone(self.application.applicant_age)
+
+    def test_resume_shows_as_on_file_when_uploaded_as_a_document(self):
+        self.assertFalse(self.application.has_resume)
+        Document.objects.create(
+            client=self.client_record,
+            title='Resume',
+            doc_type='resume',
+            file=SimpleUploadedFile('resume.pdf', b'%PDF-1.4', content_type='application/pdf'),
+            uploaded_by='staff',
+        )
+        self.assertTrue(self.application.has_resume)
+
+    def test_an_applicant_cannot_set_their_own_review_status(self):
+        response = self.api.post(
+            '/api/pitstop-applications/',
+            {
+                'client': self.client_record.pk,
+                'position_applied_for': 'Pit Stop Attendant',
+                'review_status': PitStopApplication.REVIEW_MOVING_FORWARD,
+                'review_notes': 'Please hire me',
+                'reviewed_by': 'Not A Real Reviewer',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        created = PitStopApplication.objects.get(pk=response.json()['id'])
+        self.assertEqual(created.review_status, PitStopApplication.REVIEW_NEW)
+        self.assertEqual(created.review_notes, '')
+        self.assertEqual(created.reviewed_by, '')
+
+
+class PitStopApplicationAdminTests(TestCase):
+    def setUp(self):
+        from .admin import PitStopApplicationAdmin
+
+        self.site = AdminSite()
+        self.admin = PitStopApplicationAdmin(PitStopApplication, self.site)
+        User = get_user_model()
+        self.reviewer = User.objects.create_user(
+            username='pitstop_reviewer',
+            password='staffpass123',
+            email='reviewer@example.com',
+            first_name='Rosa',
+            last_name='Lane',
+            role='case_manager',
+        )
+        self.applications = []
+        for first_name, phone, dob in [
+            ('Young', '4155550111', date(2004, 1, 10)),
+            ('Middle', '6285550122', date(1985, 1, 10)),
+            ('Older', '5105550133', date(1962, 1, 10)),
+        ]:
+            client_record = Client.objects.create(
+                first_name=first_name,
+                last_name='Applicant',
+                phone=phone,
+                gender='M',
+                dob=dob,
+                training_interest='pit_stop',
+            )
+            self.applications.append(
+                PitStopApplication.objects.create(
+                    client=client_record, position_applied_for='Pit Stop Attendant'
+                )
+            )
+
+    def test_bulk_action_records_the_status_and_who_decided(self):
+        request = type('Req', (), {'user': self.reviewer})()
+        with patch.object(self.admin, 'message_user'):
+            self.admin.mark_interviewed(request, PitStopApplication.objects.all())
+
+        for app in PitStopApplication.objects.all():
+            self.assertEqual(app.review_status, PitStopApplication.REVIEW_INTERVIEWED)
+            self.assertIn('Rosa', app.reviewed_by)
+            self.assertIsNotNone(app.review_updated_at)
+
+    def test_age_filter_narrows_to_one_applicant(self):
+        from .admin import ApplicantAgeFilter
+
+        filt = ApplicantAgeFilter(
+            None, {'age_band': ['35_44']}, PitStopApplication, self.admin
+        )
+        results = filt.queryset(None, PitStopApplication.objects.all())
+        self.assertEqual([a.client.first_name for a in results], ['Middle'])
+
+    def test_area_code_filter_narrows_to_one_applicant(self):
+        from .admin import ApplicantAreaCodeFilter
+
+        filt = ApplicantAreaCodeFilter(
+            None, {'area_code': ['510']}, PitStopApplication, self.admin
+        )
+        results = filt.queryset(None, PitStopApplication.objects.all())
+        self.assertEqual([a.client.first_name for a in results], ['Older'])
+
+    def test_resume_filter_finds_applications_still_missing_one(self):
+        from .admin import ApplicantResumeFilter
+
+        filt = ApplicantResumeFilter(None, {'resume': ['no']}, PitStopApplication, self.admin)
+        results = filt.queryset(None, PitStopApplication.objects.all())
+        self.assertEqual(results.count(), 3)
 
 
 @override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
