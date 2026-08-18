@@ -832,6 +832,34 @@ select.staff-input:disabled {
   color: var(--staff-danger);
   margin: 0.35rem 0 0;
 }
+.staff-guide-item-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--staff-accent-dark);
+  text-decoration: none;
+}
+.staff-guide-item-link:hover {
+  text-decoration: underline;
+}
+.staff-guide-item-link .material-symbols-outlined {
+  font-size: 1rem;
+}
+.staff-guide-item-here {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: var(--staff-accent-dark);
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
 .staff-guide-steps {
   list-style: decimal;
   padding-left: 1.15rem;

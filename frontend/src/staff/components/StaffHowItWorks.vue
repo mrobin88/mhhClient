@@ -20,13 +20,27 @@
     <article id="apps" class="staff-card p-4 staff-guide-section">
       <h4>Which app do I use?</h4>
       <p class="staff-guide-lead">
-        We run several small apps instead of one big one. Each has a different audience.
+        We run several small apps instead of one big one, each for a different audience. Every link
+        below opens in a new tab so you keep your place here.
       </p>
       <div class="staff-guide-list">
         <div v-for="app in apps" :key="app.name" class="staff-guide-item">
-          <p class="staff-guide-item-title">{{ app.name }}</p>
+          <p class="staff-guide-item-title">
+            {{ app.name }}
+            <span v-if="app.here" class="staff-guide-item-here">You are here</span>
+          </p>
           <p class="staff-guide-item-who">{{ app.who }}</p>
           <p class="staff-guide-item-body">{{ app.what }}</p>
+          <a
+            v-if="app.href"
+            :href="app.href"
+            target="_blank"
+            rel="noopener"
+            class="staff-guide-item-link"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+            {{ app.linkLabel }}
+          </a>
         </div>
       </div>
     </article>
@@ -140,6 +154,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { getApiUrl } from '../../config/api'
 
 const router = useRouter()
 
@@ -155,39 +170,45 @@ const sections = [
 
 const apps = [
   {
-    name: 'Staff workspace (this app)',
+    name: 'Staff workspace',
     who: 'You, every day',
-    what: 'Look people up, fix their info, sign them up for classes, write case notes, read text threads, and file tickets. This should cover most of your day.',
+    what: 'The app you are in right now. Look someone up, fix a wrong phone number, sign them up for a class, write a case note, and read their text replies. If something is part of your normal day and you cannot do it here, that is worth a ticket.',
+    here: true,
   },
   {
     name: 'Public signup form',
-    who: 'Clients, on their own phone or a lobby tablet',
-    what: 'The registration form where someone picks a program and enters their info. Pit Stop signups answer a few extra questions.',
+    who: 'New clients, on their own phone or the lobby tablet',
+    what: 'How people register themselves. They pick a program, fill in their details, and can attach a resume or a photo of their ID, though both are optional. Pit Stop applicants answer extra questions about their work history and which shifts they can take. Text someone the link, or leave it open on the tablet.',
+    href: '/',
+    linkLabel: 'Open the signup form',
   },
   {
     name: 'Lobby check-in',
-    who: 'Clients walking in',
-    what: 'Someone enters their phone number, picks their name, and says why they came. It writes a case note automatically and can take document photos.',
+    who: 'Clients who are already in the system, walking in',
+    what: 'They type their phone number, tap their name, and say why they came. A case note is written on their record for you, so you do not have to log the visit yourself. They can also photograph a document they brought with them.',
+    href: '/checkin',
+    linkLabel: 'Open lobby check-in',
   },
   {
     name: 'Worker portal',
     who: 'Pit Stop workers',
-    what: 'Phone and PIN login for clocking in and out, submitting incident reports, and daily feedback. Only people you have given portal access can use it.',
+    what: 'Phone number and a 4-digit PIN, no email needed. Workers clock in and out at a site, file incident reports, and send daily feedback. Only people you have given portal access can sign in, and their PIN is the last 4 digits of their phone.',
+    href: '/worker/',
+    linkLabel: 'Open the worker portal',
   },
   {
     name: 'Django admin',
     who: 'Managers and tech',
-    what: 'The full database. Everything is editable here, including things the staff workspace deliberately hides. Use it for worker PIN resets, work sites, classes setup, and partner API keys.',
+    what: 'The raw database with nothing hidden. Go here for what this workspace deliberately leaves out: resetting a worker PIN, switching portal access back off, adding work sites, and repairing a record that was saved wrong. There is no undo, so change one thing at a time.',
+    href: getApiUrl('/admin/'),
+    linkLabel: 'Open Django admin',
   },
   {
     name: 'Reports hub',
     who: 'Managers',
-    what: 'Downloadable CSV and ZIP packages: client outcomes, Pit Stop hours, missing documents, manager package. Log into admin first or the downloads will be blocked.',
-  },
-  {
-    name: 'Partner API docs',
-    who: 'Outside organizations',
-    what: 'A separate page documenting how a partner organization sends us referrals from their own system. They can only send referrals in — they cannot read our client records.',
+    what: 'Spreadsheets you can download: client outcomes, Pit Stop hours, who is still missing documents, and the whole manager package as one ZIP. Sign into Django admin first in the same browser or the download gets refused.',
+    href: getApiUrl('/api/reports/'),
+    linkLabel: 'Open the reports hub',
   },
 ]
 
@@ -290,10 +311,6 @@ const automatic = [
   {
     name: 'Progress text messages',
     body: 'Check-in texts at 30, 60, 90, and 120 days after intake. These are turned OFF, so do not assume a client was contacted.',
-  },
-  {
-    name: 'Partner referrals',
-    body: 'Partner organizations can send referrals straight into the system. They arrive for staff review — they do not become clients on their own.',
   },
   {
     name: 'Staff assignment',
