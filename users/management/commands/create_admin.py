@@ -3,12 +3,12 @@ from users.models import StaffUser
 
 
 class Command(BaseCommand):
-    help = 'Create a default admin user'
+    help = 'Create an admin user with explicitly supplied recovery credentials'
 
     def add_arguments(self, parser):
         parser.add_argument('--username', default='admin', help='Admin username')
-        parser.add_argument('--email', default='admin@example.com', help='Admin email')
-        parser.add_argument('--password', default='admin123', help='Admin password')
+        parser.add_argument('--email', required=True, help='Admin recovery email')
+        parser.add_argument('--password', required=True, help='Strong initial password')
 
     def handle(self, *args, **options):
         username = options['username']
@@ -32,5 +32,4 @@ class Command(BaseCommand):
             self.style.SUCCESS(f'Successfully created admin user: {username}')
         )
         self.stdout.write(f'Username: {username}')
-        self.stdout.write(f'Password: {password}')
-        self.stdout.write('Please change the password after first login!')
+        self.stdout.write('The supplied password was not printed. Store it securely.')

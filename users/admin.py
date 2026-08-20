@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django import forms
 from django.contrib import messages
 from django.conf import settings
 from django.core.mail import send_mail
@@ -7,11 +8,25 @@ from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from .models import StaffUser
 
 class StaffUserCreationForm(UserCreationForm):
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip()
+        role = self.data.get('role') or getattr(self.instance, 'role', '')
+        if role in ('admin', 'case_manager', 'counselor') and not email:
+            raise forms.ValidationError('Staff accounts need an email for password recovery.')
+        return email
+
     class Meta(UserCreationForm.Meta):
         model = StaffUser
         fields = UserCreationForm.Meta.fields + ('first_name', 'last_name', 'email', 'role', 'nonprofit', 'phone')
 
 class StaffUserChangeForm(UserChangeForm):
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip()
+        role = self.data.get('role') or getattr(self.instance, 'role', '')
+        if role in ('admin', 'case_manager', 'counselor') and not email:
+            raise forms.ValidationError('Staff accounts need an email for password recovery.')
+        return email
+
     class Meta(UserChangeForm.Meta):
         model = StaffUser
         fields = '__all__'
@@ -21,31 +36,31 @@ class StaffUserAdmin(UserAdmin):
     form = StaffUserChangeForm
     add_form = StaffUserCreationForm
     actions = ('disable_staff_login', 'text_staff_login_help')
-    
+
     list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'nonprofit', 'is_active', 'is_staff', 'date_joined')
     list_filter = ('role', 'is_active', 'is_staff', 'is_superuser', 'nonprofit', 'date_joined')
     search_fields = ('username', 'first_name', 'last_name', 'email', 'nonprofit')
     ordering = ('-date_joined',)
     filter_horizontal = ('groups', 'user_permissions')
-    
+
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name', 'email', 'phone')}),
-        ('Staff info', {'fields': ('role', 'nonprofit')}),
+        ('Staff info', {'fields': ('role', 'nonprofit', 'accent_color', 'dashboard_collapsed')}),
         ('Permissions', {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
             'classes': ('collapse',)
         }),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
-    
+
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
             'fields': ('username', 'password1', 'password2', 'first_name', 'last_name', 'email', 'role', 'nonprofit', 'phone', 'is_staff', 'is_active'),
         }),
     )
-    
+
     readonly_fields = ('date_joined', 'last_login')
 
     def has_add_permission(self, request):

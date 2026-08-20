@@ -12,6 +12,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key-change-in-production')
 
+# Comma-separated rotation keyring, for example:
+# SSN_ENCRYPTION_KEYS=v1:base64-fernet-key,v2:base64-fernet-key
+SSN_ACTIVE_KEY_ID = os.getenv('SSN_ACTIVE_KEY_ID', 'v1')
+SSN_ENCRYPTION_KEYS = {}
+for key_entry in filter(None, os.getenv('SSN_ENCRYPTION_KEYS', '').split(',')):
+    key_id, separator, key_value = key_entry.partition(':')
+    if separator and key_id and key_value:
+        SSN_ENCRYPTION_KEYS[key_id] = key_value
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
@@ -102,6 +111,7 @@ if not DEBUG:
 # nobody is signed out mid-task; the clock only runs while they are away.
 SESSION_COOKIE_AGE = int(os.getenv('SESSION_COOKIE_AGE_SECONDS', 60 * 60 * 24 * 14))
 SESSION_SAVE_EVERY_REQUEST = True
+LOGIN_URL = '/admin/login/'
 
 ROOT_URLCONF = 'config.urls'
 
@@ -254,6 +264,7 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'noreply@missionhiringhall.org')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@missionhiringhall.org')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+SUPPORT_EMAIL = os.getenv('SUPPORT_EMAIL', 'info@missionhiringhall.org')
 
 # Case note alert email (fallback if staff member email not found)
 CASE_NOTE_ALERT_EMAIL = os.getenv('CASE_NOTE_ALERT_EMAIL', None)
@@ -296,6 +307,10 @@ ADMIN_BASE_URL = os.getenv('ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzg
 STAFF_APP_BASE_URL = os.getenv(
     'STAFF_APP_BASE_URL',
     'https://blue-glacier-0c5f06410.3.azurestaticapps.net/staff',
+)
+PUBLIC_APP_BASE_URL = os.getenv(
+    'PUBLIC_APP_BASE_URL',
+    'https://blue-glacier-0c5f06410.3.azurestaticapps.net',
 )
 
 LOGGING = {
@@ -352,6 +367,7 @@ REST_FRAMEWORK = {
         'kiosk_lookup': os.getenv('THROTTLE_KIOSK_LOOKUP', '120/hour'),
         'kiosk_submit': os.getenv('THROTTLE_KIOSK_SUBMIT', '40/hour'),
         'kiosk_upload': os.getenv('THROTTLE_KIOSK_UPLOAD', '30/hour'),
+        'upload_invite': os.getenv('THROTTLE_UPLOAD_INVITE', '40/hour'),
         'worker_punch': os.getenv('THROTTLE_WORKER_PUNCH', '10/min'),
         'partner_referral': os.getenv('THROTTLE_PARTNER_REFERRAL', '120/hour'),
     },

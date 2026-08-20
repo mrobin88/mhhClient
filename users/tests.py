@@ -1,10 +1,12 @@
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
-from django.test import RequestFactory, TestCase, override_settings
+from django.core import mail
+from django.test import Client, RequestFactory, TestCase, override_settings
 
 from users.admin import StaffUserAdmin
 from users.models import StaffUser
+from config.urls import permission_denied
 
 
 class StaffUserAdminTests(TestCase):
@@ -110,3 +112,41 @@ class StaffUserAdminTests(TestCase):
         self.assertEqual(kwargs['phone'], '9255501234')
         self.assertIn('Username: caseworker', kwargs['body'])
         send_mail_mock.assert_called_once()
+
+
+@override_settings(
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    STAFF_APP_BASE_URL='https://staff.example.test/staff',
+)
+class AdminAccessRecoveryTests(TestCase):
+    def setUp(self):
+        self.user = StaffUser.objects.create_user(
+            username='recoverable',
+            email='recoverable@example.com',
+            password='testpass123',
+            role='case_manager',
+        )
+        self.http = Client()
+
+    def test_admin_login_offers_password_reset_and_sends_email(self):
+        login_page = self.http.get('/admin/login/')
+        self.assertEqual(login_page.status_code, 200)
+        self.assertContains(login_page, '/admin/password_reset/')
+
+        response = self.http.post(
+            '/admin/password_reset/',
+            {'email': self.user.email},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('/reset/', mail.outbox[0].body)
+
+    def test_permission_denied_page_links_to_prefilled_ticket(self):
+        request = RequestFactory().get('/admin/clients/client/99/change/')
+        request.user = self.user
+        response = permission_denied(request)
+
+        self.assertEqual(response.status_code, 403)
+        content = response.content.decode()
+        self.assertIn('/#/tickets?', content)
+        self.assertIn('Admin+access+request', content)

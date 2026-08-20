@@ -6,7 +6,7 @@
       <StaffTip text="Next Orientation, JRT, and workshops. Tap a class to peek at the roster. Use Manage to create or edit." />
       <RouterLink
         to="/classes"
-        class="text-xs font-semibold text-orange-600 shrink-0"
+        class="text-xs font-semibold staff-link shrink-0"
       >
         Manage →
       </RouterLink>
@@ -16,7 +16,7 @@
     <p v-else-if="error" class="text-sm text-stone-500">{{ error }}</p>
     <p v-else-if="sessions.length === 0" class="text-sm text-stone-500">
       No upcoming sessions yet.
-      <RouterLink to="/classes" class="text-orange-600 font-semibold">Add your first class →</RouterLink>
+      <RouterLink to="/classes" class="staff-link font-semibold">Add your first class →</RouterLink>
     </p>
 
     <ul v-else class="space-y-1 staff-fade-in">
@@ -49,7 +49,7 @@
               v-for="r in roster"
               :key="r.enrollment_id"
               :to="{ name: 'ClientDetail', params: { id: r.client_id } }"
-              class="block text-xs text-stone-700 hover:text-orange-600"
+              class="block text-xs text-stone-700 staff-hover-accent-text"
             >
               {{ r.client_full_name }} <span class="text-stone-400">· {{ r.status_display }}</span>
             </RouterLink>

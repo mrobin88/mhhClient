@@ -3,4 +3,6 @@ export interface StaffUser {
   username: string
   display_name: string
   role: string
+  accent_color?: string
+  dashboard_collapsed?: string[]
 }

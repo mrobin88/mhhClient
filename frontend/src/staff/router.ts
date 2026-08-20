@@ -4,6 +4,7 @@ import StaffForgotPassword from './components/StaffForgotPassword.vue'
 import StaffResetPassword from './components/StaffResetPassword.vue'
 import StaffDashboard from './components/StaffDashboard.vue'
 import StaffClientList from './components/StaffClientList.vue'
+import StaffClientCreate from './components/StaffClientCreate.vue'
 import StaffClientDetail from './components/StaffClientDetail.vue'
 import StaffMessages from './components/StaffMessages.vue'
 import StaffCreateSkill from './components/StaffCreateSkill.vue'
@@ -27,6 +28,7 @@ export function createStaffRouter() {
       },
       { path: '/dashboard', name: 'Dashboard', component: StaffDashboard },
       { path: '/clients', name: 'Clients', component: StaffClientList },
+      { path: '/clients/new', name: 'ClientCreate', component: StaffClientCreate },
       { path: '/clients/:id', name: 'ClientDetail', component: StaffClientDetail },
       { path: '/messages', name: 'Messages', component: StaffMessages },
       { path: '/classes', name: 'Classes', component: StaffClasses },

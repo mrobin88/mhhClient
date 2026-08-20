@@ -17,6 +17,10 @@ class KioskUploadThrottle(AnonRateThrottle):
     scope = 'kiosk_upload'
 
 
+class UploadInviteThrottle(AnonRateThrottle):
+    scope = 'upload_invite'
+
+
 class WorkerPunchThrottle(AnonRateThrottle):
     """
     Per-iPad rate limit on worker clock in/out POSTs.

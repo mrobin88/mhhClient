@@ -947,21 +947,16 @@ class ClientAdmin(admin.ModelAdmin):
     
     def masked_ssn(self, obj):
         """Show masked SSN (only last 4 digits) for non-superusers"""
-        if not obj.ssn:
-            return format_html('<span style="color: gray;">Not provided</span>')
-        
         # Get request from threadlocal or check if we're in a superuser context
-        from django.contrib.admin.views.main import ChangeList
         request = getattr(self, '_current_request', None)
-        
+
         # Superusers can see full SSN
         if request and request.user.is_superuser:
-            return obj.ssn
-        
-        # Mask SSN for regular users - show only last 4 digits
-        if len(obj.ssn) >= 4:
-            return f"XXX-XX-{obj.ssn[-4:]}"
-        return "XXX-XX-XXXX"
+            return obj.ssn or format_html('<span style="color: gray;">Not provided</span>')
+
+        if obj.ssn_last4:
+            return f"XXX-XX-{obj.ssn_last4}"
+        return format_html('<span style="color: gray;">Not provided</span>')
     
     masked_ssn.short_description = 'SSN'
     

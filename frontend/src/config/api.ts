@@ -1,14 +1,11 @@
 // API Configuration for Client Management System
 // Handles environment-specific API URLs
 
-// PRODUCTION API Configuration - Updated to match your actual Azure deployment
-// Check both VITE_API_URL and VITE_API_BASE_URL for compatibility
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV 
-    ? 'http://localhost:8000'  // Development
-    : 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net'  // Your actual production URL
-  );
+// Development stays same-origin and uses Vite's /api proxy. Production builds
+// must provide the deployed API host through an environment variable.
+const API_BASE_URL = import.meta.env.DEV
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '');
 
 // Export API configuration
 export const apiConfig = {

@@ -1,6 +1,8 @@
 """Staff SPA API — Django session auth (same credentials as admin)."""
 from collections import defaultdict
 from datetime import timedelta
+import logging
+import re
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
@@ -22,20 +24,38 @@ from .models import Client, CaseNote
 from .models_extensions import ClientTextMessage
 from .staff_serializers import (
     StaffCaseNoteSerializer,
+    StaffClientCreateSerializer,
     StaffClientDetailSerializer,
     StaffClientListSerializer,
 )
+from .phone_utils import phone_digits
 from .staff_utils import staff_display_name
+
+ACCENT_HEX_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
 
 
 def _staff_payload(user):
+    collapsed = getattr(user, 'dashboard_collapsed', None)
+    if not isinstance(collapsed, list):
+        collapsed = []
     return {
         'id': user.pk,
         'username': user.username,
         'display_name': staff_display_name(user),
         'role': getattr(user, 'role', ''),
         'is_superuser': bool(user.is_superuser),
+        'accent_color': (getattr(user, 'accent_color', None) or '').upper(),
+        'dashboard_collapsed': [str(item)[:40] for item in collapsed if item],
     }
+
+
+def _normalize_accent_color(value):
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+    if ACCENT_HEX_RE.fullmatch(raw):
+        return raw.upper()
+    return None
 
 
 @api_view(['GET'])
@@ -83,6 +103,46 @@ def staff_logout(request):
     return Response({'message': 'Logged out.'})
 
 
+@api_view(['PATCH'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_profile(request):
+    """Save the signed-in staff member's dashboard preferences onto their account."""
+    if not request.user.is_staff:
+        return Response({'error': 'Staff access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    update_fields = []
+
+    if 'accent_color' in request.data:
+        normalized = _normalize_accent_color(request.data.get('accent_color'))
+        if normalized is None:
+            return Response(
+                {'error': 'Pick a color as a hex code like #EA580C.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.user.accent_color = normalized
+        update_fields.append('accent_color')
+
+    if 'dashboard_collapsed' in request.data:
+        raw = request.data.get('dashboard_collapsed')
+        if raw is None:
+            collapsed = []
+        elif isinstance(raw, list) and all(isinstance(item, str) and 0 < len(item) <= 40 for item in raw):
+            collapsed = list(dict.fromkeys(raw[:24]))
+        else:
+            return Response(
+                {'error': 'Could not save which dashboard cards are minimized.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.user.dashboard_collapsed = collapsed
+        update_fields.append('dashboard_collapsed')
+
+    if update_fields:
+        request.user.save(update_fields=update_fields)
+
+    return Response({'user': _staff_payload(request.user)})
+
+
 @api_view(['GET'])
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
@@ -112,6 +172,49 @@ def staff_clients(request):
         queryset = queryset.filter(pit_stop_stage=stage)
     clients = queryset[:limit]
     return Response(StaffClientListSerializer(clients, many=True).data)
+
+
+@api_view(['POST'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_client_create(request):
+    """Create a minimal client from an outside referral, with duplicate warning."""
+    if not request.user.is_staff:
+        return Response({'error': 'Staff access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    serializer = StaffClientCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    phone = phone_digits(serializer.validated_data.get('phone'))
+    email = str(serializer.validated_data.get('email') or '').strip()
+    duplicate_ids = set()
+    if phone:
+        duplicate_ids.update(
+            client.pk for client in Client.objects.only('pk', 'phone')
+            if phone_digits(client.phone) == phone
+        )
+    if email:
+        duplicate_ids.update(
+            Client.objects.filter(email__iexact=email).values_list('pk', flat=True)
+        )
+    if duplicate_ids and not request.data.get('confirm_duplicate'):
+        matches = Client.objects.filter(pk__in=duplicate_ids).order_by('-updated_at')
+        return Response(
+            {
+                'error': 'A client with this phone or email may already exist.',
+                'duplicates': StaffClientListSerializer(matches, many=True).data,
+                'requires_confirmation': True,
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    client = serializer.save()
+    from .staff_utils import apply_staff_assignment_to_client
+    apply_staff_assignment_to_client(client, request.user)
+    client.save(update_fields=['staff_name'])
+    return Response(
+        StaffClientDetailSerializer(client).data,
+        status=status.HTTP_201_CREATED,
+    )
 
 
 @api_view(['GET', 'PATCH'])
@@ -251,17 +354,22 @@ def staff_password_reset(request):
         reset_url = _staff_reset_email_link(request, user)
         from django.core.mail import send_mail
 
-        send_mail(
-            subject='Reset your Mission Hiring Hall staff password',
-            message=(
-                f'Hi {user.get_full_name() or user.username},\n\n'
-                f'Use this link to reset your password (expires in 24 hours):\n{reset_url}\n\n'
-                'If you did not request this, ignore this email.'
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=True,
-        )
+        try:
+            send_mail(
+                subject='Reset your Mission Hiring Hall staff password',
+                message=(
+                    f'Hi {user.get_full_name() or user.username},\n\n'
+                    f'Use this link to reset your password (expires in 24 hours):\n{reset_url}\n\n'
+                    'If you did not request this, ignore this email.'
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except Exception:
+            logging.getLogger('clients').exception(
+                'Staff password reset email failed for user id %s.', user.pk
+            )
 
     return Response({
         'message': 'If that email is registered, you will receive reset instructions shortly.',

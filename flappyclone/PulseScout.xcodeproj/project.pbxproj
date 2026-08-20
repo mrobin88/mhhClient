@@ -1,0 +1,566 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		000000000000000000A10018 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10017 /* ContentView.swift */; };
+		000000000000000000A1001A /* PulseScoutApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10019 /* PulseScoutApp.swift */; };
+		000000000000000000A1001C /* AlertModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A1001B /* AlertModels.swift */; };
+		000000000000000000A1001E /* Asset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A1001D /* Asset.swift */; };
+		000000000000000000A10020 /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A1001F /* MockData.swift */; };
+		000000000000000000A10022 /* Subscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10021 /* Subscription.swift */; };
+		000000000000000000A10024 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10023 /* NotificationService.swift */; };
+		000000000000000000A10026 /* PriceJumpEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10025 /* PriceJumpEngine.swift */; };
+		000000000000000000A10028 /* PriceMonitorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10027 /* PriceMonitorService.swift */; };
+		000000000000000000A1002A /* SubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10029 /* SubscriptionService.swift */; };
+		000000000000000000A1002C /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A1002B /* Theme.swift */; };
+		000000000000000000A1002E /* AlertSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A1002D /* AlertSettingsViewModel.swift */; };
+		000000000000000000A10030 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A1002F /* DashboardViewModel.swift */; };
+		000000000000000000A10032 /* AlertThresholdView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10031 /* AlertThresholdView.swift */; };
+		000000000000000000A10034 /* ThresholdBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10033 /* ThresholdBadge.swift */; };
+		000000000000000000A10036 /* SparklineChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10035 /* SparklineChart.swift */; };
+		000000000000000000A10038 /* AssetCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10037 /* AssetCardView.swift */; };
+		000000000000000000A1003A /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10039 /* DashboardView.swift */; };
+		000000000000000000A1003C /* AssetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A1003B /* AssetDetailView.swift */; };
+		000000000000000000A1003E /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A1003D /* PaywallView.swift */; };
+		000000000000000000A10040 /* PriceJumpEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A1003F /* PriceJumpEngineTests.swift */; };
+		000000000000000000A10042 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10041 /* Assets.xcassets */; };
+		000000000000000000A10053 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000A10052 /* PrivacyInfo.xcprivacy */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		000000000000000000A10004 /* PulseScout.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulseScout.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000A10005 /* PulseScoutTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulseScoutTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000A10017 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		000000000000000000A10019 /* PulseScoutApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseScoutApp.swift; sourceTree = "<group>"; };
+		000000000000000000A1001B /* AlertModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertModels.swift; sourceTree = "<group>"; };
+		000000000000000000A1001D /* Asset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Asset.swift; sourceTree = "<group>"; };
+		000000000000000000A1001F /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
+		000000000000000000A10021 /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
+		000000000000000000A10023 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		000000000000000000A10025 /* PriceJumpEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceJumpEngine.swift; sourceTree = "<group>"; };
+		000000000000000000A10027 /* PriceMonitorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceMonitorService.swift; sourceTree = "<group>"; };
+		000000000000000000A10029 /* SubscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionService.swift; sourceTree = "<group>"; };
+		000000000000000000A1002B /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		000000000000000000A1002D /* AlertSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertSettingsViewModel.swift; sourceTree = "<group>"; };
+		000000000000000000A1002F /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
+		000000000000000000A10031 /* AlertThresholdView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertThresholdView.swift; sourceTree = "<group>"; };
+		000000000000000000A10033 /* ThresholdBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThresholdBadge.swift; sourceTree = "<group>"; };
+		000000000000000000A10035 /* SparklineChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineChart.swift; sourceTree = "<group>"; };
+		000000000000000000A10037 /* AssetCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetCardView.swift; sourceTree = "<group>"; };
+		000000000000000000A10039 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		000000000000000000A1003B /* AssetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetDetailView.swift; sourceTree = "<group>"; };
+		000000000000000000A1003D /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		000000000000000000A1003F /* PriceJumpEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceJumpEngineTests.swift; sourceTree = "<group>"; };
+		000000000000000000A10041 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		000000000000000000A10043 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		000000000000000000A10052 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		000000000000000000A10009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		000000000000000000A10013 = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A10015 /* PulseScout */,
+				000000000000000000A10016 /* PulseScoutTests */,
+				000000000000000000A10014 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		000000000000000000A10014 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A10004 /* PulseScout.app */,
+				000000000000000000A10005 /* PulseScoutTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		000000000000000000A10015 /* PulseScout */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A10044 /* App */,
+				000000000000000000A10045 /* Theme */,
+				000000000000000000A10046 /* Models */,
+				000000000000000000A10047 /* Services */,
+				000000000000000000A10048 /* ViewModels */,
+				000000000000000000A10049 /* Views */,
+				000000000000000000A1004F /* Resources */,
+			);
+			path = PulseScout;
+			sourceTree = "<group>";
+		};
+		000000000000000000A10016 /* PulseScoutTests */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A1003F /* PriceJumpEngineTests.swift */,
+			);
+			path = PulseScoutTests;
+			sourceTree = "<group>";
+		};
+		000000000000000000A10044 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A10017 /* ContentView.swift */,
+				000000000000000000A10019 /* PulseScoutApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		000000000000000000A10045 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A1002B /* Theme.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		000000000000000000A10046 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A1001B /* AlertModels.swift */,
+				000000000000000000A1001D /* Asset.swift */,
+				000000000000000000A1001F /* MockData.swift */,
+				000000000000000000A10021 /* Subscription.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		000000000000000000A10047 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A10023 /* NotificationService.swift */,
+				000000000000000000A10025 /* PriceJumpEngine.swift */,
+				000000000000000000A10027 /* PriceMonitorService.swift */,
+				000000000000000000A10029 /* SubscriptionService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		000000000000000000A10048 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A1002D /* AlertSettingsViewModel.swift */,
+				000000000000000000A1002F /* DashboardViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		000000000000000000A10049 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A1004A /* Dashboard */,
+				000000000000000000A1004B /* Charts */,
+				000000000000000000A1004C /* Alerts */,
+				000000000000000000A1004D /* Detail */,
+				000000000000000000A1004E /* Paywall */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		000000000000000000A1004A /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A10037 /* AssetCardView.swift */,
+				000000000000000000A10039 /* DashboardView.swift */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		000000000000000000A1004B /* Charts */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A10035 /* SparklineChart.swift */,
+			);
+			path = Charts;
+			sourceTree = "<group>";
+		};
+		000000000000000000A1004C /* Alerts */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A10031 /* AlertThresholdView.swift */,
+				000000000000000000A10033 /* ThresholdBadge.swift */,
+			);
+			path = Alerts;
+			sourceTree = "<group>";
+		};
+		000000000000000000A1004D /* Detail */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A1003B /* AssetDetailView.swift */,
+			);
+			path = Detail;
+			sourceTree = "<group>";
+		};
+		000000000000000000A1004E /* Paywall */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A1003D /* PaywallView.swift */,
+			);
+			path = Paywall;
+			sourceTree = "<group>";
+		};
+		000000000000000000A1004F /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000A10041 /* Assets.xcassets */,
+				000000000000000000A10043 /* Info.plist */,
+				000000000000000000A10052 /* PrivacyInfo.xcprivacy */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		000000000000000000A10002 /* PulseScout */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000A1000A /* Build configuration list for PBXNativeTarget "PulseScout" */;
+			buildPhases = (
+				000000000000000000A10006 /* Sources */,
+				000000000000000000A10009 /* Frameworks */,
+				000000000000000000A10008 /* Resources */,
+
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PulseScout;
+			productName = PulseScout;
+			productReference = 000000000000000000A10004 /* PulseScout.app */;
+			productType = "com.apple.product-type.application";
+		};
+		000000000000000000A10003 /* PulseScoutTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000A1000B /* Build configuration list for PBXNativeTarget "PulseScoutTests" */;
+			buildPhases = (
+				000000000000000000A10007 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				000000000000000000A10051 /* PBXTargetDependency */,
+			);
+			name = PulseScoutTests;
+			productName = PulseScoutTests;
+			productReference = 000000000000000000A10005 /* PulseScoutTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000A10001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+					000000000000000000A10002 = {
+						CreatedOnToolsVersion = 15.4;
+					};
+					000000000000000000A10003 = {
+						CreatedOnToolsVersion = 15.4;
+						TestTargetID = 000000000000000000A10002;
+					};
+				};
+			};
+			buildConfigurationList = 000000000000000000A1000C /* Build configuration list for PBXProject "PulseScout" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 000000000000000000A10013;
+			productRefGroup = 000000000000000000A10014 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000A10002 /* PulseScout */,
+				000000000000000000A10003 /* PulseScoutTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		000000000000000000A10008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000A10042 /* Assets.xcassets in Resources */,
+				000000000000000000A10053 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		000000000000000000A10006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000A10018 /* ContentView.swift in Sources */,
+				000000000000000000A1001A /* PulseScoutApp.swift in Sources */,
+				000000000000000000A1001C /* AlertModels.swift in Sources */,
+				000000000000000000A1001E /* Asset.swift in Sources */,
+				000000000000000000A10020 /* MockData.swift in Sources */,
+				000000000000000000A10022 /* Subscription.swift in Sources */,
+				000000000000000000A10024 /* NotificationService.swift in Sources */,
+				000000000000000000A10026 /* PriceJumpEngine.swift in Sources */,
+				000000000000000000A10028 /* PriceMonitorService.swift in Sources */,
+				000000000000000000A1002A /* SubscriptionService.swift in Sources */,
+				000000000000000000A1002C /* Theme.swift in Sources */,
+				000000000000000000A1002E /* AlertSettingsViewModel.swift in Sources */,
+				000000000000000000A10030 /* DashboardViewModel.swift in Sources */,
+				000000000000000000A10032 /* AlertThresholdView.swift in Sources */,
+				000000000000000000A10034 /* ThresholdBadge.swift in Sources */,
+				000000000000000000A10036 /* SparklineChart.swift in Sources */,
+				000000000000000000A10038 /* AssetCardView.swift in Sources */,
+				000000000000000000A1003A /* DashboardView.swift in Sources */,
+				000000000000000000A1003C /* AssetDetailView.swift in Sources */,
+				000000000000000000A1003E /* PaywallView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000000A10007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000A10040 /* PriceJumpEngineTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		000000000000000000A10050 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000A10001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000000A10002;
+			remoteInfo = PulseScout;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		000000000000000000A10051 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000000A10002 /* PulseScout */;
+			targetProxy = 000000000000000000A10050 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		000000000000000000A10011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		000000000000000000A10012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		000000000000000000A1000D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PulseScout/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PulseScout;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pulsescout.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		000000000000000000A1000E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PulseScout/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PulseScout;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pulsescout.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		000000000000000000A1000F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pulsescout.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PulseScout.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PulseScout";
+			};
+			name = Debug;
+		};
+		000000000000000000A10010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pulsescout.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PulseScout.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PulseScout";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		000000000000000000A1000C /* Build configuration list for PBXProject "PulseScout" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000A10011 /* Debug */,
+				000000000000000000A10012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000A1000A /* Build configuration list for PBXNativeTarget "PulseScout" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000A1000D /* Debug */,
+				000000000000000000A1000E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000A1000B /* Build configuration list for PBXNativeTarget "PulseScoutTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000A1000F /* Debug */,
+				000000000000000000A10010 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 000000000000000000A10001 /* Project object */;
+}

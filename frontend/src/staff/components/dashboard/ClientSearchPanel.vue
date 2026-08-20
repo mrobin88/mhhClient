@@ -39,7 +39,7 @@
       </li>
     </ul>
 
-    <RouterLink to="/clients" class="block text-center text-xs font-semibold text-orange-600 pt-1">
+    <RouterLink to="/clients" class="block text-center text-xs font-semibold staff-link pt-1">
       View all clients →
     </RouterLink>
   </section>

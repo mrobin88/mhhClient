@@ -1,5 +1,5 @@
 <template>
-  <div class="staff-app">
+  <div class="staff-app" :style="themeStyle">
     <ToastStack />
     <header
       v-if="showChrome"
@@ -10,7 +10,7 @@
         class="staff-home-link flex items-center gap-2 min-w-0 rounded-lg pr-2 -ml-1 pl-1 py-0.5"
         title="Go to staff home"
       >
-        <span class="material-symbols-outlined text-orange-600" aria-hidden="true">badge</span>
+        <span class="material-symbols-outlined staff-accent-icon" aria-hidden="true">badge</span>
         <div class="min-w-0">
           <p class="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">MHH Staff</p>
           <p class="font-bold text-sm truncate">{{ user?.display_name }}</p>
@@ -72,6 +72,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearStaffSession, staffFetch } from '../api'
+import { readLastAccent } from '../prefs'
+import { accentThemeVars } from '../theme'
 import ToastStack from './ToastStack.vue'
 import StaffTip from './StaffTip.vue'
 
@@ -87,6 +89,10 @@ const route = useRoute()
 const router = useRouter()
 const unreadCount = ref(0)
 let pollTimer: ReturnType<typeof setInterval> | null = null
+
+const themeStyle = computed(() =>
+  accentThemeVars(props.user?.accent_color || readLastAccent()),
+)
 
 const showChrome = computed(() => {
   const guest = ['Login', 'ForgotPassword', 'ResetPassword']

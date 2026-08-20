@@ -4,7 +4,7 @@
       <span class="material-symbols-outlined" aria-hidden="true">confirmation_number</span>
       <h3>Tickets</h3>
       <StaffTip text="Report bugs with screenshots, set urgency, and track status. Open Your tickets or All tickets for the full list." />
-      <RouterLink to="/tickets" class="text-xs font-semibold text-orange-600 shrink-0">All →</RouterLink>
+      <RouterLink to="/tickets" class="text-xs font-semibold staff-link shrink-0">All →</RouterLink>
     </div>
 
     <form class="space-y-2 mb-3" @submit.prevent="quickCreate">

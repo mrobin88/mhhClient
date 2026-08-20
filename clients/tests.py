@@ -1,11 +1,15 @@
+import json
 import shutil
 import tempfile
 from datetime import date, time, timedelta  # date used for note_date tests
+from io import StringIO
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
+from django.db import connection
 from django.test import TestCase, override_settings
 from django.test import Client as DjangoTestClient
 from django.urls import reverse
@@ -14,7 +18,7 @@ from rest_framework.test import APIClient
 
 from clients.admin import ClientAdmin
 from clients.models import CaseNote, Client
-from clients.models import Document, PitStopApplication
+from clients.models import Document, DocumentUploadInvite, PitStopApplication
 from clients.models_classes import ClassEnrollment, ClassSession, ClassTemplate
 from clients.notifications import _to_e164_us, _compose_sms_body, send_phone_text_message
 from clients.models_extensions import (
@@ -28,6 +32,8 @@ from clients.worker_views import WorkerSession
 
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp()
+UPLOAD_TEST_MEDIA_ROOT = tempfile.mkdtemp()
+TEST_SSN_KEY = 'MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA='
 
 
 @override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
@@ -641,6 +647,211 @@ class SmsInternalOnlyGuardrailTests(TestCase):
         self.assertIn('+19255501111', detail)
 
 
+class StaffClassManagementTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='jrt_editor',
+            password='staffpass123',
+            role='case_manager',
+        )
+        self.http = DjangoTestClient()
+        self.http.login(username='jrt_editor', password='staffpass123')
+        self.template = ClassTemplate.objects.create(
+            name='JRT',
+            category='job_readiness',
+            start_time=time(9, 0),
+            end_time=time(11, 0),
+            capacity=12,
+        )
+        self.session = ClassSession.objects.create(
+            template=self.template,
+            session_date=timezone.localdate() + timedelta(days=2),
+            start_time=time(9, 0),
+            end_time=time(11, 0),
+            capacity=12,
+        )
+
+    def test_staff_can_edit_and_deactivate_template(self):
+        response = self.http.patch(
+            f'/api/staff/classes/templates/{self.template.pk}/',
+            data=json.dumps({'name': 'JRT Cohort A', 'capacity': 18, 'is_active': False}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.template.refresh_from_db()
+        self.assertEqual(self.template.name, 'JRT Cohort A')
+        self.assertEqual(self.template.capacity, 18)
+        self.assertFalse(self.template.is_active)
+
+    def test_staff_can_edit_and_cancel_session(self):
+        response = self.http.patch(
+            f'/api/staff/classes/sessions/{self.session.pk}/',
+            data=json.dumps({
+                'location': 'Room 4',
+                'capacity': 15,
+                'status': 'cancelled',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.location, 'Room 4')
+        self.assertEqual(self.session.capacity, 15)
+        self.assertEqual(self.session.status, 'cancelled')
+
+    def test_session_capacity_cannot_drop_below_enrollment(self):
+        client = Client.objects.create(
+            first_name='Class',
+            last_name='Member',
+            phone='4155551000',
+            gender='P',
+        )
+        ClassEnrollment.objects.create(session=self.session, client=client)
+        response = self.http.patch(
+            f'/api/staff/classes/sessions/{self.session.pk}/',
+            data=json.dumps({'capacity': 0}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('capacity', response.json())
+
+
+class StaffClientCreateTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='referral_staff',
+            password='staffpass123',
+            role='case_manager',
+        )
+        self.http = DjangoTestClient()
+        self.http.login(username='referral_staff', password='staffpass123')
+        self.payload = {
+            'first_name': 'New',
+            'last_name': 'Referral',
+            'phone': '(415) 555-2211',
+            'email': 'new.referral@example.com',
+            'gender': 'P',
+            'training_interest': 'citybuild',
+            'referral_source': 'community_org',
+        }
+
+    def test_staff_can_create_minimal_citybuild_client(self):
+        response = self.http.post(
+            '/api/staff/clients/create/',
+            data=json.dumps(self.payload),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        client = Client.objects.get(pk=response.json()['id'])
+        self.assertEqual(client.training_interest, 'citybuild')
+        self.assertTrue(client.staff_name)
+
+    def test_duplicate_requires_explicit_confirmation(self):
+        Client.objects.create(**self.payload)
+        response = self.http.post(
+            '/api/staff/clients/create/',
+            data=json.dumps(self.payload),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertTrue(response.json()['requires_confirmation'])
+
+        confirmed = self.http.post(
+            '/api/staff/clients/create/',
+            data=json.dumps({**self.payload, 'confirm_duplicate': True}),
+            content_type='application/json',
+        )
+        self.assertEqual(confirmed.status_code, 201)
+        self.assertEqual(Client.objects.count(), 2)
+
+
+@override_settings(
+    MEDIA_ROOT=UPLOAD_TEST_MEDIA_ROOT,
+    PUBLIC_APP_BASE_URL='https://public.example.test',
+)
+class DocumentUploadInviteTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='document_outreach',
+            password='staffpass123',
+            role='case_manager',
+        )
+        self.client_record = Client.objects.create(
+            first_name='City',
+            last_name='Builder',
+            phone='4155554400',
+            email='builder@example.com',
+            gender='P',
+            training_interest='citybuild',
+        )
+        self.http = DjangoTestClient()
+        self.http.login(username='document_outreach', password='staffpass123')
+
+    def test_staff_issues_scoped_link_and_client_uploads(self):
+        issued = self.http.post(
+            f'/api/staff/clients/{self.client_record.pk}/upload-invites/',
+            data=json.dumps({
+                'doc_types': ['id', 'cb_application'],
+                'delivery': 'copy',
+                'expires_days': 7,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(issued.status_code, 201)
+        link = issued.json()['link']
+        token = link.rsplit('/', 1)[-1]
+        self.assertNotIn(token, DocumentUploadInvite.objects.get().token_hash)
+
+        public = APIClient()
+        detail = public.get(f'/api/document-upload/{token}/')
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()['first_name'], 'City')
+        self.assertNotIn('last_name', detail.json())
+
+        upload = public.post(
+            f'/api/document-upload/{token}/',
+            {
+                'doc_type': 'id',
+                'file': SimpleUploadedFile('id.pdf', b'%PDF-fake', content_type='application/pdf'),
+            },
+            format='multipart',
+        )
+        self.assertEqual(upload.status_code, 201)
+        self.assertTrue(self.client_record.documents.filter(doc_type='id').exists())
+        invite = DocumentUploadInvite.objects.get()
+        invite.refresh_from_db()
+        self.assertEqual(invite.upload_count, 1)
+
+    def test_link_rejects_unrequested_type_and_revocation(self):
+        invite, token = DocumentUploadInvite.issue(
+            client=self.client_record,
+            allowed_doc_types=['id'],
+            created_by=self.staff,
+        )
+        public = APIClient()
+        wrong = public.post(
+            f'/api/document-upload/{token}/',
+            {
+                'doc_type': 'cb_ssn_card',
+                'file': SimpleUploadedFile('ssn.pdf', b'%PDF-fake', content_type='application/pdf'),
+            },
+            format='multipart',
+        )
+        self.assertEqual(wrong.status_code, 400)
+
+        invite.revoked_at = timezone.now()
+        invite.save(update_fields=['revoked_at'])
+        expired = public.get(f'/api/document-upload/{token}/')
+        self.assertEqual(expired.status_code, 410)
+
+
 @override_settings(
     MEDIA_ROOT=TEST_MEDIA_ROOT,
     STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage',
@@ -1129,6 +1340,44 @@ class StaffSpaApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('message', response.json())
 
+    def test_staff_profile_saves_accent_color(self):
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.patch(
+            '/api/staff/profile/',
+            data={'accent_color': '#166534'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['user']['accent_color'], '#166534')
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.accent_color, '#166534')
+
+        session = self.http.get('/api/staff/session/')
+        self.assertEqual(session.json()['user']['accent_color'], '#166534')
+
+    def test_staff_profile_rejects_invalid_accent_color(self):
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.patch(
+            '/api/staff/profile/',
+            data={'accent_color': 'red'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.accent_color, '')
+
+    def test_staff_profile_saves_collapsed_dashboard_cards(self):
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.patch(
+            '/api/staff/profile/',
+            data={'dashboard_collapsed': ['usage', 'tickets']},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['user']['dashboard_collapsed'], ['usage', 'tickets'])
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.dashboard_collapsed, ['usage', 'tickets'])
+
     def test_client_list_filters_by_program_and_stage(self):
         Client.objects.create(
             first_name='Pit',
@@ -1559,6 +1808,65 @@ class PublicClientRegistrationTests(TestCase):
         self.assertEqual(client.neighborhood, 'outside_sf')
         self.assertEqual(client.neighborhood_other, 'Daly City')
 
+    @override_settings(
+        SSN_ACTIVE_KEY_ID='v1',
+        SSN_ENCRYPTION_KEYS={'v1': TEST_SSN_KEY},
+    )
+    def test_public_registration_encrypts_and_does_not_return_ssn(self):
+        payload = {**self._registration_payload(), 'ssn': '123-45-6789'}
+        response = self.api.post('/api/clients/', payload, format='json')
+
+        self.assertEqual(response.status_code, 201)
+        self.assertNotIn('ssn', response.json())
+        self.assertNotIn('ssn_last4', response.json())
+        self.assertNotIn('ssn_key_id', response.json())
+        client = Client.objects.get(pk=response.json()['id'])
+        self.assertEqual(client.ssn, '123-45-6789')
+        self.assertEqual(client.ssn_last4, '6789')
+
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT ssn FROM clients_client WHERE id = %s', [client.pk])
+            stored_ssn = cursor.fetchone()[0]
+        self.assertTrue(stored_ssn.startswith('enc:v1:'))
+        self.assertNotIn('123-45-6789', stored_ssn)
+
+    def test_public_registration_rejects_invalid_ssn(self):
+        payload = {**self._registration_payload(), 'ssn': '1234'}
+        response = self.api.post('/api/clients/', payload, format='json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('ssn', response.json())
+
+
+@override_settings(
+    SSN_ACTIVE_KEY_ID='v1',
+    SSN_ENCRYPTION_KEYS={'v1': TEST_SSN_KEY},
+)
+class SSNEncryptionBackfillTests(TestCase):
+    def test_backfill_encrypts_legacy_rows_and_is_idempotent(self):
+        client = Client.objects.create(
+            first_name='Legacy',
+            last_name='Client',
+            phone='4155550101',
+            gender='P',
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'UPDATE clients_client SET ssn = %s, ssn_last4 = %s, ssn_key_id = %s WHERE id = %s',
+                ['987-65-4321', '', '', client.pk],
+            )
+
+        call_command('backfill_ssn_encryption', stdout=StringIO())
+        call_command('backfill_ssn_encryption', stdout=StringIO())
+
+        client.refresh_from_db()
+        self.assertEqual(client.ssn, '987-65-4321')
+        self.assertEqual(client.ssn_last4, '4321')
+        self.assertEqual(client.ssn_key_id, 'v1')
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT ssn FROM clients_client WHERE id = %s', [client.pk])
+            self.assertTrue(cursor.fetchone()[0].startswith('enc:v1:'))
+
 
 class PitStopApplicationReviewTests(TestCase):
     """The review pipeline that replaced the paper application stack."""
@@ -1622,10 +1930,40 @@ class PitStopApplicationReviewTests(TestCase):
             format='json',
         )
         self.assertEqual(response.status_code, 201)
-        created = PitStopApplication.objects.get(pk=response.json()['id'])
+        public_body = response.json()
+        for private_field in [
+            'review_status',
+            'interviewed_on',
+            'review_notes',
+            'reviewed_by',
+            'review_updated_at',
+        ]:
+            self.assertNotIn(private_field, public_body)
+        created = PitStopApplication.objects.get(pk=public_body['id'])
         self.assertEqual(created.review_status, PitStopApplication.REVIEW_NEW)
         self.assertEqual(created.review_notes, '')
         self.assertEqual(created.reviewed_by, '')
+
+    def test_authenticated_generic_api_still_does_not_expose_review_decisions(self):
+        User = get_user_model()
+        staff = User.objects.create_user(
+            username='private_review_reader',
+            password='staffpass123',
+            role='case_manager',
+        )
+        self.application.review_status = PitStopApplication.REVIEW_NOT_MOVING_FORWARD
+        self.application.review_notes = 'Internal decision only'
+        self.application.reviewed_by = 'Rosa Lane'
+        self.application.save()
+        self.api.force_authenticate(staff)
+
+        response = self.api.get(f'/api/pitstop-applications/{self.application.pk}/')
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertNotIn('review_status', body)
+        self.assertNotIn('review_notes', body)
+        self.assertNotIn('reviewed_by', body)
 
 
 class PitStopApplicationAdminTests(TestCase):

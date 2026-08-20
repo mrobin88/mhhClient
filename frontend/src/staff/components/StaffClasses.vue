@@ -10,7 +10,7 @@
           class="staff-btn staff-btn-secondary shrink-0"
           @click="toggleCreateForm"
         >
-          {{ showCreateForm ? 'Cancel' : '+ New class' }}
+          {{ showCreateForm || editingTemplateId ? 'Cancel' : '+ New class' }}
         </button>
       </div>
       <p class="text-xs text-stone-500 mb-3">
@@ -18,7 +18,10 @@
         You can also enroll someone from their client page.
       </p>
 
-      <form v-if="showCreateForm" class="space-y-3 border border-stone-200 rounded-xl p-3 mb-3" @submit.prevent="submitCreate">
+      <form v-if="showCreateForm || editingTemplateId" class="space-y-3 border border-stone-200 rounded-xl p-3 mb-3" @submit.prevent="submitTemplate">
+        <p class="text-sm font-semibold text-stone-700">
+          {{ editingTemplateId ? 'Edit class or JRT' : 'Create a class or JRT' }}
+        </p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="space-y-1">
             <label class="text-xs font-semibold text-stone-600">Class name</label>
@@ -88,13 +91,18 @@
           <input v-model.number="form.capacity" type="number" min="1" class="staff-input" />
         </div>
 
+        <label v-if="editingTemplateId" class="flex items-center gap-2 text-sm text-stone-700">
+          <input v-model="form.is_active" type="checkbox" />
+          Active and available for new sessions
+        </label>
+
         <div class="space-y-1">
           <label class="text-xs font-semibold text-stone-600">Notes (optional)</label>
-          <textarea v-model="form.description" rows="2" class="staff-input" placeholder="Anything staff should know" />
+          <textarea v-model="form.description" rows="2" class="staff-input" placeholder="Anything staff should know"></textarea>
         </div>
 
         <button type="submit" class="staff-btn staff-btn-primary w-full" :disabled="creating">
-          {{ creating ? 'Creating…' : 'Create class' }}
+          {{ creating ? 'Saving…' : editingTemplateId ? 'Save class' : 'Create class' }}
         </button>
       </form>
 
@@ -125,6 +133,14 @@
 
           <div v-if="expandedTemplateId === t.id" class="mt-2 pl-1 space-y-2">
             <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                class="staff-btn staff-btn-secondary"
+                style="padding: 0.5rem 0.75rem; font-size: 0.8rem;"
+                @click="startEditTemplate(t)"
+              >
+                Edit class
+              </button>
               <button
                 v-if="t.recurrence !== 'none'"
                 type="button"
@@ -168,18 +184,43 @@
                 :key="s.id"
                 class="staff-stat-tile"
               >
-                <button type="button" class="w-full flex items-center justify-between gap-2 text-left" @click="toggleSessionRoster(s.id)">
-                  <span class="text-sm">
-                    {{ formatSessionDate(s.session_date) }} · {{ formatTimeRange(s.start_time, s.end_time) }}
-                    <span v-if="s.location" class="text-stone-500"> · {{ s.location }}</span>
-                  </span>
-                  <span
-                    class="text-[10px] uppercase font-bold tracking-wide rounded-full px-2 py-0.5 shrink-0"
-                    :class="s.spots_remaining > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-200 text-stone-600'"
-                  >
-                    {{ s.enrolled_count }}/{{ s.capacity }}
-                  </span>
-                </button>
+                <div class="flex items-center gap-2">
+                  <button type="button" class="min-w-0 flex-1 flex items-center justify-between gap-2 text-left" @click="toggleSessionRoster(s.id)">
+                    <span class="text-sm">
+                      {{ formatSessionDate(s.session_date) }} · {{ formatTimeRange(s.start_time, s.end_time) }}
+                      <span v-if="s.location" class="text-stone-500"> · {{ s.location }}</span>
+                    </span>
+                    <span
+                      class="text-[10px] uppercase font-bold tracking-wide rounded-full px-2 py-0.5 shrink-0"
+                      :class="s.status === 'cancelled' ? 'bg-red-100 text-red-700' : s.spots_remaining > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-200 text-stone-600'"
+                    >
+                      {{ s.status === 'cancelled' ? 'Cancelled' : `${s.enrolled_count}/${s.capacity}` }}
+                    </span>
+                  </button>
+                  <button type="button" class="text-xs font-semibold staff-link" @click="startEditSession(s)">Edit</button>
+                </div>
+
+                <form
+                  v-if="editingSessionId === s.id"
+                  class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2"
+                  @submit.prevent="submitSessionEdit(t.id)"
+                >
+                  <input v-model="sessionForm.session_date" type="date" class="staff-input" aria-label="Session date" />
+                  <select v-model="sessionForm.status" class="staff-input" aria-label="Session status">
+                    <option value="scheduled">Scheduled</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                  <input v-model="sessionForm.start_time" type="time" class="staff-input" aria-label="Start time" />
+                  <input v-model="sessionForm.end_time" type="time" class="staff-input" aria-label="End time" />
+                  <input v-model="sessionForm.location" class="staff-input" placeholder="Location" />
+                  <input v-model="sessionForm.facilitator" class="staff-input" placeholder="Facilitator" />
+                  <input v-model.number="sessionForm.capacity" type="number" min="1" class="staff-input" placeholder="Capacity" />
+                  <div class="flex gap-2">
+                    <button type="submit" class="staff-btn staff-btn-primary flex-1" :disabled="savingSession">Save</button>
+                    <button type="button" class="staff-btn staff-btn-secondary" @click="editingSessionId = null">Cancel</button>
+                  </div>
+                </form>
 
                 <div v-if="expandedSessionId === s.id" class="mt-2 space-y-1.5">
                   <p v-if="rosterLoadingId === s.id" class="text-xs text-stone-500">Loading roster…</p>
@@ -194,7 +235,7 @@
                     >
                       <RouterLink
                         :to="{ name: 'ClientDetail', params: { id: r.client_id } }"
-                        class="text-xs font-medium text-stone-700 hover:text-orange-600 truncate"
+                        class="text-xs font-medium text-stone-700 staff-hover-accent-text truncate"
                       >
                         {{ r.client_full_name }}
                       </RouterLink>
@@ -271,9 +312,17 @@ interface ClassTemplate {
   name: string
   category: string
   category_display: string
+  description: string
+  location: string
+  facilitator: string
   capacity: number
+  start_time: string
+  end_time: string
   recurrence: 'none' | 'weekly' | 'monthly'
+  recurrence_weekday: number | null
+  recurrence_week_of_month: number | null
   recurrence_summary: string
+  is_active: boolean
   upcoming_sessions_count: number
 }
 
@@ -283,9 +332,11 @@ interface ClassSessionSummary {
   start_time: string
   end_time: string
   location: string
+  facilitator: string
   capacity: number
   enrolled_count: number
   spots_remaining: number
+  status: 'scheduled' | 'completed' | 'cancelled'
 }
 
 interface RosterEntry {
@@ -300,6 +351,7 @@ const templatesLoading = ref(true)
 const templatesError = ref('')
 
 const showCreateForm = ref(false)
+const editingTemplateId = ref<number | null>(null)
 const creating = ref(false)
 const form = reactive({
   name: '',
@@ -314,6 +366,7 @@ const form = reactive({
   facilitator: '',
   capacity: 20,
   description: '',
+  is_active: true,
 })
 
 const expandedTemplateId = ref<number | null>(null)
@@ -329,6 +382,17 @@ const expandedSessionId = ref<number | null>(null)
 const rosterBySession = reactive<Record<number, RosterEntry[]>>({})
 const rosterLoadingId = ref<number | null>(null)
 const statusUpdatingId = ref<number | null>(null)
+const editingSessionId = ref<number | null>(null)
+const savingSession = ref(false)
+const sessionForm = reactive({
+  session_date: '',
+  start_time: '',
+  end_time: '',
+  location: '',
+  facilitator: '',
+  capacity: 20,
+  status: 'scheduled' as 'scheduled' | 'completed' | 'cancelled',
+})
 
 function formatSessionDate(dateStr: string) {
   const d = new Date(`${dateStr}T00:00:00`)
@@ -365,7 +429,13 @@ async function loadTemplates() {
 }
 
 function toggleCreateForm() {
-  showCreateForm.value = !showCreateForm.value
+  if (showCreateForm.value || editingTemplateId.value) {
+    showCreateForm.value = false
+    editingTemplateId.value = null
+    resetForm()
+    return
+  }
+  showCreateForm.value = true
 }
 
 function resetForm() {
@@ -381,14 +451,38 @@ function resetForm() {
   form.facilitator = ''
   form.capacity = 20
   form.description = ''
+  form.is_active = true
 }
 
-async function submitCreate() {
+function startEditTemplate(template: ClassTemplate) {
+  editingTemplateId.value = template.id
+  showCreateForm.value = false
+  form.name = template.name
+  form.category = template.category
+  form.recurrence = template.recurrence
+  form.recurrence_weekday = template.recurrence_weekday ?? ''
+  form.recurrence_week_of_month = template.recurrence_week_of_month ?? ''
+  form.session_date = ''
+  form.start_time = template.start_time
+  form.end_time = template.end_time
+  form.location = template.location
+  form.facilitator = template.facilitator
+  form.capacity = template.capacity
+  form.description = template.description
+  form.is_active = template.is_active
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+async function submitTemplate() {
   if (creating.value) return
   creating.value = true
   try {
-    const resp = await staffFetch('/api/staff/classes/templates/create/', {
-      method: 'POST',
+    const editing = editingTemplateId.value
+    const endpoint = editing
+      ? `/api/staff/classes/templates/${editing}/`
+      : '/api/staff/classes/templates/create/'
+    const resp = await staffFetch(endpoint, {
+      method: editing ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),
     })
@@ -400,6 +494,7 @@ async function submitCreate() {
     toast.success(body?.message || 'Class created.')
     resetForm()
     showCreateForm.value = false
+    editingTemplateId.value = null
     await loadTemplates()
   } catch (e) {
     toast.error(networkErrorMessage(e))
@@ -495,6 +590,41 @@ async function toggleSessionRoster(sessionId: number) {
     rosterBySession[sessionId] = rosterBySession[sessionId] || []
   } finally {
     rosterLoadingId.value = null
+  }
+}
+
+function startEditSession(session: ClassSessionSummary) {
+  editingSessionId.value = session.id
+  sessionForm.session_date = session.session_date
+  sessionForm.start_time = session.start_time.slice(0, 5)
+  sessionForm.end_time = session.end_time.slice(0, 5)
+  sessionForm.location = session.location
+  sessionForm.facilitator = session.facilitator
+  sessionForm.capacity = session.capacity
+  sessionForm.status = session.status
+}
+
+async function submitSessionEdit(templateId: number) {
+  if (!editingSessionId.value || savingSession.value) return
+  savingSession.value = true
+  try {
+    const resp = await staffFetch(`/api/staff/classes/sessions/${editingSessionId.value}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sessionForm),
+    })
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok) {
+      toast.error(friendlyError(body, 'Could not update that session.'))
+      return
+    }
+    toast.success(body?.message || 'Session updated.')
+    editingSessionId.value = null
+    await Promise.all([loadSessions(templateId), loadTemplates()])
+  } catch (e) {
+    toast.error(networkErrorMessage(e))
+  } finally {
+    savingSession.value = false
   }
 }
 

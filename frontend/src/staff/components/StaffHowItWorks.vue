@@ -215,7 +215,7 @@ const apps = [
 const clientPath = [
   {
     title: 'They sign up.',
-    body: 'Either on the public form, at the lobby kiosk, or you add them in admin. They pick a program.',
+    body: 'They use the public form, or staff use Add a client on the dashboard for an outside referral or interest form.',
   },
   {
     title: 'They become a client record.',
@@ -227,11 +227,11 @@ const clientPath = [
   },
   {
     title: 'They take classes.',
-    body: 'Orientation, JRT, and workshops. Sign them up from their client page or from the Classes screen, then mark attendance.',
+    body: 'Orientation, JRT, and workshops. Sign them up from their client page, then mark attendance on the Classes screen.',
   },
   {
     title: 'They turn in documents.',
-    body: 'ID, resume, consent, intake, and program-specific paperwork. City Build has its own checklist in admin.',
+    body: 'ID, resume, consent, intake, and program-specific paperwork. From their client page, select missing City Build documents and send an expiring secure upload link.',
   },
   {
     title: 'Pit Stop only: they may become a worker.',
@@ -265,7 +265,7 @@ const pitStopStages = [
 const screens = [
   {
     name: 'Home',
-    body: 'Your starting point: recent signups, upcoming classes, program breakdown, recent staff activity, quick search, and document upload.',
+    body: 'Your starting point: add a client from an outside referral, review recent signups and classes, search, and upload staff-received documents.',
   },
   {
     name: 'Clients',
@@ -273,7 +273,7 @@ const screens = [
   },
   {
     name: 'Client page',
-    body: 'Edit contact info, program, status, and dates. Sign them up for classes, add case notes, and manage Pit Stop stage and portal access.',
+    body: 'Edit contact info, program, status, and dates. Sign them up for classes, add case notes, and create scoped document-upload links for outreach.',
     cannot: 'reset a worker PIN or turn portal access back off — that is Django admin.',
   },
   {
@@ -283,7 +283,7 @@ const screens = [
   },
   {
     name: 'Classes',
-    body: 'Create class templates, generate sessions on a schedule, and mark who attended.',
+    body: 'Create and edit Orientation, JRT, and other class templates. Edit or cancel dated sessions, generate recurring dates, and mark attendance.',
   },
   {
     name: 'Tickets',

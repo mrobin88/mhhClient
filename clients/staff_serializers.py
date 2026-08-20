@@ -33,6 +33,31 @@ class StaffClientListSerializer(serializers.ModelSerializer):
         ]
 
 
+class StaffClientCreateSerializer(serializers.ModelSerializer):
+    """Small, explicit intake surface for staff-entered referrals."""
+
+    class Meta:
+        model = Client
+        fields = [
+            'first_name',
+            'middle_name',
+            'last_name',
+            'dob',
+            'phone',
+            'email',
+            'gender',
+            'training_interest',
+            'referral_source',
+            'additional_notes',
+        ]
+
+    def validate_phone(self, value):
+        digits = ''.join(character for character in value if character.isdigit())
+        if len(digits) < 10:
+            raise serializers.ValidationError('Enter a complete phone number.')
+        return value.strip()
+
+
 class StaffClientDetailSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     age = serializers.ReadOnlyField()

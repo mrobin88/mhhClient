@@ -64,7 +64,7 @@
       </button>
 
       <div class="text-center space-y-2">
-        <RouterLink to="/forgot-password" class="text-sm font-semibold text-orange-600 hover:underline">
+        <RouterLink to="/forgot-password" class="text-sm font-semibold staff-link hover:underline">
           Forgot password?
         </RouterLink>
         <p class="text-xs text-stone-500">

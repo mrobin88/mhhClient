@@ -10,7 +10,7 @@
         Stuck? Email
         <a
           href="mailto:mrobin@missionhiringhall.org"
-          class="font-semibold text-orange-600 hover:underline"
+          class="font-semibold staff-link hover:underline"
         >mrobin@missionhiringhall.org</a>
       </p>
     </div>
@@ -32,7 +32,7 @@
       <button type="submit" class="staff-btn staff-btn-primary w-full" :disabled="busy">
         {{ busy ? 'Sending…' : 'Send reset link' }}
       </button>
-      <RouterLink to="/login" class="block text-center text-sm font-semibold text-orange-600">
+      <RouterLink to="/login" class="block text-center text-sm font-semibold staff-link">
         Back to sign in
       </RouterLink>
     </form>
@@ -46,7 +46,7 @@
         Still need help?
         <a
           href="mailto:mrobin@missionhiringhall.org"
-          class="font-semibold text-orange-600 hover:underline"
+          class="font-semibold staff-link hover:underline"
         >mrobin@missionhiringhall.org</a>
       </p>
       <RouterLink to="/login" class="staff-btn staff-btn-primary w-full inline-flex mt-2">
