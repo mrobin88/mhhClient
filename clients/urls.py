@@ -41,6 +41,7 @@ from .staff_views import (
     staff_login,
     staff_logout,
     staff_clients,
+    staff_client_create,
     staff_client_detail,
     staff_client_notes,
     staff_client_pitstop_promote,
@@ -74,12 +75,19 @@ from .class_views import (
     staff_client_classes,
     staff_class_templates,
     staff_class_template_create,
+    staff_class_template_update,
     staff_class_template_sessions,
     staff_class_template_generate_sessions,
     staff_class_session_create,
+    staff_class_session_update,
     staff_class_enrollment_status,
 )
 from .partner_views import PartnerReferralIngestView
+from .upload_invite_views import (
+    PublicDocumentUploadInviteView,
+    staff_client_upload_invites,
+    staff_upload_invite_revoke,
+)
 
 router = DefaultRouter()
 router.register(r'clients', ClientViewSet)
@@ -89,6 +97,11 @@ router.register(r'pitstop-applications', PitStopApplicationViewSet, basename='pi
 urlpatterns = [
     path('', include(router.urls)),
     path('documents/<int:pk>/download/', DocumentDownloadView.as_view(), name='document-download'),
+    path(
+        'document-upload/<str:token>/',
+        PublicDocumentUploadInviteView.as_view(),
+        name='public-document-upload-invite',
+    ),
     path('clients/<int:pk>/resume/', ResumeDownloadView.as_view(), name='client-resume-download'),
     path('dashboard/stats/', client_dashboard_stats, name='client-dashboard-stats'),
     
@@ -132,6 +145,17 @@ urlpatterns = [
     path('staff/login/', staff_login, name='staff-login'),
     path('staff/logout/', staff_logout, name='staff-logout'),
     path('staff/clients/', staff_clients, name='staff-clients'),
+    path('staff/clients/create/', staff_client_create, name='staff-client-create'),
+    path(
+        'staff/clients/<int:pk>/upload-invites/',
+        staff_client_upload_invites,
+        name='staff-client-upload-invites',
+    ),
+    path(
+        'staff/upload-invites/<int:invite_id>/revoke/',
+        staff_upload_invite_revoke,
+        name='staff-upload-invite-revoke',
+    ),
     path('staff/clients/<int:pk>/', staff_client_detail, name='staff-client-detail'),
     path('staff/clients/<int:pk>/notes/', staff_client_notes, name='staff-client-notes'),
     path(
@@ -178,6 +202,11 @@ urlpatterns = [
     path('staff/classes/templates/', staff_class_templates, name='staff-class-templates'),
     path('staff/classes/templates/create/', staff_class_template_create, name='staff-class-template-create'),
     path(
+        'staff/classes/templates/<int:template_id>/',
+        staff_class_template_update,
+        name='staff-class-template-update',
+    ),
+    path(
         'staff/classes/templates/<int:template_id>/sessions/',
         staff_class_template_sessions,
         name='staff-class-template-sessions',
@@ -188,6 +217,11 @@ urlpatterns = [
         name='staff-class-template-generate-sessions',
     ),
     path('staff/classes/sessions/create/', staff_class_session_create, name='staff-class-session-create'),
+    path(
+        'staff/classes/sessions/<int:session_id>/',
+        staff_class_session_update,
+        name='staff-class-session-update',
+    ),
     path(
         'staff/classes/enrollments/<int:enrollment_id>/status/',
         staff_class_enrollment_status,

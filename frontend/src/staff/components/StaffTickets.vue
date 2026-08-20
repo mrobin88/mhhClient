@@ -246,6 +246,19 @@ async function load() {
   }
 }
 
+function applyCreatePrefill() {
+  if (String(route.query.create || '') !== '1') return
+  showCreate.value = true
+  form.title = String(route.query.title || '').slice(0, 180)
+  form.description = String(route.query.description || '').slice(0, 4000)
+  const requestedTags = String(route.query.tags || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+  const allowedTags = new Set(meta.tags.map((option) => option.value))
+  form.tags = requestedTags.filter((value) => allowedTags.has(value))
+}
+
 async function createTicket() {
   if (!form.title.trim() || !form.description.trim()) {
     toast.error('Title and details are required.')
@@ -281,5 +294,8 @@ async function createTicket() {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  applyCreatePrefill()
+})
 </script>

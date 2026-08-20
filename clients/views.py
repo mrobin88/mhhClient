@@ -436,7 +436,9 @@ class PitStopApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = PitStopApplicationSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['employment_desired', 'can_work_us', 'is_veteran']
+    # JSONField cannot be used by django-filter's automatic exact filter.
+    # Employment type filtering lives in admin, where applications are reviewed.
+    filterset_fields = ['can_work_us', 'is_veteran']
     search_fields = ['client__first_name', 'client__last_name', 'position_applied_for']
     ordering_fields = ['created_at']
     ordering = ['-created_at']

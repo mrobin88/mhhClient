@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>PulseScout</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="phone">
+      <header class="topbar">
+        <button id="thresholdBtn" class="icon-btn" aria-label="Set alert threshold">☰</button>
+        <button id="paywallBtn" class="icon-btn gold" aria-label="Subscription">⚡</button>
+      </header>
+
+      <main>
+        <p class="kicker">PULSESCOUT <span id="liveDot" class="dot"></span></p>
+        <h1>Alert Dashboard</h1>
+        <p class="lede">Watch stocks and collectibles. Get notified when a move clears your threshold.</p>
+
+        <div class="filters" id="filters"></div>
+
+        <section class="banner">
+          <div>
+            <strong id="tierName">Free</strong>
+            <p id="tierCopy">Alerts delayed 2–4 hours</p>
+          </div>
+          <span id="hotCount" class="hot">0 hot</span>
+        </section>
+
+        <div id="assets" class="list"></div>
+      </main>
+    </div>
+
+    <dialog id="thresholdModal" class="sheet">
+      <h2>Default Alert Threshold</h2>
+      <p>Fires when the last two price points move by at least this amount.</p>
+      <div class="threshold-value" id="thresholdValue">5%</div>
+      <input id="thresholdSlider" type="range" min="1" max="50" value="5" />
+      <div class="presets">
+        <button data-preset="5">5%</button>
+        <button data-preset="10">10%</button>
+        <button data-preset="25">25%</button>
+      </div>
+      <label class="toggle">
+        <input id="applyAll" type="checkbox" checked />
+        Apply to every watched asset
+      </label>
+      <button class="primary" id="saveThreshold">Save Threshold</button>
+      <button class="ghost" id="closeThreshold">Close</button>
+    </dialog>
+
+    <dialog id="paywallModal" class="sheet">
+      <p class="kicker gold-text">INSTANT SCOUT</p>
+      <h2>Beat the shop. Beat the tape.</h2>
+      <p>Free alerts wait 2–4 hours. Instant Scout fires the second a card or stock clears your threshold.</p>
+      <div class="tier-card" id="freeCard">
+        <div>
+          <strong>Free</strong>
+          <p>Price alerts delayed 2–4 hours</p>
+        </div>
+        <span>$0</span>
+      </div>
+      <div class="tier-card" id="scoutCard">
+        <div>
+          <strong>Instant Scout</strong>
+          <p>Real-time local notifications</p>
+        </div>
+        <span>$4.99/mo</span>
+      </div>
+      <button class="primary" id="unlockBtn">Unlock Instant Scout — $4.99/mo</button>
+      <button class="ghost" id="closePaywall">Close</button>
+    </dialog>
+
+    <dialog id="detailModal" class="sheet">
+      <div id="detail"></div>
+      <button class="ghost" id="closeDetail">Close</button>
+    </dialog>
+
+    <div id="toast" hidden></div>
+    <script src="app.js"></script>
+  </body>
+</html>

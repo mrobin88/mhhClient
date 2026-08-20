@@ -346,6 +346,8 @@
         </template>
       </div>
 
+      <ClientUploadInvites :client-id="client.id" />
+
       <!-- Quick case note -->
       <div id="client-notes" class="staff-card p-4 relative">
         <div
@@ -406,6 +408,7 @@ import BulldozerLoader from './BulldozerLoader.vue'
 import CardSkeleton from './dashboard/CardSkeleton.vue'
 import StaffTip from './StaffTip.vue'
 import ClientHopBar from './ClientHopBar.vue'
+import ClientUploadInvites from './ClientUploadInvites.vue'
 
 const route = useRoute()
 const router = useRouter()

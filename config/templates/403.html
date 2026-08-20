@@ -1,0 +1,28 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Access needed</title>
+  <style>
+    body { margin: 0; padding: 2rem 1rem; background: #f5f5f4; color: #292524; font: 16px/1.5 system-ui, sans-serif; }
+    main { max-width: 38rem; margin: 4rem auto; padding: 1.5rem; background: white; border: 1px solid #d6d3d1; border-radius: 1rem; }
+    a.button { display: block; margin-top: 1rem; padding: .8rem 1rem; border-radius: .6rem; background: #ea580c; color: white; text-align: center; text-decoration: none; font-weight: 700; }
+    .muted { color: #78716c; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>You do not have access to this page</h1>
+    <p>Your account is signed in, but it does not currently have the required permission.</p>
+    {% if user.is_authenticated and user.is_staff %}
+      <a class="button" href="{{ ticket_url }}">Create an access-request ticket</a>
+    {% endif %}
+    <p class="muted">
+      If you cannot open the staff dashboard, email
+      <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
+    </p>
+  </main>
+</body>
+</html>

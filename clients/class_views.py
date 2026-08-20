@@ -30,6 +30,7 @@ RECURRENCE_VALUES = {value for value, _ in ClassTemplate.RECURRENCE_CHOICES}
 WEEKDAY_VALUES = {value for value, _ in ClassTemplate.WEEKDAY_CHOICES}
 WEEK_OF_MONTH_VALUES = {value for value, _ in ClassTemplate.WEEK_OF_MONTH_CHOICES}
 ENROLLMENT_STATUS_VALUES = {value for value, _ in ClassEnrollment.STATUS_CHOICES}
+SESSION_STATUS_VALUES = {value for value, _ in ClassSession.STATUS_CHOICES}
 
 
 def _template_summary(template):
@@ -332,23 +333,100 @@ def staff_class_unenroll(request, session_id):
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_class_templates(request):
-    """List active classes/trainings for the Manage Classes page — no admin needed."""
+    """List classes/trainings for the Manage Classes page — no admin needed."""
     err = _staff_guard(request)
     if err:
         return err
 
     today = timezone.localdate()
     templates = (
-        ClassTemplate.objects.filter(is_active=True)
+        ClassTemplate.objects.all()
         .annotate(
             _upcoming_count=Count(
                 'sessions',
                 filter=Q(sessions__status='scheduled', sessions__session_date__gte=today),
             )
         )
-        .order_by('name')
+        .order_by('-is_active', 'name')
     )
     return Response({'results': [_template_summary(t) for t in templates]})
+
+
+@api_view(['PATCH'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_class_template_update(request, template_id):
+    """Edit or deactivate a class/JRT template without deleting its history."""
+    err = _staff_guard(request)
+    if err:
+        return err
+    try:
+        template = ClassTemplate.objects.get(pk=template_id)
+    except ClassTemplate.DoesNotExist:
+        return Response({'error': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    text_fields = ('name', 'description', 'location', 'facilitator')
+    for field in text_fields:
+        if field in request.data:
+            setattr(template, field, str(request.data.get(field) or '').strip())
+
+    for field in ('category', 'recurrence'):
+        if field in request.data:
+            setattr(template, field, str(request.data.get(field) or '').strip())
+    for field in ('start_time', 'end_time'):
+        if field in request.data and request.data.get(field):
+            setattr(template, field, request.data[field])
+    if 'is_active' in request.data:
+        active_value = request.data.get('is_active')
+        template.is_active = active_value is True or str(active_value).lower() in ('1', 'true', 'yes')
+
+    errors = {}
+    if not template.name:
+        errors['name'] = ['Enter a class name.']
+    if template.category not in CATEGORY_VALUES:
+        errors['category'] = ['Choose a valid category.']
+    if template.recurrence not in RECURRENCE_VALUES:
+        errors['recurrence'] = ['Choose a valid recurrence.']
+    if 'capacity' in request.data:
+        try:
+            template.capacity = int(request.data['capacity'])
+            if template.capacity < 1:
+                raise ValueError
+        except (TypeError, ValueError):
+            errors['capacity'] = ['Capacity must be a positive number.']
+
+    def _optional_int(field):
+        value = request.data.get(field)
+        if value in (None, ''):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    if 'recurrence_weekday' in request.data:
+        template.recurrence_weekday = _optional_int('recurrence_weekday')
+    if 'recurrence_week_of_month' in request.data:
+        template.recurrence_week_of_month = _optional_int('recurrence_week_of_month')
+    if template.recurrence == 'none':
+        template.recurrence_weekday = None
+        template.recurrence_week_of_month = None
+    elif template.recurrence_weekday not in WEEKDAY_VALUES:
+        errors['recurrence_weekday'] = ['Pick a day of the week.']
+    if template.recurrence == 'monthly':
+        if template.recurrence_week_of_month not in WEEK_OF_MONTH_VALUES:
+            errors['recurrence_week_of_month'] = ['Pick which week of the month.']
+    else:
+        template.recurrence_week_of_month = None
+
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        template.full_clean()
+    except ValidationError as exc:
+        return Response(exc.message_dict, status=status.HTTP_400_BAD_REQUEST)
+    template.save()
+    return Response({'message': f'Updated "{template.name}".', 'template': _template_summary(template)})
 
 
 @api_view(['POST'])
@@ -471,7 +549,7 @@ def staff_class_template_sessions(request, template_id):
 
     today = timezone.localdate()
     sessions = (
-        template.sessions.filter(status='scheduled', session_date__gte=today)
+        template.sessions.filter(session_date__gte=today)
         .select_related('template')
         .annotate(
             _enrolled_count=Count(
@@ -546,6 +624,63 @@ def staff_class_session_create(request):
         {'message': f'Added {template.name} on {session_date}.', 'session': _session_summary(session)},
         status=status.HTTP_201_CREATED,
     )
+
+
+@api_view(['PATCH'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_class_session_update(request, session_id):
+    """Edit, complete, or cancel a dated class session while preserving its roster."""
+    err = _staff_guard(request)
+    if err:
+        return err
+    try:
+        session = ClassSession.objects.select_related('template').get(pk=session_id)
+    except ClassSession.DoesNotExist:
+        return Response({'error': 'Session not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    for field in ('session_date', 'start_time', 'end_time', 'location', 'facilitator', 'notes'):
+        if field in request.data:
+            value = request.data.get(field)
+            if field in ('location', 'facilitator', 'notes'):
+                value = str(value or '').strip()
+            setattr(session, field, value)
+
+    errors = {}
+    if 'status' in request.data:
+        new_status = str(request.data.get('status') or '').strip()
+        if new_status not in SESSION_STATUS_VALUES:
+            errors['status'] = ['Choose a valid session status.']
+        else:
+            session.status = new_status
+    if 'capacity' in request.data:
+        try:
+            capacity = int(request.data['capacity'])
+            if capacity < 1:
+                raise ValueError
+            if capacity < session.enrolled_count:
+                errors['capacity'] = [
+                    f'Capacity cannot be below the {session.enrolled_count} currently enrolled.'
+                ]
+            else:
+                session.capacity = capacity
+        except (TypeError, ValueError):
+            errors['capacity'] = ['Capacity must be a positive number.']
+    if (
+        session.session_date
+        and session.template.sessions.exclude(pk=session.pk)
+        .filter(session_date=session.session_date)
+        .exists()
+    ):
+        errors['session_date'] = ['This class already has a session on that date.']
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        session.full_clean()
+    except ValidationError as exc:
+        return Response(exc.message_dict, status=status.HTTP_400_BAD_REQUEST)
+    session.save()
+    return Response({'message': 'Session updated.', 'session': _session_summary(session)})
 
 
 @api_view(['POST'])

@@ -15,6 +15,10 @@
       </div>
 
       <div class="staff-dashboard-sidebar">
+        <RouterLink :to="{ name: 'ClientCreate' }" class="staff-btn staff-btn-primary w-full">
+          <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
+          Add a client
+        </RouterLink>
         <ClientSearchPanel />
       </div>
     </div>
@@ -23,6 +27,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { staffFetch } from '../api'
 import type { StaffUser } from '../types'
 import DashboardHeader from './dashboard/DashboardHeader.vue'

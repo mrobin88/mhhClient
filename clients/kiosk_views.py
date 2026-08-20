@@ -3,8 +3,6 @@ Public kiosk endpoints: lookup client by phone, submit a self check-in case note
 
 The static web app cannot write to PostgreSQL directly; it calls these APIs over HTTPS.
 """
-from pathlib import Path
-
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -12,7 +10,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import CaseNote, Client, Document
+from .models import CaseNote, Client
+from .document_upload_service import save_client_document, validate_self_upload
 from .phone_utils import find_all_by_normalized_phone, phone_digits
 from .serializers import CaseNoteSerializer
 from .throttles import KioskLookupThrottle, KioskSubmitThrottle, KioskUploadThrottle
@@ -150,14 +149,9 @@ class KioskDocumentUploadView(APIView):
             )
 
         upload = request.FILES.get('file')
-        if not upload:
-            return Response({'detail': 'Select a file to upload.'}, status=status.HTTP_400_BAD_REQUEST)
-        if getattr(upload, 'size', 0) > KIOSK_ID_DOC_MAX_BYTES:
-            return Response({'detail': 'File is too large. Max size is 10MB.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        ext = Path(getattr(upload, 'name', '') or '').suffix.lower()
-        if ext not in rules['extensions']:
-            return Response({'detail': rules['error']}, status=status.HTTP_400_BAD_REQUEST)
+        upload_error = validate_self_upload(upload, allowed_extensions=rules['extensions'])
+        if upload_error:
+            return Response({'detail': upload_error}, status=status.HTTP_400_BAD_REQUEST)
 
         title = (request.data.get('title') or '').strip()
         if not title:
@@ -165,38 +159,14 @@ class KioskDocumentUploadView(APIView):
 
         notes = (request.data.get('notes') or '').strip() or None
 
-        # Keep uploads organized by client/type in storage.
-        try:
-            original = upload.name
-            upload.name = f"clients/{client.pk}/{doc_type}/{original}"
-        except Exception:
-            pass
-
-        existing = Document.objects.filter(client=client, doc_type=doc_type).order_by('-created_at').first()
-        if existing:
-            existing.title = title[:255]
-            existing.file = upload
-            existing.uploaded_by = KIOSK_DOC_UPLOADER
-            existing.notes = notes
-            existing.save()
-            doc = existing
-            created = False
-        else:
-            doc = Document.objects.create(
-                client=client,
-                title=title[:255],
-                doc_type=doc_type,
-                file=upload,
-                uploaded_by=KIOSK_DOC_UPLOADER,
-                notes=notes,
-            )
-            created = True
-
-        if doc_type == 'resume':
-            # Point the client's resume field at the same stored file so
-            # "has resume" and the staff resume download keep working.
-            client.resume.name = doc.file.name
-            client.save(update_fields=['resume', 'updated_at'])
+        doc, created = save_client_document(
+            client=client,
+            doc_type=doc_type,
+            upload=upload,
+            uploaded_by=KIOSK_DOC_UPLOADER,
+            title=title,
+            notes=notes,
+        )
 
         return Response(
             {

@@ -1,4 +1,7 @@
 from datetime import date
+import hashlib
+import secrets
+from datetime import timedelta
 
 from django.db import models
 from django.urls import reverse
@@ -7,7 +10,13 @@ from django.conf import settings
 from django.utils import timezone
 import logging
 
+from .encrypted_fields import EncryptedSSNField
+
 User = get_user_model()
+
+
+def default_upload_invite_expiry():
+    return timezone.now() + timedelta(days=14)
 
 
 class Client(models.Model):
@@ -106,7 +115,9 @@ class Client(models.Model):
     middle_name = models.CharField(max_length=50, blank=True, null=True)
     last_name = models.CharField(max_length=50)
     dob = models.DateField(blank=True, null=True)
-    ssn = models.CharField(max_length=11, blank=True, null=True)
+    ssn = EncryptedSSNField(blank=True, null=True)
+    ssn_last4 = models.CharField(max_length=4, blank=True, default='', db_index=True)
+    ssn_key_id = models.CharField(max_length=32, blank=True, default='')
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True, null=True)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
@@ -190,6 +201,19 @@ class Client(models.Model):
             parts.append(self.middle_name)
         parts.append(self.last_name)
         return " ".join(parts)
+
+    def save(self, *args, **kwargs):
+        if self.ssn:
+            digits = ''.join(character for character in self.ssn if character.isdigit())
+            self.ssn_last4 = digits[-4:] if len(digits) >= 4 else ''
+            self.ssn_key_id = str(getattr(settings, 'SSN_ACTIVE_KEY_ID', 'v1'))
+            update_fields = kwargs.get('update_fields')
+            if update_fields and 'ssn' in update_fields:
+                kwargs['update_fields'] = set(update_fields) | {'ssn_last4', 'ssn_key_id'}
+        else:
+            self.ssn_last4 = ''
+            self.ssn_key_id = ''
+        return super().save(*args, **kwargs)
     
     @property
     def full_name(self):
@@ -472,6 +496,62 @@ class Document(models.Model):
             return 'word'
         else:
             return 'other'
+
+
+class DocumentUploadInvite(models.Model):
+    """Revocable, document-scoped bearer link for client self-upload."""
+
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='document_upload_invites')
+    token_hash = models.CharField(max_length=64, unique=True)
+    token_prefix = models.CharField(max_length=12, db_index=True)
+    allowed_doc_types = models.JSONField(default=list)
+    expires_at = models.DateTimeField(default=default_upload_invite_expiry, db_index=True)
+    max_uploads = models.PositiveSmallIntegerField(default=20)
+    upload_count = models.PositiveSmallIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='document_upload_invites_created',
+    )
+    revoked_at = models.DateTimeField(blank=True, null=True)
+    last_used_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['client', 'expires_at'], name='docinvite_client_exp_idx'),
+        ]
+
+    @staticmethod
+    def hash_token(token):
+        return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+    @classmethod
+    def issue(cls, *, client, allowed_doc_types, created_by=None, expires_at=None):
+        raw_token = secrets.token_urlsafe(32)
+        invite = cls.objects.create(
+            client=client,
+            token_hash=cls.hash_token(raw_token),
+            token_prefix=raw_token[:12],
+            allowed_doc_types=list(dict.fromkeys(allowed_doc_types)),
+            created_by=created_by,
+            expires_at=expires_at or default_upload_invite_expiry(),
+        )
+        return invite, raw_token
+
+    @property
+    def is_usable(self):
+        return (
+            self.revoked_at is None
+            and self.expires_at > timezone.now()
+            and self.upload_count < self.max_uploads
+        )
+
+    def __str__(self):
+        return f'Document upload for {self.client.full_name} ({self.token_prefix}…)'
 
 
 class PitStopApplication(models.Model):

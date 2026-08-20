@@ -10,6 +10,12 @@ from .models_extensions import (
 from .phone_utils import find_by_normalized_phone, phone_digits
 
 class ClientSerializer(serializers.ModelSerializer):
+    ssn = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
     age = serializers.ReadOnlyField()
     full_name = serializers.ReadOnlyField()
     is_sf_resident = serializers.ReadOnlyField()
@@ -17,11 +23,29 @@ class ClientSerializer(serializers.ModelSerializer):
     case_notes_count = serializers.ReadOnlyField()
     resume_download_url = serializers.SerializerMethodField()
     resume_file_type = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Client
         fields = '__all__'
-    
+        extra_kwargs = {
+            'ssn_last4': {'read_only': True},
+            'ssn_key_id': {'read_only': True},
+        }
+
+    def validate_ssn(self, value):
+        if not value:
+            return None
+        digits = ''.join(character for character in value if character.isdigit())
+        if len(digits) != 9:
+            raise serializers.ValidationError('SSN must contain exactly 9 digits.')
+        return f'{digits[:3]}-{digits[3:5]}-{digits[5:]}'
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data.pop('ssn_last4', None)
+        data.pop('ssn_key_id', None)
+        return data
+
     def get_resume_download_url(self, obj):
         """Generate secure SAS URL for resume download"""
         if not obj.resume:
@@ -32,11 +56,11 @@ class ClientSerializer(serializers.ModelSerializer):
             # Log error but don't fail serialization
             import logging
             logging.getLogger('clients').error(
-                'Failed to generate resume download URL for Client %s: %s', 
+                'Failed to generate resume download URL for Client %s: %s',
                 obj.pk, e
             )
             return None
-    
+
     def get_resume_file_type(self, obj):
         """Get file type for preview purposes"""
         if not obj.resume:
@@ -49,22 +73,22 @@ class CaseNoteSerializer(serializers.ModelSerializer):
     formatted_date = serializers.SerializerMethodField()
     relative_time = serializers.SerializerMethodField()
     note_type_display = serializers.CharField(source='get_note_type_display', read_only=True)
-    
+
     class Meta:
         model = CaseNote
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at', 'formatted_timestamp', 'formatted_date', 'relative_time', 'note_type_display']
-    
+
     def get_formatted_timestamp(self, obj):
         if not obj.note_date:
             return None
         return obj.note_date.strftime('%b %d, %Y')
-    
+
     def get_formatted_date(self, obj):
         if not obj.note_date:
             return None
         return obj.note_date.strftime('%b %d, %Y')
-    
+
     def get_relative_time(self, obj):
         if not obj.note_date:
             return None
@@ -83,16 +107,28 @@ class PitStopApplicationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PitStopApplication
-        fields = '__all__'
-        # The public signup form posts here, so review decisions stay staff-only.
+        # This serializer serves the public application endpoint. Never include
+        # review status, interview dates, reviewer notes, or staff identity in
+        # its output: read_only would stop applicants changing those values but
+        # would still reveal them in the POST response.
+        fields = [
+            'id',
+            'client',
+            'client_name',
+            'can_work_us',
+            'is_veteran',
+            'position_applied_for',
+            'available_start_date',
+            'employment_desired',
+            'weekly_schedule',
+            'employment_history',
+            'education_history',
+            'created_at',
+            'updated_at',
+        ]
         read_only_fields = [
             'created_at',
             'updated_at',
-            'review_status',
-            'interviewed_on',
-            'review_notes',
-            'reviewed_by',
-            'review_updated_at',
         ]
 
 
@@ -104,7 +140,7 @@ class WorkerLoginSerializer(serializers.Serializer):
     """Serializer for worker authentication with phone + PIN"""
     phone = serializers.CharField(max_length=20)
     pin = serializers.CharField(max_length=6, write_only=True)
-    
+
     def validate(self, data):
         """Validate phone and PIN combination (phone may be formatted in DB; PIN is digits-only)."""
         phone = data.get('phone')
@@ -143,7 +179,7 @@ class WorkerAccountSerializer(serializers.ModelSerializer):
     client_phone = serializers.CharField(source='client.phone', read_only=True)
     client_email = serializers.CharField(source='client.email', read_only=True)
     worker_status_label = serializers.CharField(source='get_worker_status_display', read_only=True)
-    
+
     class Meta:
         model = WorkerAccount
         fields = [
@@ -178,7 +214,7 @@ class WorkerDailyFeedbackSerializer(serializers.ModelSerializer):
 
 class WorkSiteSerializer(serializers.ModelSerializer):
     """Serializer for work site information"""
-    
+
     class Meta:
         model = WorkSite
         fields = [
@@ -204,7 +240,7 @@ class WorkAssignmentSerializer(serializers.ModelSerializer):
     is_today = serializers.ReadOnlyField()
     is_upcoming = serializers.ReadOnlyField()
     location_display = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = WorkAssignment
         fields = '__all__'
