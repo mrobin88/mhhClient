@@ -44,7 +44,7 @@
       />
       <p v-if="local.assignee_name" class="text-xs text-stone-500 mt-1">
         Assigned to <strong>{{ local.assignee_name }}</strong>
-        <button type="button" class="text-orange-600 font-semibold ml-2" :disabled="busy" @click="clearAssignee">
+        <button type="button" class="staff-link font-semibold ml-2" :disabled="busy" @click="clearAssignee">
           Clear
         </button>
       </p>
@@ -52,7 +52,7 @@
         <li v-for="u in assigneeOptions" :key="u.id">
           <button
             type="button"
-            class="w-full text-left px-3 py-2 text-sm hover:bg-orange-50"
+            class="w-full text-left px-3 py-2 text-sm staff-accent-row"
             @click="pickAssignee(u)"
           >
             {{ u.name }}

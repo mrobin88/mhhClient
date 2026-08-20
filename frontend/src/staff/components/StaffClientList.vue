@@ -64,7 +64,7 @@
       <li v-for="client in clients" :key="client.id">
         <button
           type="button"
-          class="staff-card w-full text-left px-4 py-3 hover:border-orange-300 transition-colors"
+          class="staff-card w-full text-left px-4 py-3 staff-hover-accent transition-colors"
           @click="router.push({ name: 'ClientDetail', params: { id: client.id } })"
         >
           <p class="font-semibold">{{ client.full_name }}</p>

@@ -1340,6 +1340,32 @@ class StaffSpaApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('message', response.json())
 
+    def test_staff_profile_saves_accent_color(self):
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.patch(
+            '/api/staff/profile/',
+            data={'accent_color': '#166534'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['user']['accent_color'], '#166534')
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.accent_color, '#166534')
+
+        session = self.http.get('/api/staff/session/')
+        self.assertEqual(session.json()['user']['accent_color'], '#166534')
+
+    def test_staff_profile_rejects_invalid_accent_color(self):
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.patch(
+            '/api/staff/profile/',
+            data={'accent_color': 'red'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.accent_color, '')
+
     def test_client_list_filters_by_program_and_stage(self):
         Client.objects.create(
             first_name='Pit',

@@ -16,9 +16,11 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Chart, type ChartConfiguration } from 'chart.js/auto'
 import { staffFetch } from '../../api'
+import { staffUserKey } from '../../staffContext'
+import { DEFAULT_ACCENT, normalizeHex } from '../../theme'
 import CardSkeleton from './CardSkeleton.vue'
 import StaffTip from '../StaffTip.vue'
 
@@ -32,9 +34,18 @@ const rows = ref<ProgramRow[]>([])
 const loading = ref(true)
 const error = ref('')
 const canvasEl = ref<HTMLCanvasElement | null>(null)
+const staffUser = inject(staffUserKey)
 let chartInstance: Chart | null = null
 
-const PALETTE = ['#ea580c', '#0f766e', '#7c3aed', '#0369a1', '#b45309', '#4d7c0f']
+const PALETTE_REST = ['#0f766e', '#7c3aed', '#0369a1', '#b45309', '#4d7c0f']
+
+const accentColor = computed(
+  () => normalizeHex(staffUser?.value?.accent_color) || DEFAULT_ACCENT,
+)
+
+function palette() {
+  return [accentColor.value, ...PALETTE_REST]
+}
 
 function renderChart(categoryCount: number) {
   if (!canvasEl.value) return
@@ -44,6 +55,7 @@ function renderChart(categoryCount: number) {
   }
 
   const kind = categoryCount <= 5 ? 'pie' : 'bar'
+  const colors = palette()
   const config: ChartConfiguration = {
     type: kind,
     data: {
@@ -52,7 +64,7 @@ function renderChart(categoryCount: number) {
         {
           label: 'Clients',
           data: rows.value.map((r) => r.count),
-          backgroundColor: rows.value.map((_, i) => PALETTE[i % PALETTE.length]),
+          backgroundColor: rows.value.map((_, i) => colors[i % colors.length]),
         },
       ],
     },
@@ -92,6 +104,9 @@ async function load() {
 }
 
 onMounted(load)
+watch(accentColor, () => {
+  if (rows.value.length > 0) renderChart(rows.value.length)
+})
 onBeforeUnmount(() => {
   chartInstance?.destroy()
 })

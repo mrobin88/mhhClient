@@ -39,8 +39,8 @@
           <li v-for="c in clientOptions" :key="c.id">
             <button
               type="button"
-              class="w-full text-left px-3 py-2 text-sm hover:bg-orange-50"
-              :class="{ 'bg-orange-100 font-semibold': selectedClient?.id === c.id }"
+              class="w-full text-left px-3 py-2 text-sm staff-accent-row"
+              :class="{ 'staff-accent-row-selected': selectedClient?.id === c.id }"
               @click="selectClient(c)"
             >
               {{ c.full_name }} · {{ c.phone }}
@@ -87,7 +87,7 @@
       <RouterLink
         v-if="selectedClient"
         :to="{ name: 'ClientDetail', params: { id: selectedClient.id }, query: { focus: 'notes' } }"
-        class="block text-sm font-semibold text-orange-600"
+        class="block text-sm font-semibold staff-link"
       >
         View notes for {{ selectedClient.full_name }}
       </RouterLink>

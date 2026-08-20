@@ -19,6 +19,7 @@
           <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
           Add a client
         </RouterLink>
+        <ColorThemePicker />
         <ClientSearchPanel />
       </div>
     </div>
@@ -26,9 +27,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { inject, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { staffFetch } from '../api'
+import { staffUserKey } from '../staffContext'
 import type { StaffUser } from '../types'
 import DashboardHeader from './dashboard/DashboardHeader.vue'
 import UsageStatsCard from './dashboard/UsageStatsCard.vue'
@@ -40,19 +41,7 @@ import ActivityFeedCard from './dashboard/ActivityFeedCard.vue'
 import FeedbackCard from './dashboard/FeedbackCard.vue'
 import DocumentUploadCard from './dashboard/DocumentUploadCard.vue'
 import ClientSearchPanel from './dashboard/ClientSearchPanel.vue'
+import ColorThemePicker from './dashboard/ColorThemePicker.vue'
 
-const user = ref<StaffUser | null>(null)
-
-async function loadUser() {
-  try {
-    const resp = await staffFetch('/api/staff/session/')
-    if (!resp.ok) return
-    const body = await resp.json()
-    if (body?.authenticated) user.value = body.user
-  } catch {
-    /* header falls back to generic greeting */
-  }
-}
-
-onMounted(loadUser)
+const user = inject(staffUserKey, ref<StaffUser | null>(null))
 </script>

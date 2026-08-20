@@ -197,7 +197,7 @@
                       {{ s.status === 'cancelled' ? 'Cancelled' : `${s.enrolled_count}/${s.capacity}` }}
                     </span>
                   </button>
-                  <button type="button" class="text-xs font-semibold text-orange-700" @click="startEditSession(s)">Edit</button>
+                  <button type="button" class="text-xs font-semibold staff-link" @click="startEditSession(s)">Edit</button>
                 </div>
 
                 <form
@@ -235,7 +235,7 @@
                     >
                       <RouterLink
                         :to="{ name: 'ClientDetail', params: { id: r.client_id } }"
-                        class="text-xs font-medium text-stone-700 hover:text-orange-600 truncate"
+                        class="text-xs font-medium text-stone-700 staff-hover-accent-text truncate"
                       >
                         {{ r.client_full_name }}
                       </RouterLink>

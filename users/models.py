@@ -13,6 +13,12 @@ class StaffUser(AbstractUser):
     role = models.CharField(max_length=20, choices=STAFF_ROLE_CHOICES, default='case_manager')
     phone = models.CharField(max_length=15, blank=True, null=True)
     nonprofit = models.CharField(max_length=100, blank=True, null=True)
+    accent_color = models.CharField(
+        max_length=7,
+        blank=True,
+        default='',
+        help_text='Staff dashboard accent as #RRGGBB so the UI can match their desk.',
+    )
     
     # Override inherited fields to ensure proper defaults
     is_active = models.BooleanField(default=True)

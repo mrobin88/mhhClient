@@ -2,6 +2,7 @@
 from collections import defaultdict
 from datetime import timedelta
 import logging
+import re
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
@@ -30,6 +31,8 @@ from .staff_serializers import (
 from .phone_utils import phone_digits
 from .staff_utils import staff_display_name
 
+ACCENT_HEX_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
+
 
 def _staff_payload(user):
     return {
@@ -38,7 +41,17 @@ def _staff_payload(user):
         'display_name': staff_display_name(user),
         'role': getattr(user, 'role', ''),
         'is_superuser': bool(user.is_superuser),
+        'accent_color': (getattr(user, 'accent_color', None) or '').upper(),
     }
+
+
+def _normalize_accent_color(value):
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+    if ACCENT_HEX_RE.fullmatch(raw):
+        return raw.upper()
+    return None
 
 
 @api_view(['GET'])
@@ -84,6 +97,27 @@ def staff_login(request):
 def staff_logout(request):
     logout(request)
     return Response({'message': 'Logged out.'})
+
+
+@api_view(['PATCH'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_profile(request):
+    """Save the signed-in staff member's dashboard preferences."""
+    if not request.user.is_staff:
+        return Response({'error': 'Staff access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if 'accent_color' in request.data:
+        normalized = _normalize_accent_color(request.data.get('accent_color'))
+        if normalized is None:
+            return Response(
+                {'error': 'Pick a color as a hex code like #EA580C.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.user.accent_color = normalized
+        request.user.save(update_fields=['accent_color'])
+
+    return Response({'user': _staff_payload(request.user)})
 
 
 @api_view(['GET'])

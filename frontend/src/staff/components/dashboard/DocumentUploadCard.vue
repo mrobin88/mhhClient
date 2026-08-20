@@ -15,7 +15,7 @@
         >
           {{ selectedClient.full_name }}
         </RouterLink>
-        <button type="button" class="text-xs font-semibold text-orange-600 shrink-0" @click="clearClient">
+        <button type="button" class="text-xs font-semibold staff-link shrink-0" @click="clearClient">
           Change
         </button>
       </div>

@@ -1,6 +1,6 @@
 <template>
   <section class="space-y-3">
-    <button type="button" class="text-sm font-semibold text-orange-600" @click="router.push({ name: 'Tickets' })">
+    <button type="button" class="text-sm font-semibold staff-link" @click="router.push({ name: 'Tickets' })">
       ← All tickets
     </button>
 

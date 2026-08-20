@@ -8,7 +8,7 @@
         :href="adminUrl"
         target="_blank"
         rel="noopener"
-        class="text-xs font-semibold text-orange-600 shrink-0"
+        class="text-xs font-semibold staff-link shrink-0"
       >
         Review all →
       </a>

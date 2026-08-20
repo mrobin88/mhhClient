@@ -1,6 +1,6 @@
 <template>
   <section class="space-y-3">
-    <button type="button" class="text-sm font-semibold text-orange-600" @click="router.push({ name: 'Dashboard' })">
+    <button type="button" class="text-sm font-semibold staff-link" @click="router.push({ name: 'Dashboard' })">
       ← Home
     </button>
 
@@ -164,7 +164,7 @@
         >
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm font-semibold text-stone-800">Application</p>
-            <span class="text-xs font-bold text-orange-700">
+            <span class="text-xs font-bold staff-link">
               {{ pitStopApplication.review_status_display }}
             </span>
           </div>
@@ -190,7 +190,7 @@
             :href="pitStopAdminUrl"
             target="_blank"
             rel="noopener"
-            class="inline-block text-xs font-semibold text-orange-600 pt-1"
+            class="inline-block text-xs font-semibold staff-link pt-1"
           >
             Open this application in admin →
           </a>
@@ -337,11 +337,11 @@
 
           <p v-if="upcomingSessions.length === 0" class="text-xs text-stone-400 mt-1.5">
             No upcoming classes scheduled yet —
-            <RouterLink to="/classes" class="text-orange-600 font-semibold">create one on the Classes page</RouterLink>.
+            <RouterLink to="/classes" class="staff-link font-semibold">create one on the Classes page</RouterLink>.
           </p>
           <p v-else-if="filteredSessions.length === 0" class="text-xs text-stone-400 mt-1.5">
             Nothing in this filter. Try “All” or add a class on the
-            <RouterLink to="/classes" class="text-orange-600 font-semibold">Classes</RouterLink> page.
+            <RouterLink to="/classes" class="staff-link font-semibold">Classes</RouterLink> page.
           </p>
         </template>
       </div>

@@ -40,6 +40,7 @@ from .staff_views import (
     staff_session,
     staff_login,
     staff_logout,
+    staff_profile,
     staff_clients,
     staff_client_create,
     staff_client_detail,
@@ -144,6 +145,7 @@ urlpatterns = [
     path('staff/session/', staff_session, name='staff-session'),
     path('staff/login/', staff_login, name='staff-login'),
     path('staff/logout/', staff_logout, name='staff-logout'),
+    path('staff/profile/', staff_profile, name='staff-profile'),
     path('staff/clients/', staff_clients, name='staff-clients'),
     path('staff/clients/create/', staff_client_create, name='staff-client-create'),
     path(

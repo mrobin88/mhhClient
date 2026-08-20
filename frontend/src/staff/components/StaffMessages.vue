@@ -45,14 +45,14 @@
           <button
             type="button"
             class="staff-card w-full text-left p-4"
-            :class="{ 'ring-2 ring-orange-400': selectedId === thread.client_id }"
+            :class="{ 'staff-accent-ring': selectedId === thread.client_id }"
             @click="selectThread(thread.client_id)"
           >
             <div class="flex justify-between gap-2">
               <p class="font-semibold truncate">{{ thread.client_name }}</p>
               <span
                 v-if="thread.unread"
-                class="shrink-0 text-[10px] font-bold uppercase bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full"
+                class="shrink-0 text-[10px] font-bold uppercase staff-accent-chip px-2 py-0.5 rounded-full"
               >
                 New
               </span>
@@ -74,7 +74,7 @@
         </h3>
         <RouterLink
           :to="{ name: 'ClientDetail', params: { id: selectedThread.client_id }, query: { focus: 'notes' } }"
-          class="text-xs font-semibold text-orange-600"
+          class="text-xs font-semibold staff-link"
         >
           Leave a case note →
         </RouterLink>
@@ -88,7 +88,7 @@
             class="max-w-[85%] rounded-2xl px-3 py-2 text-sm"
             :class="
               msg.direction === 'outbound'
-                ? 'bg-orange-600 text-white rounded-br-sm'
+                ? 'staff-accent-fill rounded-br-sm'
                 : 'bg-stone-100 text-stone-800 rounded-bl-sm'
             "
           >

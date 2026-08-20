@@ -106,7 +106,7 @@
       <li v-for="t in tickets" :key="t.id">
         <RouterLink
           :to="{ name: 'TicketDetail', params: { id: t.id } }"
-          class="staff-card block p-4 hover:border-orange-300 transition-colors"
+          class="staff-card block p-4 staff-hover-accent transition-colors"
         >
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
