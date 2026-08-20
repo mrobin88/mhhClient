@@ -46,7 +46,7 @@ class StaffUserAdmin(UserAdmin):
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name', 'email', 'phone')}),
-        ('Staff info', {'fields': ('role', 'nonprofit', 'accent_color')}),
+        ('Staff info', {'fields': ('role', 'nonprofit', 'accent_color', 'dashboard_collapsed')}),
         ('Permissions', {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
             'classes': ('collapse',)

@@ -72,6 +72,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearStaffSession, staffFetch } from '../api'
+import { readLastAccent } from '../prefs'
 import { accentThemeVars } from '../theme'
 import ToastStack from './ToastStack.vue'
 import StaffTip from './StaffTip.vue'
@@ -89,7 +90,9 @@ const router = useRouter()
 const unreadCount = ref(0)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
-const themeStyle = computed(() => accentThemeVars(props.user?.accent_color))
+const themeStyle = computed(() =>
+  accentThemeVars(props.user?.accent_color || readLastAccent()),
+)
 
 const showChrome = computed(() => {
   const guest = ['Login', 'ForgotPassword', 'ResetPassword']

@@ -9,7 +9,9 @@ import { onMounted, provide, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { clearStaffSession, setSessionExpiredHandler, staffFetch } from './api'
 import StaffShell from './components/StaffShell.vue'
-import { setStaffUserKey, staffUserKey } from './staffContext'
+import { saveStaffPrefsKey, setStaffUserKey, staffUserKey, type StaffPrefsPatch } from './staffContext'
+import { hydrateStaffUser, writeLocalPrefs } from './prefs'
+import { normalizeHex } from './theme'
 import type { StaffUser } from './types'
 
 const router = useRouter()
@@ -19,11 +21,41 @@ function setStaffUser(next: StaffUser | null) {
   user.value = next
 }
 
+async function saveStaffPrefs(patch: StaffPrefsPatch, options: { persist?: boolean } = {}): Promise<boolean> {
+  const current = user.value
+  if (!current) return false
+  const next: StaffUser = { ...current, ...patch }
+  setStaffUser(next)
+  writeLocalPrefs(current.id, {
+    accent_color: next.accent_color,
+    dashboard_collapsed: next.dashboard_collapsed,
+  })
+  if (options.persist === false) return true
+
+  try {
+    const resp = await staffFetch('/api/staff/profile/', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok) return false
+    if (body?.user) {
+      const saved = hydrateStaffUser(body.user)
+      setStaffUser(saved)
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 provide(staffUserKey, user)
 provide(setStaffUserKey, setStaffUser)
+provide(saveStaffPrefsKey, saveStaffPrefs)
 
 function onLoggedIn(loggedInUser: StaffUser) {
-  setStaffUser(loggedInUser)
+  setStaffUser(hydrateStaffUser(loggedInUser))
 }
 
 async function loadSession() {
@@ -33,7 +65,12 @@ async function loadSession() {
     setStaffUser(null)
     return false
   }
-  setStaffUser(body.user)
+  const hydrated = hydrateStaffUser(body.user)
+  setStaffUser(hydrated)
+  const serverColor = normalizeHex(body.user?.accent_color)
+  if (hydrated.accent_color && hydrated.accent_color !== serverColor) {
+    void saveStaffPrefs({ accent_color: hydrated.accent_color })
+  }
   return true
 }
 

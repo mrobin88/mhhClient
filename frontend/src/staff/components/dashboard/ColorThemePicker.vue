@@ -1,15 +1,24 @@
 <template>
-  <section class="staff-card p-4">
+  <section class="staff-card p-4" :class="{ 'is-color-collapsed': !open }">
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">palette</span>
       <h3>Desk color</h3>
-      <StaffTip text="Match buttons and highlights to the color of your desk. The choice is saved on your staff profile." />
+      <StaffTip text="Match outlines and buttons to your desk. Saved on your staff account." />
+      <span class="staff-color-swatch" :style="{ background: hex }" aria-hidden="true" />
+      <button
+        type="button"
+        class="staff-collapse-btn staff-collapse-btn-inline"
+        :aria-expanded="open"
+        :title="open ? 'Hide color wheel' : 'Show color wheel'"
+        @click="open = !open"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">
+          {{ open ? 'expand_less' : 'expand_more' }}
+        </span>
+      </button>
     </div>
-    <p class="staff-panel-note">
-      Spin the wheel until it matches the desk you sit at. We save it to your profile so it comes back next time.
-    </p>
 
-    <div class="staff-color-picker">
+    <div v-show="open" class="staff-color-picker">
       <div class="staff-color-wheel-wrap">
         <canvas
           ref="wheelEl"
@@ -33,11 +42,11 @@
           max="100"
           :style="{ '--staff-slider-fill': brightnessGradient }"
           @input="onBrightnessInput"
+          @change="commitSave"
         />
       </label>
 
       <div class="staff-color-hex-row">
-        <span class="staff-color-swatch" :style="{ background: hex }" aria-hidden="true" />
         <input
           v-model="hexDraft"
           class="staff-input staff-color-hex-input"
@@ -61,21 +70,16 @@
           :style="{ background: preset.hex }"
           :title="preset.label"
           :aria-label="preset.label"
-          @click="applyHex(preset.hex)"
+          @click="applyHex(preset.hex, true)"
         />
       </div>
-
-      <button type="button" class="staff-btn staff-btn-ghost staff-color-reset" @click="resetToHall">
-        Reset to Hall orange
-      </button>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { staffFetch } from '../../api'
-import { setStaffUserKey, staffUserKey } from '../../staffContext'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { saveStaffPrefsKey, staffUserKey } from '../../staffContext'
 import {
   DEFAULT_ACCENT,
   DESK_PRESETS,
@@ -88,11 +92,13 @@ import {
 } from '../../theme'
 import StaffTip from '../StaffTip.vue'
 
-const WHEEL_SIZE = 188
+const WHEEL_SIZE = 108
 const staffUser = inject(staffUserKey)
-const setStaffUser = inject(setStaffUserKey)
+const saveStaffPrefs = inject(saveStaffPrefsKey)
 
+const open = ref(false)
 const wheelEl = ref<HTMLCanvasElement | null>(null)
+const committedHex = ref(DEFAULT_ACCENT)
 const hue = ref(24)
 const sat = ref(0.94)
 const valuePct = ref(92)
@@ -100,8 +106,9 @@ const hexDraft = ref(DEFAULT_ACCENT)
 const error = ref('')
 const saveState = ref<'idle' | 'saving' | 'saved'>('idle')
 let dragging = false
-let saveTimer: ReturnType<typeof setTimeout> | null = null
+let wheelDrawn = false
 let wheelBitmap: ImageData | null = null
+let pendingHex = ''
 
 const hsv = computed<Hsv>(() => ({
   h: hue.value,
@@ -109,7 +116,7 @@ const hsv = computed<Hsv>(() => ({
   v: valuePct.value / 100,
 }))
 
-const hex = computed(() => hsvToHex(hsv.value))
+const hex = computed(() => (dragging ? hsvToHex(hsv.value) : committedHex.value))
 
 const brightnessGradient = computed(() => {
   const rgb = hsvToRgb(hue.value, sat.value, 1)
@@ -119,7 +126,7 @@ const brightnessGradient = computed(() => {
 const knobStyle = computed(() => {
   const radius = WHEEL_SIZE / 2
   const angle = (hue.value * Math.PI) / 180
-  const dist = sat.value * (radius - 8)
+  const dist = sat.value * (radius - 6)
   return {
     left: `${radius + Math.cos(angle) * dist}px`,
     top: `${radius + Math.sin(angle) * dist}px`,
@@ -129,84 +136,69 @@ const knobStyle = computed(() => {
 
 const statusText = computed(() => {
   if (error.value) return error.value
-  if (saveState.value === 'saving') return 'Saving…'
-  if (saveState.value === 'saved') return 'Saved to your profile'
+  if (saveState.value === 'saving') return 'Saving to your account…'
+  if (saveState.value === 'saved') return 'Saved to your account'
   return hex.value
 })
 
-function applyLocal(nextHex: string) {
-  const current = staffUser?.value
-  if (current && setStaffUser) {
-    setStaffUser({ ...current, accent_color: nextHex })
-  }
-}
-
-function setFromHsv(next: Hsv, persist: boolean) {
+function setHsvFromHex(nextHex: string) {
+  const next = hexToHsv(nextHex)
   hue.value = next.h
   sat.value = next.s
   valuePct.value = Math.round(next.v * 100)
-  const nextHex = hsvToHex(next)
+  committedHex.value = nextHex
   hexDraft.value = nextHex
-  applyLocal(nextHex)
-  if (persist) queueSave(nextHex)
 }
 
-function applyHex(nextHex: string, persist = true) {
+function applyHex(nextHex: string, persist: boolean) {
   const normalized = normalizeHex(nextHex)
   if (!normalized) return
-  setFromHsv(hexToHsv(normalized), persist)
+  setHsvFromHex(normalized)
+  if (persist) void persistHex(normalized)
 }
 
 function onHexCommit() {
   const normalized = normalizeHex(hexDraft.value)
   if (!normalized) {
-    hexDraft.value = hex.value
+    hexDraft.value = committedHex.value
     return
   }
-  applyHex(normalized)
+  applyHex(normalized, true)
 }
 
 function onBrightnessInput() {
-  setFromHsv(hsv.value, true)
+  const nextHex = hsvToHex(hsv.value)
+  committedHex.value = nextHex
+  hexDraft.value = nextHex
+  pendingHex = nextHex
+  if (saveStaffPrefs) void saveStaffPrefs({ accent_color: nextHex }, { persist: false })
 }
 
-function queueSave(nextHex: string) {
+function commitSave() {
+  void persistHex(committedHex.value)
+}
+
+async function persistHex(nextHex: string) {
+  pendingHex = ''
   error.value = ''
   saveState.value = 'saving'
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    void save(nextHex)
-  }, 650)
-}
-
-async function save(nextHex: string) {
-  try {
-    const resp = await staffFetch('/api/staff/profile/', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accent_color: nextHex }),
-    })
-    const body = await resp.json().catch(() => null)
-    if (!resp.ok) {
-      error.value = body?.error || 'Could not save color.'
-      saveState.value = 'idle'
-      return
-    }
-    if (body?.user && setStaffUser) setStaffUser(body.user)
-    saveState.value = 'saved'
-  } catch {
+  if (!saveStaffPrefs) {
     error.value = 'Could not save color.'
+    saveState.value = 'idle'
+    return
+  }
+  const ok = await saveStaffPrefs({ accent_color: nextHex })
+  if (ok) {
+    saveState.value = 'saved'
+  } else {
+    error.value = 'Could not save color to your account.'
     saveState.value = 'idle'
   }
 }
 
-function resetToHall() {
-  applyHex(DEFAULT_ACCENT)
-}
-
 function drawWheel() {
   const canvas = wheelEl.value
-  if (!canvas) return
+  if (!canvas || wheelDrawn) return
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   const pixelSize = Math.round(WHEEL_SIZE * dpr)
   canvas.width = pixelSize
@@ -233,8 +225,7 @@ function drawWheel() {
         }
         const angle = (Math.atan2(dy, dx) * 180) / Math.PI
         const wheelHue = (angle + 360) % 360
-        const wheelSat = dist / radius
-        const rgb = hsvToRgb(wheelHue, wheelSat, 1)
+        const rgb = hsvToRgb(wheelHue, dist / radius, 1)
         image.data[i] = Math.round(rgb.r)
         image.data[i + 1] = Math.round(rgb.g)
         image.data[i + 2] = Math.round(rgb.b)
@@ -245,6 +236,7 @@ function drawWheel() {
   }
 
   ctx.putImageData(wheelBitmap, 0, 0)
+  wheelDrawn = true
 }
 
 function colorFromPointer(event: PointerEvent) {
@@ -260,14 +252,13 @@ function colorFromPointer(event: PointerEvent) {
   const radius = Math.min(cx, cy) - 4
   const dist = Math.sqrt(dx * dx + dy * dy)
   const nextHue = (Math.atan2(dy, dx) * 180) / Math.PI
-  setFromHsv(
-    {
-      h: (nextHue + 360) % 360,
-      s: Math.min(1, dist / radius),
-      v: valuePct.value / 100,
-    },
-    true,
-  )
+  hue.value = (nextHue + 360) % 360
+  sat.value = Math.min(1, dist / radius)
+  const nextHex = hsvToHex(hsv.value)
+  committedHex.value = nextHex
+  hexDraft.value = nextHex
+  pendingHex = nextHex
+  if (saveStaffPrefs) void saveStaffPrefs({ accent_color: nextHex }, { persist: false })
 }
 
 function onWheelPointer(event: PointerEvent) {
@@ -282,27 +273,32 @@ function onWheelPointer(event: PointerEvent) {
 
 function endPointer() {
   dragging = false
+  if (pendingHex) void persistHex(pendingHex)
 }
 
-function syncFromProfile(accent: string | undefined, persist: boolean) {
-  applyHex(normalizeHex(accent) || DEFAULT_ACCENT, persist)
+function syncFromProfile(accent: string | undefined) {
+  const normalized = normalizeHex(accent)
+  if (!normalized || normalized === committedHex.value) return
+  setHsvFromHex(normalized)
 }
+
+watch(open, async (isOpen) => {
+  if (!isOpen) return
+  await nextTick()
+  wheelDrawn = false
+  drawWheel()
+})
 
 onMounted(() => {
-  drawWheel()
-  syncFromProfile(staffUser?.value?.accent_color, false)
+  syncFromProfile(staffUser?.value?.accent_color || DEFAULT_ACCENT)
 })
 
 watch(
   () => staffUser?.value?.accent_color,
-  (next) => {
-    const normalized = normalizeHex(next) || DEFAULT_ACCENT
-    if (normalized === hex.value) return
-    syncFromProfile(next, false)
-  },
+  (next) => syncFromProfile(next),
 )
 
 onBeforeUnmount(() => {
-  if (saveTimer) clearTimeout(saveTimer)
+  if (pendingHex) void persistHex(pendingHex)
 })
 </script>

@@ -19,6 +19,11 @@ class StaffUser(AbstractUser):
         default='',
         help_text='Staff dashboard accent as #RRGGBB so the UI can match their desk.',
     )
+    dashboard_collapsed = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Dashboard card ids this staff member has minimized.',
+    )
     
     # Override inherited fields to ensure proper defaults
     is_active = models.BooleanField(default=True)

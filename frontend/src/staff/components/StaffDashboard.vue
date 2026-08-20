@@ -4,14 +4,30 @@
 
     <div class="staff-dashboard-layout">
       <div class="staff-dashboard-grid">
-        <UsageStatsCard />
-        <RecentClientsCard />
-        <NewPitStopApplicationsCard />
-        <UpcomingClassesCard />
-        <ProgramDistributionChart />
-        <ActivityFeedCard />
-        <FeedbackCard />
-        <DocumentUploadCard />
+        <DashboardModule id="usage">
+          <UsageStatsCard />
+        </DashboardModule>
+        <DashboardModule id="recent-clients">
+          <RecentClientsCard />
+        </DashboardModule>
+        <DashboardModule id="pitstop">
+          <NewPitStopApplicationsCard />
+        </DashboardModule>
+        <DashboardModule id="classes">
+          <UpcomingClassesCard />
+        </DashboardModule>
+        <DashboardModule id="programs">
+          <ProgramDistributionChart />
+        </DashboardModule>
+        <DashboardModule id="activity">
+          <ActivityFeedCard />
+        </DashboardModule>
+        <DashboardModule id="tickets">
+          <FeedbackCard />
+        </DashboardModule>
+        <DashboardModule id="documents">
+          <DocumentUploadCard />
+        </DashboardModule>
       </div>
 
       <div class="staff-dashboard-sidebar">
@@ -20,7 +36,9 @@
           Add a client
         </RouterLink>
         <ColorThemePicker />
-        <ClientSearchPanel />
+        <DashboardModule id="search">
+          <ClientSearchPanel />
+        </DashboardModule>
       </div>
     </div>
   </div>
@@ -32,6 +50,7 @@ import { RouterLink } from 'vue-router'
 import { staffUserKey } from '../staffContext'
 import type { StaffUser } from '../types'
 import DashboardHeader from './dashboard/DashboardHeader.vue'
+import DashboardModule from './dashboard/DashboardModule.vue'
 import UsageStatsCard from './dashboard/UsageStatsCard.vue'
 import RecentClientsCard from './dashboard/RecentClientsCard.vue'
 import NewPitStopApplicationsCard from './dashboard/NewPitStopApplicationsCard.vue'

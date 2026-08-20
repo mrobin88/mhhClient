@@ -35,6 +35,9 @@ ACCENT_HEX_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
 
 
 def _staff_payload(user):
+    collapsed = getattr(user, 'dashboard_collapsed', None)
+    if not isinstance(collapsed, list):
+        collapsed = []
     return {
         'id': user.pk,
         'username': user.username,
@@ -42,6 +45,7 @@ def _staff_payload(user):
         'role': getattr(user, 'role', ''),
         'is_superuser': bool(user.is_superuser),
         'accent_color': (getattr(user, 'accent_color', None) or '').upper(),
+        'dashboard_collapsed': [str(item)[:40] for item in collapsed if item],
     }
 
 
@@ -103,9 +107,11 @@ def staff_logout(request):
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_profile(request):
-    """Save the signed-in staff member's dashboard preferences."""
+    """Save the signed-in staff member's dashboard preferences onto their account."""
     if not request.user.is_staff:
         return Response({'error': 'Staff access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    update_fields = []
 
     if 'accent_color' in request.data:
         normalized = _normalize_accent_color(request.data.get('accent_color'))
@@ -115,7 +121,24 @@ def staff_profile(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         request.user.accent_color = normalized
-        request.user.save(update_fields=['accent_color'])
+        update_fields.append('accent_color')
+
+    if 'dashboard_collapsed' in request.data:
+        raw = request.data.get('dashboard_collapsed')
+        if raw is None:
+            collapsed = []
+        elif isinstance(raw, list) and all(isinstance(item, str) and 0 < len(item) <= 40 for item in raw):
+            collapsed = list(dict.fromkeys(raw[:24]))
+        else:
+            return Response(
+                {'error': 'Could not save which dashboard cards are minimized.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.user.dashboard_collapsed = collapsed
+        update_fields.append('dashboard_collapsed')
+
+    if update_fields:
+        request.user.save(update_fields=update_fields)
 
     return Response({'user': _staff_payload(request.user)})
 

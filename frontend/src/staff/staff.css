@@ -449,6 +449,64 @@ select.staff-input:disabled {
   box-sizing: border-box;
 }
 
+.staff-dash-module {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+.staff-dash-module > .staff-card {
+  height: 100%;
+}
+.staff-dash-module .staff-panel-header {
+  padding-right: 2.45rem;
+}
+.staff-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border-radius: 0.45rem;
+  border: 1px solid var(--staff-border);
+  background: #fff;
+  color: var(--staff-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.staff-collapse-btn .material-symbols-outlined,
+.staff-panel-header .staff-collapse-btn .material-symbols-outlined {
+  width: auto;
+  height: auto;
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  color: inherit;
+}
+.staff-collapse-btn:hover {
+  border-color: var(--staff-accent);
+  color: var(--staff-accent-dark);
+  background: var(--staff-accent-soft);
+}
+.staff-dash-module > .staff-collapse-btn {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 6;
+}
+.staff-collapse-btn-inline {
+  position: static;
+}
+.staff-dash-module.is-collapsed .staff-card > :not(.staff-panel-header) {
+  display: none !important;
+}
+.staff-dash-module.is-collapsed .staff-panel-header,
+.staff-card.is-color-collapsed .staff-panel-header {
+  margin-bottom: -1rem;
+  border-bottom-color: transparent;
+  border-radius: 0.75rem;
+}
+
 @media (min-width: 1024px) {
   .staff-dashboard-layout {
     flex-direction: row;
@@ -961,29 +1019,29 @@ select.staff-input:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.55rem;
 }
 .staff-color-wheel-wrap {
   position: relative;
-  width: 188px;
-  height: 188px;
+  width: 108px;
+  height: 108px;
   flex-shrink: 0;
   user-select: none;
   touch-action: none;
 }
 .staff-color-wheel {
-  width: 188px;
-  height: 188px;
+  width: 108px;
+  height: 108px;
   display: block;
   border-radius: 50%;
   cursor: crosshair;
   touch-action: none;
-  box-shadow: 0 0 0 1px var(--staff-border), 0 8px 20px rgba(28, 25, 23, 0.08);
+  box-shadow: 0 0 0 1px var(--staff-border), 0 4px 12px rgba(28, 25, 23, 0.08);
 }
 .staff-color-wheel-knob {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 2px solid #fff;
   box-shadow: 0 0 0 1px rgba(28, 25, 23, 0.35), 0 2px 6px rgba(28, 25, 23, 0.25);
