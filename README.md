@@ -58,3 +58,5 @@ python manage.py migrate
   Update that page rather than adding new markdown files.
 - Staff links and quick fixes: `STAFF_GUIDE.md`
 - Partner referral ingest API: `/partners/` ([PartnersApp.vue](frontend/src/partners/PartnersApp.vue))
+- Worker portal (clock in/out, incident reports): `/worker/` ([WorkerApp.vue](frontend/src/worker/WorkerApp.vue))
+- Client check-in kiosk: `/checkin` ([CheckInApp.vue](frontend/src/checkin/CheckInApp.vue))
