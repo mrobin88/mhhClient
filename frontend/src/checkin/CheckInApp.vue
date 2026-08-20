@@ -224,12 +224,26 @@
                     <label for="docFile" class="block text-sm font-semibold text-slate-700 mb-2">Choose file</label>
                     <input
                       id="docFile"
+                      ref="docFileInput"
                       type="file"
                       accept="image/*,.pdf"
                       class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-700 bg-white"
                       @change="onFileChange"
                     />
                     <p class="mt-2 text-xs text-slate-500">Accepted by device: photo/image or PDF.</p>
+                    <div
+                      v-if="uploadFile"
+                      class="mt-2 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <span class="text-sm text-slate-700 truncate">{{ uploadFile.name }}</span>
+                      <button
+                        type="button"
+                        class="flex-shrink-0 text-sm font-bold text-red-600 hover:text-red-700"
+                        @click="removeUploadFile"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -338,6 +352,7 @@ const uploadTitle = ref('')
 const uploadNotes = ref('')
 const uploadFile = ref<File | null>(null)
 const uploadedCount = ref(0)
+const docFileInput = ref<HTMLInputElement | null>(null)
 
 const API_LOOKUP = getApiUrl('/api/kiosk/check-in/lookup/')
 const API_SUBMIT = getApiUrl('/api/kiosk/check-in/submit/')
@@ -456,6 +471,13 @@ function goToUpload() {
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement | null
   uploadFile.value = input?.files?.[0] ?? null
+}
+
+// Clear a staged file before upload so a wrong or too-big pick can be swapped out.
+function removeUploadFile() {
+  uploadFile.value = null
+  if (docFileInput.value) docFileInput.value.value = ''
+  clearMessage()
 }
 
 async function submitUpload() {

@@ -466,12 +466,18 @@
                       : 'Optional.' }}
                   </div>
                   <input
+                    ref="resumeInput"
                     type="file"
                     class="doc-input"
                     accept=".pdf,.doc,.docx,.txt"
                     @change="handleResumeUpload"
                   />
-                  <div v-if="resumeFile" class="doc-filename">{{ resumeFile.name }}</div>
+                  <div v-if="resumeFile" class="doc-selected">
+                    <span class="doc-filename">{{ resumeFile.name }}</span>
+                    <button type="button" class="doc-remove-btn" @click="removeResume">
+                      Remove resume
+                    </button>
+                  </div>
                 </div>
 
                 <div class="doc-tile">
@@ -481,12 +487,18 @@
                     itself, not a photo of your face.
                   </div>
                   <input
+                    ref="idInput"
                     type="file"
                     class="doc-input"
                     accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif"
                     @change="handleIdUpload"
                   />
-                  <div v-if="idFile" class="doc-filename">{{ idFile.name }}</div>
+                  <div v-if="idFile" class="doc-selected">
+                    <span class="doc-filename">{{ idFile.name }}</span>
+                    <button type="button" class="doc-remove-btn" @click="removeId">
+                      Remove ID
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -740,6 +752,8 @@ const formAttempted = ref(false)
 const currentStepIndex = ref(0)
 const resumeFile = ref(null)
 const idFile = ref(null)
+const resumeInput = ref(null)
+const idInput = ref(null)
 
 const isPitStop = computed(() => form.value.training_interest === 'pit_stop')
 
@@ -908,6 +922,19 @@ const handleIdUpload = async (event) => {
   }
 
   idFile.value = processed
+  error.value = ''
+}
+
+// Clear a staged file before submit so a wrong or too-big pick can be swapped out.
+const removeResume = () => {
+  resumeFile.value = null
+  if (resumeInput.value) resumeInput.value.value = ''
+  error.value = ''
+}
+
+const removeId = () => {
+  idFile.value = null
+  if (idInput.value) idInput.value.value = ''
   error.value = ''
 }
 
@@ -1448,12 +1475,37 @@ async function handleSubmit() {
   width: 100%;
 }
 
-.doc-filename {
+.doc-selected {
   margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.doc-filename {
   font-size: 0.75rem;
   color: #0f766e;
   font-weight: 600;
   word-break: break-word;
+}
+
+.doc-remove-btn {
+  flex-shrink: 0;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.doc-remove-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
 }
 
 textarea.form-input {
