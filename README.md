@@ -98,9 +98,10 @@ in this public repository.
 
 ## Docs
 
-- Developer and product overview: this README
-- Authenticated staff guide source:
-  [`StaffHowItWorks.vue`](frontend/src/staff/components/StaffHowItWorks.vue)
-- Staff guide publication policy: [`STAFF_GUIDE.md`](STAFF_GUIDE.md)
-- Partner referral API UI: [`PartnersApp.vue`](frontend/src/partners/PartnersApp.vue)
-- Security reporting: [`SECURITY.md`](SECURITY.md)
+- **How everything works** — the maintained guide for staff and admins lives in the staff app at
+  `/staff/#/how-it-works` ([StaffHowItWorks.vue](frontend/src/staff/components/StaffHowItWorks.vue)).
+  Update that page rather than adding new markdown files.
+- Staff links and quick fixes: `STAFF_GUIDE.md`
+- Partner referral ingest API: `/partners/` ([PartnersApp.vue](frontend/src/partners/PartnersApp.vue))
+- Worker portal (clock in/out, incident reports): `/worker/` ([WorkerApp.vue](frontend/src/worker/WorkerApp.vue))
+- Client check-in kiosk: `/checkin` ([CheckInApp.vue](frontend/src/checkin/CheckInApp.vue))
