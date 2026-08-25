@@ -25,9 +25,15 @@ from .throttles import UploadInviteThrottle
 def _invite_from_token(token):
     if not token:
         return None
+    cleaned = str(token).strip()
+    if ' ' in cleaned:
+        cleaned = cleaned.split()[0]
+    cleaned = cleaned.rstrip('.,);')
+    if not cleaned:
+        return None
     return (
         DocumentUploadInvite.objects.select_related('client')
-        .filter(token_hash=DocumentUploadInvite.hash_token(token))
+        .filter(token_hash=DocumentUploadInvite.hash_token(cleaned))
         .first()
     )
 
@@ -49,7 +55,7 @@ def _unusable_invite_response(invite):
     if not invite:
         return Response(
             {
-                'detail': 'This upload link is invalid or has expired.',
+                'detail': 'This upload link is invalid. Ask staff to send a new one.',
                 'code': 'not_found',
             },
             status=status.HTTP_410_GONE,
@@ -57,15 +63,12 @@ def _unusable_invite_response(invite):
     if invite.revoked_at is not None:
         code = 'revoked'
         detail = 'This upload link was turned off by staff.'
-    elif invite.expires_at <= timezone.now():
-        code = 'expired'
-        detail = 'This upload link has expired.'
     elif invite.upload_count >= invite.max_uploads:
         code = 'used_up'
         detail = 'This upload link has already been used the maximum number of times.'
     else:
         code = 'not_found'
-        detail = 'This upload link is invalid or has expired.'
+        detail = 'This upload link is invalid. Ask staff to send a new one.'
     body = {'detail': detail, 'code': code}
     if invite.expires_at:
         body['expires_at'] = invite.expires_at
@@ -122,24 +125,22 @@ def staff_client_upload_invites(request, pk):
     doc_types = list(dict.fromkeys(str(value) for value in requested if value in allowed_values))
     if not doc_types:
         return Response({'doc_types': ['Choose one or more valid document types.']}, status=400)
-    try:
-        expires_days = min(max(int(request.data.get('expires_days') or 14), 1), 30)
-    except (TypeError, ValueError):
-        return Response({'expires_days': ['Choose a number from 1 to 30.']}, status=400)
 
     invite, raw_token = DocumentUploadInvite.issue(
         client=client,
         allowed_doc_types=doc_types,
         created_by=request.user,
-        expires_at=timezone.now() + timedelta(days=expires_days),
+        expires_at=timezone.now() + timedelta(days=36500),
     )
     base_url = getattr(settings, 'PUBLIC_APP_BASE_URL', '').rstrip('/')
     link = f'{base_url}/upload/{raw_token}'
     delivery = str(request.data.get('delivery') or 'copy')
     delivery_detail = ''
+    # Put the URL on its own first line so SMS clients do not glue
+    # "Reply STOP" onto the token and break the lookup.
     message = (
-        f'Hi {client.first_name}, use this secure Mission Hiring Hall link to upload '
-        f'your requested documents by {invite.expires_at:%b %d}: {link}'
+        f'{link}\n'
+        f'Hi {client.first_name}, Mission Hiring Hall document upload. Do not email files.'
     )
     if delivery == 'email':
         if not client.email:

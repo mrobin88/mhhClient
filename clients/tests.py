@@ -852,7 +852,7 @@ class DocumentUploadInviteTests(TestCase):
         self.assertEqual(expired.status_code, 410)
         self.assertEqual(expired.json()['code'], 'revoked')
 
-    def test_expired_link_returns_expired_page_payload(self):
+    def test_a_past_expiry_date_does_not_block_the_upload(self):
         invite, token = DocumentUploadInvite.issue(
             client=self.client_record,
             allowed_doc_types=['id'],
@@ -862,9 +862,39 @@ class DocumentUploadInviteTests(TestCase):
         invite.save(update_fields=['expires_at'])
         public = APIClient()
         response = public.get(f'/api/document-upload/{token}/')
-        self.assertEqual(response.status_code, 410)
-        self.assertEqual(response.json()['code'], 'expired')
-        self.assertIn('expired', response.json()['detail'].lower())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['first_name'], 'City')
+
+    def test_trailing_sms_junk_on_the_token_still_opens_the_link(self):
+        _invite, token = DocumentUploadInvite.issue(
+            client=self.client_record,
+            allowed_doc_types=['id'],
+            created_by=self.staff,
+        )
+        public = APIClient()
+        response = public.get(f'/api/document-upload/{token}./')
+        self.assertEqual(response.status_code, 200)
+
+    @patch('clients.upload_invite_views.send_text_message')
+    def test_text_puts_the_upload_url_first(self, send_mock):
+        class Log:
+            STATUS_FAILED = 'failed'
+            status = 'sent'
+
+        send_mock.return_value = (Log(), True)
+        issued = self.http.post(
+            f'/api/staff/clients/{self.client_record.pk}/upload-invites/',
+            data=json.dumps({
+                'doc_types': ['id'],
+                'delivery': 'sms',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(issued.status_code, 201)
+        link = issued.json()['link']
+        message = send_mock.call_args.args[1]
+        self.assertTrue(message.startswith(link), message)
+        self.assertNotIn('by ', message.split('\n', 1)[0])
 
 
 @override_settings(

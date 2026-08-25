@@ -604,11 +604,9 @@ class DocumentUploadInvite(models.Model):
 
     @property
     def is_usable(self):
-        return (
-            self.revoked_at is None
-            and self.expires_at > timezone.now()
-            and self.upload_count < self.max_uploads
-        )
+        # Links stay valid until staff revokes them. Expiry dates were cutting
+        # people off while they were still gathering documents.
+        return self.revoked_at is None and self.upload_count < self.max_uploads
 
     def __str__(self):
         return f'Document upload for {self.client.full_name} ({self.token_prefix}…)'
