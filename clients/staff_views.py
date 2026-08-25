@@ -168,7 +168,9 @@ def staff_clients(request):
         queryset = queryset.filter(filters)
     if program in dict(Client.TRAINING_INTEREST_CHOICES):
         queryset = queryset.filter(training_interest=program)
-    if stage in dict(Client.PIT_STOP_STAGE_CHOICES):
+    if program == 'citybuild' and stage in dict(Client.CITYBUILD_STAGE_CHOICES):
+        queryset = queryset.filter(citybuild_stage=stage)
+    elif stage in dict(Client.PIT_STOP_STAGE_CHOICES):
         queryset = queryset.filter(pit_stop_stage=stage)
     clients = queryset[:limit]
     return Response(StaffClientListSerializer(clients, many=True).data)
@@ -236,9 +238,18 @@ def staff_client_detail(request, pk):
 
     serializer = StaffClientDetailSerializer(client, data=request.data, partial=True)
     serializer.is_valid(raise_exception=True)
-    serializer.save()
-    apply_staff_assignment_to_client(client, request.user)
-    client.save(update_fields=['staff_name'])
+    try:
+        serializer.save()
+        apply_staff_assignment_to_client(client, request.user)
+        client.save(update_fields=['staff_name'])
+    except Exception:
+        logging.getLogger('clients').exception(
+            'Staff client save failed client=%s', client.pk
+        )
+        return Response(
+            {'error': 'Could not save this client. Try again.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     return Response(StaffClientDetailSerializer(client).data)
 
 

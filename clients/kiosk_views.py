@@ -3,6 +3,8 @@ Public kiosk endpoints: lookup client by phone, submit a self check-in case note
 
 The static web app cannot write to PostgreSQL directly; it calls these APIs over HTTPS.
 """
+import logging
+
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -18,7 +20,6 @@ from .throttles import KioskLookupThrottle, KioskSubmitThrottle, KioskUploadThro
 
 KIOSK_NOTE_AUTHOR = 'Self check-in (kiosk)'
 KIOSK_DOC_UPLOADER = 'Self upload (kiosk)'
-KIOSK_ID_DOC_MAX_BYTES = 10 * 1024 * 1024
 KIOSK_ID_ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.pdf'}
 KIOSK_RESUME_ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.txt'}
 
@@ -159,14 +160,29 @@ class KioskDocumentUploadView(APIView):
 
         notes = (request.data.get('notes') or '').strip() or None
 
-        doc, created = save_client_document(
-            client=client,
-            doc_type=doc_type,
-            upload=upload,
-            uploaded_by=KIOSK_DOC_UPLOADER,
-            title=title,
-            notes=notes,
-        )
+        try:
+            doc, created = save_client_document(
+                client=client,
+                doc_type=doc_type,
+                upload=upload,
+                uploaded_by=KIOSK_DOC_UPLOADER,
+                title=title,
+                notes=notes,
+            )
+        except Exception as exc:
+            logging.getLogger('clients').exception(
+                'Kiosk document save failed (%s) client=%s doc_type=%s: %s',
+                type(exc).__name__,
+                client.pk,
+                doc_type,
+                exc,
+            )
+            return Response(
+                {
+                    'detail': 'That file could not be stored. Try a PDF, JPG, or PNG.'
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         return Response(
             {

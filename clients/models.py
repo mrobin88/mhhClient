@@ -110,6 +110,50 @@ class Client(models.Model):
         (PIT_STOP_STAGE_WAITLISTED, 'Waitlisted'),
     ]
 
+    # City Build / CBA pipeline. Drug-test result is not stored — only that
+    # they are at the drug-test step. Accepted/dropped are pre-registration;
+    # enrolled/arrived/completed are the 12-week CBA program.
+    CITYBUILD_STAGE_GENERAL_INTEREST = 'general_interest'
+    CITYBUILD_STAGE_INTERVIEW_SCHEDULED = 'interview_scheduled'
+    CITYBUILD_STAGE_INTERVIEW_COMPLETED = 'interview_completed'
+    CITYBUILD_STAGE_DRUG_TEST = 'drug_test'
+    CITYBUILD_STAGE_IN_THE_RUNNING = 'in_the_running'
+    CITYBUILD_STAGE_WAITLISTED = 'waitlisted'
+    CITYBUILD_STAGE_ACCEPTED = 'accepted'
+    CITYBUILD_STAGE_DROPPED = 'dropped'
+    CITYBUILD_STAGE_ENROLLED = 'enrolled'
+    CITYBUILD_STAGE_ARRIVED = 'arrived'
+    CITYBUILD_STAGE_COMPLETED = 'completed'
+
+    CITYBUILD_STAGE_CHOICES = [
+        (CITYBUILD_STAGE_GENERAL_INTEREST, 'General interest'),
+        (CITYBUILD_STAGE_INTERVIEW_SCHEDULED, 'Interview scheduled'),
+        (CITYBUILD_STAGE_INTERVIEW_COMPLETED, 'Interview completed'),
+        (CITYBUILD_STAGE_DRUG_TEST, 'Drug test'),
+        (CITYBUILD_STAGE_IN_THE_RUNNING, 'In the running — file submission'),
+        (CITYBUILD_STAGE_WAITLISTED, 'Waitlisted'),
+        (CITYBUILD_STAGE_ACCEPTED, 'Accepted (pre-registration)'),
+        (CITYBUILD_STAGE_DROPPED, 'Dropped (pre-registration)'),
+        (CITYBUILD_STAGE_ENROLLED, 'Enrolled (CBA 12-week)'),
+        (CITYBUILD_STAGE_ARRIVED, 'Arrived (CBA 12-week)'),
+        (CITYBUILD_STAGE_COMPLETED, 'Completed (CBA 12-week)'),
+    ]
+    CITYBUILD_PRE_REGISTRATION_STAGES = {
+        CITYBUILD_STAGE_GENERAL_INTEREST,
+        CITYBUILD_STAGE_INTERVIEW_SCHEDULED,
+        CITYBUILD_STAGE_INTERVIEW_COMPLETED,
+        CITYBUILD_STAGE_DRUG_TEST,
+        CITYBUILD_STAGE_IN_THE_RUNNING,
+        CITYBUILD_STAGE_WAITLISTED,
+        CITYBUILD_STAGE_ACCEPTED,
+        CITYBUILD_STAGE_DROPPED,
+    }
+    CITYBUILD_CBA_STAGES = {
+        CITYBUILD_STAGE_ENROLLED,
+        CITYBUILD_STAGE_ARRIVED,
+        CITYBUILD_STAGE_COMPLETED,
+    }
+
     # Personal Information
     first_name = models.CharField(max_length=50)
     middle_name = models.CharField(max_length=50, blank=True, null=True)
@@ -168,6 +212,17 @@ class Client(models.Model):
         default=PIT_STOP_STAGE_APPLICANT,
         help_text='Pit Stop lifecycle stage used to protect applicants, active participants, workers, and exited clients.',
     )
+    citybuild_stage = models.CharField(
+        max_length=32,
+        choices=CITYBUILD_STAGE_CHOICES,
+        default=CITYBUILD_STAGE_GENERAL_INTEREST,
+        db_index=True,
+        help_text=(
+            'City Build pipeline. Accepted/dropped are pre-registration. '
+            'Enrolled/arrived/completed are the CBA 12-week program. '
+            'Drug-test result is not stored.'
+        ),
+    )
     
     # Program Completion & Job Placement Tracking
     program_start_date = models.DateField(blank=True, null=True, help_text="Date when client started their program")
@@ -203,16 +258,21 @@ class Client(models.Model):
         return " ".join(parts)
 
     def save(self, *args, **kwargs):
-        if self.ssn:
-            digits = ''.join(character for character in self.ssn if character.isdigit())
-            self.ssn_last4 = digits[-4:] if len(digits) >= 4 else ''
-            self.ssn_key_id = str(getattr(settings, 'SSN_ACTIVE_KEY_ID', 'v1'))
-            update_fields = kwargs.get('update_fields')
-            if update_fields and 'ssn' in update_fields:
+        update_fields = kwargs.get('update_fields')
+        ssn_is_being_saved = update_fields is None or 'ssn' in update_fields
+        # Resume/staff-name-only saves must not touch SSN. Production has no
+        # encryption keys; reading or rewriting that column must not take
+        # document upload or a staff PATCH down with it.
+        if ssn_is_being_saved:
+            if self.ssn:
+                digits = ''.join(character for character in self.ssn if character.isdigit())
+                self.ssn_last4 = digits[-4:] if len(digits) >= 4 else ''
+                self.ssn_key_id = str(getattr(settings, 'SSN_ACTIVE_KEY_ID', 'v1'))
+            else:
+                self.ssn_last4 = ''
+                self.ssn_key_id = ''
+            if update_fields is not None:
                 kwargs['update_fields'] = set(update_fields) | {'ssn_last4', 'ssn_key_id'}
-        else:
-            self.ssn_last4 = ''
-            self.ssn_key_id = ''
         return super().save(*args, **kwargs)
     
     @property
@@ -719,5 +779,4 @@ class JobPlacement(models.Model):
 # Import extended models for worker dispatch system
 from .models_extensions import (
     WorkSite,
-    WorkAssignment,
 )

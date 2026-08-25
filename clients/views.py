@@ -33,15 +33,13 @@ import logging
 from django.utils import timezone
 
 
-MAX_RESUME_UPLOAD_BYTES = 10 * 1024 * 1024
-MAX_SUPPORTING_DOC_UPLOAD_BYTES = 8 * 1024 * 1024
 ALLOWED_RESUME_EXTENSIONS = {'.pdf', '.doc', '.docx', '.txt'}
 ALLOWED_SUPPORTING_DOC_EXTENSIONS = {
     '.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'
 }
 
 
-def _validate_uploaded_file(upload, *, allowed_extensions, max_bytes, label):
+def _validate_uploaded_file(upload, *, allowed_extensions, label, max_bytes=None):
     if not upload:
         return None
 
@@ -53,7 +51,7 @@ def _validate_uploaded_file(upload, *, allowed_extensions, max_bytes, label):
         return f'{label} has an unsupported file type.'
     if size <= 0:
         return f'{label} appears to be empty.'
-    if size > max_bytes:
+    if max_bytes and size > max_bytes:
         mb = max_bytes // (1024 * 1024)
         return f'{label} is too large (max {mb}MB).'
     return None
@@ -109,7 +107,6 @@ class ClientViewSet(viewsets.ModelViewSet):
         resume_error = _validate_uploaded_file(
             request.FILES.get('resume'),
             allowed_extensions=ALLOWED_RESUME_EXTENSIONS,
-            max_bytes=MAX_RESUME_UPLOAD_BYTES,
             label='Resume',
         )
         if resume_error:
@@ -125,7 +122,6 @@ class ClientViewSet(viewsets.ModelViewSet):
             doc_error = _validate_uploaded_file(
                 request.FILES.get(key),
                 allowed_extensions=ALLOWED_SUPPORTING_DOC_EXTENSIONS,
-                max_bytes=MAX_SUPPORTING_DOC_UPLOAD_BYTES,
                 label=label,
             )
             if doc_error:
@@ -136,9 +132,26 @@ class ClientViewSet(viewsets.ModelViewSet):
         try:
             self.perform_create(serializer)
         except Exception as exc:
-            logging.getLogger('clients').exception('Client create upload save failed: %s', exc)
+            logging.getLogger('clients').exception(
+                'Client create failed (%s): %s', type(exc).__name__, exc
+            )
+            if request.FILES:
+                return Response(
+                    {
+                        'detail': (
+                            'Upload failed while saving files. Please retry with smaller '
+                            'files or a different format.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             return Response(
-                {'detail': 'Upload failed while saving files. Please retry with smaller files or a different format.'},
+                {
+                    'detail': (
+                        'Unable to save this application. Try again, or leave Social '
+                        'Security blank and bring it in person.'
+                    )
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         headers = self.get_success_headers(serializer.data)

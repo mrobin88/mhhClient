@@ -1,26 +1,41 @@
 """Application-level encrypted model fields for sensitive client data."""
 
+import logging
+
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 
 
 ENCRYPTED_PREFIX = "enc:"
+logger = logging.getLogger("clients")
+_logged_unusable_keyring = False
 
 
 def _configured_fernet_keys():
-    """Return configured Fernet instances keyed by rotation id."""
+    """Return configured Fernet instances keyed by rotation id.
+
+    Never raise: a bad Azure app setting must not take down signup, staff
+    save, or document upload. Invalid keyrings are treated as unconfigured.
+    """
     from cryptography.fernet import Fernet
 
-    configured = getattr(settings, "SSN_ENCRYPTION_KEYS", {})
-    if not configured:
+    configured = getattr(settings, "SSN_ENCRYPTION_KEYS", {}) or {}
+    if not isinstance(configured, dict) or not configured:
         return {}
     try:
         return {str(key_id): Fernet(value.encode("ascii")) for key_id, value in configured.items()}
-    except (AttributeError, TypeError, ValueError) as exc:
-        raise ImproperlyConfigured(
-            "SSN_ENCRYPTION_KEYS must map key ids to valid Fernet keys."
-        ) from exc
+    except Exception:
+        global _logged_unusable_keyring
+        if not _logged_unusable_keyring:
+            logger.exception("SSN_ENCRYPTION_KEYS is not a usable Fernet keyring; storing SSN as-is.")
+            _logged_unusable_keyring = True
+        return {}
+
+
+def ssn_encryption_is_configured():
+    keys = _configured_fernet_keys()
+    active_key_id = str(getattr(settings, "SSN_ACTIVE_KEY_ID", "v1"))
+    return active_key_id in keys
 
 
 def encrypt_sensitive_value(value):
@@ -28,15 +43,19 @@ def encrypt_sensitive_value(value):
         return value
     if isinstance(value, str) and value.startswith(ENCRYPTED_PREFIX):
         return value
+    if not ssn_encryption_is_configured():
+        # Production currently has no keyring. Do not fail staff/public saves;
+        # keep the existing value until keys are configured.
+        return value
 
-    keys = _configured_fernet_keys()
-    active_key_id = str(getattr(settings, "SSN_ACTIVE_KEY_ID", "v1"))
-    if active_key_id not in keys:
-        raise ImproperlyConfigured(
-            f"SSN_ACTIVE_KEY_ID {active_key_id!r} is not configured in SSN_ENCRYPTION_KEYS."
-        )
-    token = keys[active_key_id].encrypt(str(value).encode("utf-8")).decode("ascii")
-    return f"{ENCRYPTED_PREFIX}{active_key_id}:{token}"
+    try:
+        keys = _configured_fernet_keys()
+        active_key_id = str(getattr(settings, "SSN_ACTIVE_KEY_ID", "v1"))
+        token = keys[active_key_id].encrypt(str(value).encode("utf-8")).decode("ascii")
+        return f"{ENCRYPTED_PREFIX}{active_key_id}:{token}"
+    except Exception:
+        logger.exception("SSN encryption failed; persisting the value without encryption.")
+        return value
 
 
 def decrypt_sensitive_value(value):
@@ -50,16 +69,16 @@ def decrypt_sensitive_value(value):
 
     try:
         _, key_id, token = value.split(":", 2)
-    except ValueError as exc:
-        raise ValueError("Encrypted SSN has an invalid envelope.") from exc
+    except ValueError:
+        return value
 
     key = _configured_fernet_keys().get(key_id)
     if key is None:
-        raise ImproperlyConfigured(f"Missing SSN encryption key {key_id!r}.")
+        return value
     try:
         return key.decrypt(token.encode("ascii")).decode("utf-8")
-    except InvalidToken as exc:
-        raise ValueError("Encrypted SSN could not be authenticated.") from exc
+    except (InvalidToken, ValueError, TypeError):
+        return value
 
 
 class EncryptedSSNField(models.TextField):
@@ -68,10 +87,22 @@ class EncryptedSSNField(models.TextField):
     description = "SSN encrypted with the configured application key"
 
     def from_db_value(self, value, expression, connection):
-        return decrypt_sensitive_value(value)
+        try:
+            return decrypt_sensitive_value(value)
+        except Exception:
+            logger.exception("SSN decrypt failed while loading a client row.")
+            return value
 
     def to_python(self, value):
-        return decrypt_sensitive_value(value)
+        try:
+            return decrypt_sensitive_value(value)
+        except Exception:
+            return value
 
     def get_prep_value(self, value):
-        return encrypt_sensitive_value(super().get_prep_value(value))
+        prepared = super().get_prep_value(value)
+        try:
+            return encrypt_sensitive_value(prepared)
+        except Exception:
+            logger.exception("SSN encrypt failed while preparing a client row.")
+            return prepared

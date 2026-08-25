@@ -226,6 +226,59 @@
         </div>
       </div>
 
+      <!-- City Build / CBA pipeline -->
+      <div v-if="form.training_interest === 'citybuild'" id="client-citybuild" class="staff-card p-4">
+        <div class="staff-panel-header">
+          <span class="material-symbols-outlined" aria-hidden="true">apartment</span>
+          <h3>City Build</h3>
+          <StaffTip text="Pre-registration is everything before the CBA 12-week program, including interviews, drug test, file submission, accepted, dropped, and waitlisted. Enrolled and Arrived mean they are in the 12-week program." />
+        </div>
+
+        <div class="staff-field mb-3">
+          <label for="cd-citybuild-stage">
+            Stage
+            <StaffTip text="Change this as they move through City Build, then tap Save changes above. Drug-test result is not stored — only that they are at that step." />
+          </label>
+          <select id="cd-citybuild-stage" v-model="form.citybuild_stage" class="staff-input">
+            <optgroup
+              v-for="group in CITYBUILD_STAGE_GROUPS"
+              :key="group.label"
+              :label="group.label"
+            >
+              <option v-for="opt in group.options" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </optgroup>
+          </select>
+        </div>
+
+        <p
+          v-if="form.citybuild_stage === 'in_the_running'"
+          class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-stone-700"
+        >
+          In the running means it is time for file submission.
+          <template v-if="citybuildPacket">
+            Packet: {{ citybuildPacket.on_file }} of {{ citybuildPacket.total }} items on file
+            <template v-if="citybuildPacket.missing_count">
+              ({{ citybuildPacket.missing_count }} still needed).
+            </template>
+          </template>
+          Use the document upload link below so they can send files.
+        </p>
+        <p
+          v-else-if="form.citybuild_stage === 'drug_test'"
+          class="text-sm text-stone-600"
+        >
+          They are at the drug-test step. Do not record a positive or negative result here.
+        </p>
+        <p
+          v-else-if="form.citybuild_stage === 'enrolled' || form.citybuild_stage === 'arrived'"
+          class="text-sm text-stone-600"
+        >
+          This person is in the CBA 12-week program.
+        </p>
+      </div>
+
       <!-- Classes & Orientation -->
       <div id="client-classes" class="staff-card p-4 relative">
         <div
@@ -437,6 +490,30 @@ const PIT_STOP_STAGE_OPTIONS = [
   { value: 'exited', label: 'Exited program' },
 ]
 
+const CITYBUILD_STAGE_GROUPS = [
+  {
+    label: 'Pre-registration',
+    options: [
+      { value: 'general_interest', label: 'General interest' },
+      { value: 'interview_scheduled', label: 'Interview scheduled' },
+      { value: 'interview_completed', label: 'Interview completed' },
+      { value: 'drug_test', label: 'Drug test' },
+      { value: 'in_the_running', label: 'In the running — file submission' },
+      { value: 'waitlisted', label: 'Waitlisted' },
+      { value: 'accepted', label: 'Accepted' },
+      { value: 'dropped', label: 'Dropped' },
+    ],
+  },
+  {
+    label: 'CBA 12-week program',
+    options: [
+      { value: 'enrolled', label: 'Enrolled' },
+      { value: 'arrived', label: 'Arrived' },
+      { value: 'completed', label: 'Completed' },
+    ],
+  },
+]
+
 const EMPLOYMENT_OPTIONS = [
   { value: 'unemployed', label: 'Unemployed' },
   { value: 'part_time', label: 'Part-time' },
@@ -498,6 +575,9 @@ interface ClientDetail {
   training_interest: string
   pit_stop_stage: string
   pit_stop_stage_display?: string
+  citybuild_stage: string
+  citybuild_stage_display?: string
+  citybuild_packet?: { on_file: number; total: number; missing_count: number } | null
   worker_portal?: WorkerPortal | null
   pit_stop_application?: PitStopApplication | null
   employment_status: string
@@ -557,6 +637,7 @@ const emptyForm = () => ({
   status: 'active',
   training_interest: 'general',
   pit_stop_stage: 'applicant',
+  citybuild_stage: 'general_interest',
   employment_status: 'unemployed',
   language: 'en',
   address: '',
@@ -591,6 +672,7 @@ const formDirty = computed(() => JSON.stringify(form) !== savedSnapshot.value)
 
 const workerPortal = computed(() => client.value?.worker_portal || null)
 const pitStopApplication = computed(() => client.value?.pit_stop_application || null)
+const citybuildPacket = computed(() => client.value?.citybuild_packet || null)
 const pitStopAdminUrl = computed(() =>
   pitStopApplication.value
     ? getApiUrl(`/admin/clients/pitstopapplication/${pitStopApplication.value.id}/change/`)
@@ -636,6 +718,7 @@ function syncForm(c: ClientDetail) {
   form.status = c.status || 'active'
   form.training_interest = c.training_interest || 'general'
   form.pit_stop_stage = c.pit_stop_stage || 'applicant'
+  form.citybuild_stage = c.citybuild_stage || 'general_interest'
   form.employment_status = c.employment_status || 'unemployed'
   form.language = c.language || 'en'
   form.address = c.address || ''
@@ -727,6 +810,7 @@ async function saveClient() {
         status: form.status,
         training_interest: form.training_interest,
         pit_stop_stage: form.pit_stop_stage,
+        citybuild_stage: form.citybuild_stage,
         employment_status: form.employment_status,
         language: form.language,
         address: form.address.trim() || null,
@@ -845,7 +929,7 @@ async function unenrollFromClass(enrollment: ClientClassEnrollment) {
       toast.error(friendlyError(body, 'Could not remove client from that class.'))
       return
     }
-    toast.success('Removed from class.')
+    toast.success(body?.message || 'Removed from class.')
     await loadClasses()
   } catch (e) {
     toast.error(networkErrorMessage(e))

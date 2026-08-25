@@ -26,7 +26,6 @@ from .staff_auth import StaffSessionAuthentication
 from .staff_utils import staff_display_name
 from .views import (
     ALLOWED_SUPPORTING_DOC_EXTENSIONS,
-    MAX_SUPPORTING_DOC_UPLOAD_BYTES,
     _validate_uploaded_file,
 )
 
@@ -348,7 +347,6 @@ def dashboard_document_upload(request):
     validation_error = _validate_uploaded_file(
         upload,
         allowed_extensions=ALLOWED_SUPPORTING_DOC_EXTENSIONS,
-        max_bytes=MAX_SUPPORTING_DOC_UPLOAD_BYTES,
         label='Document',
     )
     if validation_error:

@@ -850,17 +850,19 @@ select.staff-input:disabled {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(6px);
 }
-.staff-guide-toc a {
+.staff-guide-toc button {
   font-size: 0.72rem;
   font-weight: 700;
+  font-family: inherit;
   color: var(--staff-muted);
   border: 1px solid var(--staff-border);
   border-radius: 999px;
   padding: 0.3rem 0.65rem;
-  text-decoration: none;
+  background: transparent;
+  cursor: pointer;
   transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
-.staff-guide-toc a:hover {
+.staff-guide-toc button:hover {
   background: var(--staff-accent-soft);
   border-color: var(--staff-accent);
   color: var(--staff-accent-dark);
@@ -915,10 +917,11 @@ select.staff-input:disabled {
   line-height: 1.5;
   margin: 0.2rem 0 0;
 }
-.staff-guide-item-limit {
-  font-size: 0.75rem;
-  color: var(--staff-danger);
-  margin: 0.35rem 0 0;
+.staff-guide-item-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.85rem;
+  margin-top: 0.45rem;
 }
 .staff-guide-item-link {
   display: inline-flex;
@@ -929,6 +932,9 @@ select.staff-input:disabled {
   font-weight: 700;
   color: var(--staff-accent-dark);
   text-decoration: none;
+}
+.staff-guide-item-links .staff-guide-item-link {
+  margin-top: 0;
 }
 .staff-guide-item-link:hover {
   text-decoration: underline;

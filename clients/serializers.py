@@ -3,7 +3,6 @@ from .models import Client, CaseNote, PitStopApplication
 from .models_extensions import (
     WorkerAccount,
     WorkerDailyFeedback,
-    WorkAssignment,
     WorkSite,
     WorkerTimePunch,
 )
@@ -229,38 +228,11 @@ class WorkSiteSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
-class WorkAssignmentSerializer(serializers.ModelSerializer):
-    """Serializer for work assignments"""
-    client_name = serializers.CharField(source='client.full_name', read_only=True)
-    work_site_name = serializers.CharField(source='work_site.name', read_only=True)
-    work_site_address = serializers.CharField(source='work_site.address', read_only=True)
-    work_site_supervisor = serializers.CharField(source='work_site.supervisor_name', read_only=True)
-    work_site_supervisor_phone = serializers.CharField(source='work_site.supervisor_phone', read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    is_today = serializers.ReadOnlyField()
-    is_upcoming = serializers.ReadOnlyField()
-    location_display = serializers.SerializerMethodField()
-
-    class Meta:
-        model = WorkAssignment
-        fields = '__all__'
-        read_only_fields = ['created_at', 'updated_at', 'assigned_by']
-
-    def get_location_display(self, obj):
-        if not obj.work_site:
-            return 'Location to be confirmed'
-        parts = [obj.work_site.name]
-        if obj.work_site.address:
-            parts.append(obj.work_site.address)
-        return ' - '.join(parts)
-
-
 class WorkerTimePunchSerializer(serializers.ModelSerializer):
     """Worker-facing clock in/out record."""
 
     is_open = serializers.SerializerMethodField()
     duration_minutes = serializers.SerializerMethodField()
-    assignment_label = serializers.SerializerMethodField()
     work_site_name = serializers.CharField(source='work_site.name', read_only=True)
     clock_in_map_url = serializers.SerializerMethodField()
     clock_out_map_url = serializers.SerializerMethodField()
@@ -272,8 +244,6 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
         model = WorkerTimePunch
         fields = [
             'id',
-            'assignment',
-            'assignment_label',
             'work_site',
             'work_site_name',
             'clock_in_at',
@@ -315,14 +285,5 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
             return None
         duration_seconds = (obj.clock_out_at - obj.clock_in_at).total_seconds()
         return int(max(duration_seconds, 0) // 60)
-
-    def get_assignment_label(self, obj):
-        assignment = getattr(obj, 'assignment', None)
-        if assignment:
-            site_name = assignment.work_site.name if getattr(assignment, 'work_site', None) else 'Work site'
-            return f'{assignment.assignment_date} {assignment.start_time} - {site_name}'
-        if obj.work_site:
-            return obj.work_site.name
-        return ''
 
 

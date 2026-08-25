@@ -30,14 +30,6 @@ def api_info(request):
                         {'name': 'API Root', 'path': '/api/', 'description': 'Browsable root for all API endpoints.'},
                         {'name': 'Clients API', 'path': '/api/clients/', 'description': 'Client records and workflow data.'},
                         {'name': 'PitStop Applications', 'path': '/api/pitstop-applications/', 'description': 'PitStop application intake endpoints.'},
-                        {'name': 'Partner referrals (POST)', 'path': '/api/partners/v1/referrals/', 'description': 'Write-only partner ingest (API key).'},
-                    ],
-                },
-                {
-                    'title': 'Partners',
-                    'items': [
-                        {'name': 'Partner API docs', 'path': f'{settings.PUBLIC_APP_BASE_URL}/partners/', 'description': 'Technical docs for write-only partner referral ingest.'},
-                        {'name': 'Partners in Admin', 'path': '/admin/clients/partner/', 'description': 'Create partners, rotate keys, review referrals.'},
                     ],
                 },
                 {

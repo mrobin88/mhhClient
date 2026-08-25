@@ -10,9 +10,6 @@ from .views import (
 )
 from .reports import (
     ReportsHubView,
-    AvailableWorkersCSVView,
-    CallOutReportCSVView,
-    TodaysAssignmentsCSVView,
     ClientOutcomesReportCSVView,
     ClientOutcomesPackageView,
     ManagerOperationsPackageView,
@@ -83,7 +80,6 @@ from .class_views import (
     staff_class_session_update,
     staff_class_enrollment_status,
 )
-from .partner_views import PartnerReferralIngestView
 from .upload_invite_views import (
     PublicDocumentUploadInviteView,
     staff_client_upload_invites,
@@ -108,9 +104,6 @@ urlpatterns = [
     
     # CSV Export Reports
     path('reports/', ReportsHubView.as_view(), name='reports-hub'),
-    path('reports/available-workers/', AvailableWorkersCSVView.as_view(), name='available-workers-csv'),
-    path('reports/callouts/', CallOutReportCSVView.as_view(), name='callouts-report-csv'),
-    path('reports/todays-assignments/', TodaysAssignmentsCSVView.as_view(), name='todays-assignments-csv'),
     path('reports/client-outcomes/', ClientOutcomesReportCSVView.as_view(), name='client-outcomes-report-csv'),
     path('reports/client-outcomes-package/', ClientOutcomesPackageView.as_view(), name='client-outcomes-package'),
     path('reports/manager-operations-package/', ManagerOperationsPackageView.as_view(), name='manager-operations-package'),
@@ -228,12 +221,5 @@ urlpatterns = [
         'staff/classes/enrollments/<int:enrollment_id>/status/',
         staff_class_enrollment_status,
         name='staff-class-enrollment-status',
-    ),
-
-    # Partner write-only ingest (API key; not staff session)
-    path(
-        'partners/v1/referrals/',
-        PartnerReferralIngestView.as_view(),
-        name='partner-referral-ingest',
     ),
 ]

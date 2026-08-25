@@ -3,7 +3,6 @@ Extended models for worker dispatch and availability tracking
 """
 from django.conf import settings
 from django.db import models
-from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import Client, CaseNote
 
@@ -64,109 +63,6 @@ class WorkSite(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.neighborhood})" if self.neighborhood else self.name
-    
-    @property
-    def current_assignments_count(self):
-        """Count of current active assignments"""
-        from datetime import date
-        return self.assignments.filter(
-            assignment_date=date.today(),
-            status__in=['confirmed', 'in_progress']
-        ).count()
-    
-    @property
-    def has_capacity_today(self):
-        """Check if site has capacity for more workers today"""
-        return self.current_assignments_count < self.max_workers_per_shift
-
-
-class WorkAssignment(models.Model):
-    """Track work assignments for clients at Pit Stop sites"""
-    
-    STATUS_CHOICES = [
-        ('pending', 'Pending Confirmation'),
-        ('confirmed', 'Confirmed'),
-        ('in_progress', 'In Progress'),
-        ('completed', 'Completed'),
-        ('no_show', 'No Show'),
-        ('called_out', 'Called Out'),
-        ('cancelled', 'Cancelled')
-    ]
-    
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='work_assignments')
-    work_site = models.ForeignKey(WorkSite, on_delete=models.CASCADE, related_name='assignments')
-    
-    # Assignment details
-    assignment_date = models.DateField(help_text='Date of work assignment')
-    start_time = models.TimeField()
-    end_time = models.TimeField()
-    
-    # Status tracking
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    confirmed_by_client = models.BooleanField(default=False)
-    confirmed_at = models.DateTimeField(null=True, blank=True)
-    
-    # Assignment management
-    assigned_by = models.CharField(max_length=100, help_text='Staff member who made the assignment')
-    assignment_notes = models.TextField(blank=True)
-    
-    # Call-out tracking
-    called_out_at = models.DateTimeField(null=True, blank=True)
-    callout_reason = models.TextField(blank=True)
-    replacement_found = models.BooleanField(default=False)
-    replacement_client = models.ForeignKey(
-        Client, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
-        related_name='replacement_assignments'
-    )
-    
-    # Completion tracking
-    hours_worked = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
-    performance_notes = models.TextField(blank=True)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        ordering = ['-assignment_date', 'start_time']
-        verbose_name = 'Work Assignment'
-        verbose_name_plural = 'Work Assignments'
-    
-    def __str__(self):
-        return f"{self.client.full_name} → {self.work_site.name} on {self.assignment_date}"
-    
-    def clean(self):
-        """Validate assignment doesn't exceed site capacity"""
-        if self.pk:
-            return
-        
-        same_day_assignments = WorkAssignment.objects.filter(
-            work_site=self.work_site,
-            assignment_date=self.assignment_date,
-            status__in=['confirmed', 'pending', 'in_progress']
-        ).count()
-        
-        if same_day_assignments >= self.work_site.max_workers_per_shift:
-            raise ValidationError(
-                f"{self.work_site.name} is already at capacity ({self.work_site.max_workers_per_shift} workers) for {self.assignment_date}"
-            )
-    
-    @property
-    def is_today(self):
-        from datetime import date
-        return self.assignment_date == date.today()
-    
-    @property
-    def is_upcoming(self):
-        from datetime import date
-        return self.assignment_date > date.today()
-    
-    @property
-    def needs_replacement(self):
-        """Check if this assignment was called out and needs a replacement"""
-        return self.status == 'called_out' and not self.replacement_found
 
 
 def worker_punch_map_upload_to(instance, filename):
@@ -201,14 +97,6 @@ class WorkerTimePunch(models.Model):
         'WorkerAccount',
         on_delete=models.CASCADE,
         related_name='time_punches',
-    )
-    assignment = models.ForeignKey(
-        WorkAssignment,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='time_punches',
-        help_text='Work assignment this punch belongs to. New punches should always set this.',
     )
     work_site = models.ForeignKey(
         WorkSite,
@@ -296,7 +184,6 @@ class WorkerTimePunch(models.Model):
         verbose_name_plural = 'Worker Time Punches'
         indexes = [
             models.Index(fields=['worker_account', 'clock_out_at']),
-            models.Index(fields=['assignment', 'clock_out_at']),
             models.Index(fields=['work_site', 'clock_out_at']),
             models.Index(fields=['clock_in_at']),
         ]
@@ -339,6 +226,7 @@ class ClientTextMessage(models.Model):
 
     PURPOSE_PROGRESS_FOLLOWUP = 'progress_followup'
     PURPOSE_CLASS_CONFIRMATION = 'class_confirmation'
+    PURPOSE_CLASS_UPDATE = 'class_update'
     PURPOSE_ASSIGNMENT = 'assignment'
     PURPOSE_GENERAL = 'general'
 
@@ -355,6 +243,7 @@ class ClientTextMessage(models.Model):
     PURPOSE_CHOICES = [
         (PURPOSE_PROGRESS_FOLLOWUP, 'Progress follow-up'),
         (PURPOSE_CLASS_CONFIRMATION, 'Class confirmation'),
+        (PURPOSE_CLASS_UPDATE, 'Class update'),
         (PURPOSE_ASSIGNMENT, 'Assignment'),
         (PURPOSE_GENERAL, 'General'),
     ]

@@ -10,6 +10,7 @@ or renaming something.
 Session-authenticated, staff-only, single-tenant.
 """
 from datetime import timedelta
+import logging
 
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
@@ -320,13 +321,28 @@ def staff_class_unenroll(request, session_id):
     if not client_id:
         return Response({'client_id': ['Select a client.']}, status=status.HTTP_400_BAD_REQUEST)
 
-    enrollment = ClassEnrollment.objects.filter(session_id=session_id, client_id=client_id).first()
+    enrollment = (
+        ClassEnrollment.objects.select_related('client', 'session', 'session__template')
+        .filter(session_id=session_id, client_id=client_id)
+        .first()
+    )
     if not enrollment:
         return Response({'error': 'Enrollment not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+    was_active = enrollment.status in ('registered', 'attended')
     enrollment.status = 'cancelled'
     enrollment.save(update_fields=['status'])
-    return Response({'message': 'Removed from class.'})
+
+    from .notifications import send_class_roster_notice
+
+    text_note = ''
+    if was_active:
+        outcome, _detail = send_class_roster_notice(enrollment, 'removed')
+        if outcome == 'sent':
+            text_note = ' The client was texted.'
+        elif outcome == 'failed':
+            text_note = ' The client could not be texted.'
+    return Response({'message': f'Removed from class.{text_note}'.strip()})
 
 
 @api_view(['GET'])
@@ -639,6 +655,14 @@ def staff_class_session_update(request, session_id):
     except ClassSession.DoesNotExist:
         return Response({'error': 'Session not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+    previous_status = session.status
+    previous_details = (
+        session.session_date,
+        session.start_time,
+        session.end_time,
+        (session.location or '').strip(),
+    )
+
     for field in ('session_date', 'start_time', 'end_time', 'location', 'facilitator', 'notes'):
         if field in request.data:
             value = request.data.get(field)
@@ -680,7 +704,29 @@ def staff_class_session_update(request, session_id):
     except ValidationError as exc:
         return Response(exc.message_dict, status=status.HTTP_400_BAD_REQUEST)
     session.save()
-    return Response({'message': 'Session updated.', 'session': _session_summary(session)})
+    details_changed = previous_details != (
+        session.session_date,
+        session.start_time,
+        session.end_time,
+        (session.location or '').strip(),
+    )
+    from .notifications import notify_class_session_change
+
+    try:
+        text_note = notify_class_session_change(
+            session,
+            previous_status=previous_status,
+            details_changed=details_changed,
+        )
+    except Exception:
+        logging.getLogger('clients').exception(
+            'Class change texts failed for session=%s', session.pk
+        )
+        text_note = ''
+    message = 'Session updated.'
+    if text_note:
+        message = f'{message} {text_note}'
+    return Response({'message': message, 'session': _session_summary(session)})
 
 
 @api_view(['POST'])
@@ -697,10 +743,27 @@ def staff_class_enrollment_status(request, enrollment_id):
         return Response({'status': ['Choose a valid status.']}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        enrollment = ClassEnrollment.objects.get(pk=enrollment_id)
+        enrollment = ClassEnrollment.objects.select_related(
+            'client', 'session', 'session__template'
+        ).get(pk=enrollment_id)
     except ClassEnrollment.DoesNotExist:
         return Response({'error': 'Enrollment not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+    was_active = enrollment.status in ('registered', 'attended')
     enrollment.status = new_status
     enrollment.save(update_fields=['status'])
-    return Response({'message': 'Updated.', 'status': enrollment.status, 'status_display': enrollment.get_status_display()})
+
+    text_note = ''
+    if was_active and new_status == 'cancelled':
+        from .notifications import send_class_roster_notice
+
+        outcome, _detail = send_class_roster_notice(enrollment, 'removed')
+        if outcome == 'sent':
+            text_note = ' The client was texted.'
+        elif outcome == 'failed':
+            text_note = ' The client could not be texted.'
+    return Response({
+        'message': f'Updated.{text_note}'.strip(),
+        'status': enrollment.status,
+        'status_display': enrollment.get_status_display(),
+    })

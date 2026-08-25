@@ -850,6 +850,21 @@ class DocumentUploadInviteTests(TestCase):
         invite.save(update_fields=['revoked_at'])
         expired = public.get(f'/api/document-upload/{token}/')
         self.assertEqual(expired.status_code, 410)
+        self.assertEqual(expired.json()['code'], 'revoked')
+
+    def test_expired_link_returns_expired_page_payload(self):
+        invite, token = DocumentUploadInvite.issue(
+            client=self.client_record,
+            allowed_doc_types=['id'],
+            created_by=self.staff,
+        )
+        invite.expires_at = timezone.now() - timedelta(days=1)
+        invite.save(update_fields=['expires_at'])
+        public = APIClient()
+        response = public.get(f'/api/document-upload/{token}/')
+        self.assertEqual(response.status_code, 410)
+        self.assertEqual(response.json()['code'], 'expired')
+        self.assertIn('expired', response.json()['detail'].lower())
 
 
 @override_settings(
@@ -1317,6 +1332,76 @@ class StaffSpaApiTests(TestCase):
         self.assertEqual(len(payload), 1)
         self.assertEqual(payload[0]['full_name'], 'Maria Lopez')
 
+    @override_settings(SSN_ACTIVE_KEY_ID='v1', SSN_ENCRYPTION_KEYS={})
+    def test_staff_can_patch_client_info_when_ssn_is_on_file_and_keys_are_missing(self):
+        self.client_record.ssn = '123-45-6789'
+        self.client_record.save()
+        self.http.login(username='case_mgr', password='staffpass123')
+
+        response = self.http.patch(
+            f'/api/staff/clients/{self.client_record.pk}/',
+            data={
+                'first_name': 'Maria',
+                'last_name': 'Lopez',
+                'phone': '4155559090',
+                'status': 'active',
+                'training_interest': 'citybuild',
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.client_record.refresh_from_db()
+        self.assertEqual(self.client_record.training_interest, 'citybuild')
+        self.assertEqual(self.client_record.ssn, '123-45-6789')
+
+    def test_staff_can_set_citybuild_stage_including_file_submission(self):
+        self.client_record.training_interest = 'citybuild'
+        self.client_record.save(update_fields=['training_interest'])
+        self.http.login(username='case_mgr', password='staffpass123')
+
+        response = self.http.patch(
+            f'/api/staff/clients/{self.client_record.pk}/',
+            data={
+                'first_name': 'Maria',
+                'last_name': 'Lopez',
+                'phone': '4155559090',
+                'status': 'active',
+                'training_interest': 'citybuild',
+                'citybuild_stage': 'in_the_running',
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['citybuild_stage'], 'in_the_running')
+        self.assertIn('file submission', payload['citybuild_stage_display'].lower())
+        self.assertIn('citybuild_packet', payload)
+        self.assertNotIn('drug_test_result', payload)
+        self.client_record.refresh_from_db()
+        self.assertEqual(self.client_record.citybuild_stage, 'in_the_running')
+
+    def test_staff_can_filter_citybuild_clients_by_cba_stage(self):
+        self.client_record.training_interest = 'citybuild'
+        self.client_record.citybuild_stage = 'arrived'
+        self.client_record.save(update_fields=['training_interest', 'citybuild_stage'])
+        other = Client.objects.create(
+            first_name='Sam',
+            last_name='Wait',
+            phone='4155559091',
+            gender='M',
+            training_interest='citybuild',
+            citybuild_stage='waitlisted',
+        )
+        self.http.login(username='case_mgr', password='staffpass123')
+
+        response = self.http.get('/api/staff/clients/?program=citybuild&stage=arrived')
+        self.assertEqual(response.status_code, 200)
+        names = [row['full_name'] for row in response.json()]
+        self.assertEqual(names, ['Maria Lopez'])
+        self.assertNotIn(other.full_name, names)
+
     def test_staff_quick_case_note(self):
         self.http.login(username='case_mgr', password='staffpass123')
         response = self.http.post(
@@ -1666,8 +1751,15 @@ class ClassConfirmationSmsTests(TestCase):
         )
 
         self.assertEqual(again.status_code, 201)
-        self.assertEqual(ClientTextMessage.objects.count(), 1)
-        self.assertEqual(sms_client_mock.return_value.send.call_count, 1)
+        self.assertEqual(
+            ClientTextMessage.objects.filter(purpose=ClientTextMessage.PURPOSE_CLASS_CONFIRMATION).count(),
+            1,
+        )
+        self.assertEqual(
+            ClientTextMessage.objects.filter(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE).count(),
+            1,
+        )
+        self.assertEqual(sms_client_mock.return_value.send.call_count, 2)
 
     @patch('clients.notifications._sms_client')
     def test_enrollment_still_succeeds_when_sms_provider_fails(self, sms_client_mock):
@@ -1737,6 +1829,96 @@ class ClassConfirmationSmsTests(TestCase):
             data={'client_id': self.client_record.pk},
         )
         self.assertIn(response.status_code, (401, 403))
+
+    def test_signup_text_includes_the_mission_hall_phone(self):
+        body = self._preview().json()['body']
+        self.assertIn('(415) 626-1919', body)
+        self.assertIn('to confirm', body)
+
+    def _enroll(self, sms_client_mock):
+        sms_client_mock.return_value.send.return_value = self._sent_result()
+        response = self.http.post(
+            self.url,
+            data={'client_id': self.client_record.pk},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201)
+        return ClassEnrollment.objects.get(session=self.session, client=self.client_record)
+
+    @patch('clients.notifications._sms_client')
+    def test_editing_a_class_texts_people_on_the_roster(self, sms_client_mock):
+        self._enroll(sms_client_mock)
+        new_date = (timezone.localdate() + timedelta(days=10)).isoformat()
+        response = self.http.patch(
+            f'/api/staff/classes/sessions/{self.session.pk}/',
+            data=json.dumps({
+                'session_date': new_date,
+                'start_time': '10:30:00',
+                'location': '169 11th St',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Texted 1 client', response.json()['message'])
+        update = ClientTextMessage.objects.get(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE)
+        self.assertIn('has changed', update.body)
+        self.assertIn('169 11th St', update.body)
+        self.assertIn('10:30 AM', update.body)
+        self.assertIn('(415) 626-1919', update.body)
+
+    @patch('clients.notifications._sms_client')
+    def test_cancelling_a_class_texts_people_on_the_roster(self, sms_client_mock):
+        self._enroll(sms_client_mock)
+        response = self.http.patch(
+            f'/api/staff/classes/sessions/{self.session.pk}/',
+            data=json.dumps({'status': 'cancelled'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        update = ClientTextMessage.objects.get(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE)
+        self.assertIn('cancelled', update.body)
+        self.assertIn('(415) 626-1919', update.body)
+
+    @patch('clients.notifications._sms_client')
+    def test_facilitator_only_edit_does_not_text(self, sms_client_mock):
+        self._enroll(sms_client_mock)
+        sms_client_mock.return_value.send.reset_mock()
+        response = self.http.patch(
+            f'/api/staff/classes/sessions/{self.session.pk}/',
+            data=json.dumps({'facilitator': 'Jordan'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['message'], 'Session updated.')
+        sms_client_mock.return_value.send.assert_not_called()
+        self.assertFalse(ClientTextMessage.objects.filter(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE).exists())
+
+    @patch('clients.notifications._sms_client')
+    def test_removing_someone_texts_them_to_call_the_hall(self, sms_client_mock):
+        self._enroll(sms_client_mock)
+        response = self.http.post(
+            f'/api/staff/classes/{self.session.pk}/unenroll/',
+            data={'client_id': self.client_record.pk},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('texted', response.json()['message'].lower())
+        update = ClientTextMessage.objects.get(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE)
+        self.assertIn('no longer signed up', update.body)
+        self.assertIn('(415) 626-1919', update.body)
+
+    @patch('clients.notifications._sms_client')
+    def test_class_change_is_silent_when_texting_is_off(self, sms_client_mock):
+        self._enroll(sms_client_mock)
+        with override_settings(SMS_CLASS_CONFIRMATION_ENABLED=False):
+            response = self.http.patch(
+                f'/api/staff/classes/sessions/{self.session.pk}/',
+                data=json.dumps({'status': 'cancelled'}),
+                content_type='application/json',
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['message'], 'Session updated.')
+        self.assertFalse(ClientTextMessage.objects.filter(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE).exists())
 
 
 @override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
@@ -1829,6 +2011,17 @@ class PublicClientRegistrationTests(TestCase):
             stored_ssn = cursor.fetchone()[0]
         self.assertTrue(stored_ssn.startswith('enc:v1:'))
         self.assertNotIn('123-45-6789', stored_ssn)
+
+    @override_settings(SSN_ACTIVE_KEY_ID='v1', SSN_ENCRYPTION_KEYS={})
+    def test_public_registration_without_encryption_keys_still_saves(self):
+        payload = {**self._registration_payload(), 'ssn': '123-45-6789'}
+        response = self.api.post('/api/clients/', payload, format='json')
+
+        self.assertEqual(response.status_code, 201)
+        self.assertNotIn('Upload failed while saving files', response.json().get('detail', ''))
+        client = Client.objects.get(pk=response.json()['id'])
+        self.assertEqual(client.first_name, 'Public')
+        self.assertEqual(client.ssn, '123-45-6789')
 
     def test_public_registration_rejects_invalid_ssn(self):
         payload = {**self._registration_payload(), 'ssn': '1234'}
@@ -2096,3 +2289,143 @@ class SelfServeDocumentUploadTests(TestCase):
         response = self._post(phone='4155559999')
         self.assertEqual(response.status_code, 400)
         self.assertFalse(self.client_record.documents.exists())
+
+
+@override_settings(
+    MEDIA_ROOT=TEST_MEDIA_ROOT,
+    SSN_ACTIVE_KEY_ID='v1',
+    SSN_ENCRYPTION_KEYS={},
+)
+class ProductionSaveAndUploadWithoutSsnKeysTests(TestCase):
+    """
+    Production Azure has no SSN_ENCRYPTION_KEYS and no staging slot.
+    Signup, file attach after create, and staff save must keep working.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        self.api = APIClient()
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='prod_staff',
+            password='staffpass123',
+            email='prod@example.com',
+            role='case_manager',
+        )
+
+    def _registration_payload(self):
+        return {
+            'first_name': 'Prod',
+            'last_name': 'Signup',
+            'phone': '4155554242',
+            'gender': 'M',
+            'ssn': '123-45-6789',
+            'training_interest': 'capsa',
+            'sf_resident': 'yes',
+            'neighborhood': 'mission',
+            'demographic_info': 'other',
+            'language': 'en',
+            'highest_degree': 'hs',
+            'employment_status': 'unemployed',
+            'referral_source': 'walk_in',
+        }
+
+    def test_signup_then_resume_and_id_upload_then_staff_save(self):
+        create = self.api.post('/api/clients/', self._registration_payload(), format='json')
+        self.assertEqual(create.status_code, 201, create.content)
+        client_id = create.json()['id']
+        client = Client.objects.get(pk=client_id)
+        self.assertEqual(client.ssn, '123-45-6789')
+
+        resume = self.api.post(
+            '/api/kiosk/check-in/upload-document/',
+            {
+                'client_id': client_id,
+                'phone': '4155554242',
+                'doc_type': 'resume',
+                'file': SimpleUploadedFile(
+                    'resume.pdf', b'%PDF-1.4 fake resume', content_type='application/pdf'
+                ),
+            },
+            format='multipart',
+        )
+        self.assertEqual(resume.status_code, 201, resume.content)
+
+        photo_id = self.api.post(
+            '/api/kiosk/check-in/upload-document/',
+            {
+                'client_id': client_id,
+                'phone': '4155554242',
+                'doc_type': 'id',
+                'file': SimpleUploadedFile(
+                    'license.jpg', b'fakejpeg', content_type='image/jpeg'
+                ),
+            },
+            format='multipart',
+        )
+        self.assertEqual(photo_id.status_code, 201, photo_id.content)
+
+        client.refresh_from_db()
+        self.assertTrue(client.documents.filter(doc_type='resume').exists())
+        self.assertTrue(client.documents.filter(doc_type='id').exists())
+        self.assertTrue(client.has_resume)
+        self.assertEqual(client.ssn, '123-45-6789')
+
+        staff_http = DjangoTestClient()
+        staff_http.login(username='prod_staff', password='staffpass123')
+        patch = staff_http.patch(
+            f'/api/staff/clients/{client_id}/',
+            data={
+                'first_name': 'Prod',
+                'last_name': 'Signup',
+                'phone': '4155554242',
+                'status': 'active',
+                'training_interest': 'citybuild',
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(patch.status_code, 200, patch.content)
+        client.refresh_from_db()
+        self.assertEqual(client.training_interest, 'citybuild')
+        self.assertEqual(client.ssn, '123-45-6789')
+
+    def test_full_model_save_with_ssn_does_not_error(self):
+        client = Client.objects.create(
+            first_name='Admin',
+            last_name='Path',
+            phone='4155554343',
+            gender='F',
+            ssn='987-65-4321',
+        )
+        client.address = '123 Mission St'
+        client.save()
+        client.refresh_from_db()
+        self.assertEqual(client.ssn, '987-65-4321')
+        self.assertEqual(client.address, '123 Mission St')
+
+    @override_settings(SSN_ENCRYPTION_KEYS={'v1': 'not-a-valid-fernet-key'})
+    def test_malformed_encryption_keys_do_not_block_signup_or_upload(self):
+        create = self.api.post('/api/clients/', self._registration_payload(), format='json')
+        self.assertEqual(create.status_code, 201, create.content)
+        client_id = create.json()['id']
+
+        upload = self.api.post(
+            '/api/kiosk/check-in/upload-document/',
+            {
+                'client_id': client_id,
+                'phone': '4155554242',
+                'doc_type': 'resume',
+                'file': SimpleUploadedFile(
+                    'resume.pdf', b'%PDF-1.4 fake resume', content_type='application/pdf'
+                ),
+            },
+            format='multipart',
+        )
+        self.assertEqual(upload.status_code, 201, upload.content)
+        client = Client.objects.get(pk=client_id)
+        self.assertEqual(client.ssn, '123-45-6789')
+        self.assertTrue(client.documents.filter(doc_type='resume').exists())

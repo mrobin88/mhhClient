@@ -278,10 +278,8 @@ def _completed_hours_in_range(account, start_dt, end_dt):
 def _resolve_optional_work_site(work_site_id):
     """Look up an optional WorkSite.
 
-    Worker assignments are still scheduled manually, so the worker app doesn't
-    pick a site at punch time. We keep the FK for backward compatibility — if
-    a caller (e.g. an older client or staff tooling) provides a site id, we
-    honor it. Missing id is fine; an unknown id is a soft error.
+    Clock-in can omit a site. If a caller provides a site id, honor it.
+    Missing id is fine; an unknown id is a soft error.
     """
     if not work_site_id:
         return None, None
@@ -599,7 +597,7 @@ def worker_time_punch(request):
     if request.method == 'GET':
         punches = (
             WorkerTimePunch.objects.filter(worker_account=account)
-            .select_related('work_site', 'assignment', 'assignment__work_site')
+            .select_related('work_site')
             .order_by('-clock_in_at')[:25]
         )
         open_punch = next((p for p in punches if p.clock_out_at is None), None)
@@ -636,7 +634,7 @@ def worker_time_punch(request):
 
     open_punch = (
         WorkerTimePunch.objects.filter(worker_account=account, clock_out_at__isnull=True)
-        .select_related('work_site', 'assignment', 'assignment__work_site')
+        .select_related('work_site')
         .order_by('-clock_in_at')
         .first()
     )

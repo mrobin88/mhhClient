@@ -286,6 +286,8 @@ SMS_FOLLOWUP_ENABLED = os.getenv('SMS_FOLLOWUP_ENABLED', 'false').lower() == 'tr
 # Separate switch on purpose: class confirmations can be proven in production
 # without also turning on the 30/60/90/120-day follow-up blasts.
 SMS_CLASS_CONFIRMATION_ENABLED = os.getenv('SMS_CLASS_CONFIRMATION_ENABLED', 'false').lower() == 'true'
+# Front-desk number included on class signup and class-change texts.
+MHH_PUBLIC_PHONE = os.getenv('MHH_PUBLIC_PHONE', '(415) 626-1919')
 SMS_INTERNAL_ONLY = os.getenv('SMS_INTERNAL_ONLY', 'false').lower() == 'true'
 SMS_APPEND_COMPLIANCE_FOOTER = os.getenv('SMS_APPEND_COMPLIANCE_FOOTER', 'true').lower() == 'true'
 SMS_COMPLIANCE_FOOTER = os.getenv('SMS_COMPLIANCE_FOOTER', ' Reply STOP to opt out.')
@@ -369,7 +371,6 @@ REST_FRAMEWORK = {
         'kiosk_upload': os.getenv('THROTTLE_KIOSK_UPLOAD', '30/hour'),
         'upload_invite': os.getenv('THROTTLE_UPLOAD_INVITE', '40/hour'),
         'worker_punch': os.getenv('THROTTLE_WORKER_PUNCH', '10/min'),
-        'partner_referral': os.getenv('THROTTLE_PARTNER_REFERRAL', '120/hour'),
     },
 }
 

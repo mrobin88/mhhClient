@@ -2,8 +2,24 @@
   <main class="upload-page">
     <section class="upload-card">
       <div class="upload-brand">Mission Hiring Hall</div>
-      <h1>Secure document upload</h1>
+      <h1>{{ pageTitle }}</h1>
       <p v-if="loading">Checking your link…</p>
+      <div v-else-if="blockReason" class="upload-expired">
+        <p class="upload-expired-lead">{{ blockMessage }}</p>
+        <p v-if="expiredOn">This link ended on {{ expiredOn }}.</p>
+        <p>
+          Ask staff to send a new upload link, or bring copies when you come in.
+          Do not email documents.
+        </p>
+        <p class="upload-note">
+          If this was for City Build, staff will confirm which files are needed.
+          That list is not on this page.
+        </p>
+        <p>
+          Questions:
+          <a href="mailto:info@missionhiringhall.org">info@missionhiringhall.org</a>
+        </p>
+      </div>
       <div v-else-if="error" class="upload-error">{{ error }}</div>
       <template v-else-if="invite">
         <p>Hi {{ invite.first_name }}. Upload only the documents requested below.</p>
@@ -22,20 +38,26 @@
             type="file"
             accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,.doc,.docx,.txt"
             required
+            @change="(event) => onFileChosen(document.value, event)"
           />
-          <button type="submit" :disabled="uploading === document.value">
+          <p v-if="fileErrors[document.value]" class="upload-file-error">{{ fileErrors[document.value] }}</p>
+          <button
+            type="submit"
+            :disabled="uploading === document.value || Boolean(fileErrors[document.value])"
+          >
             {{ uploading === document.value ? 'Uploading…' : completed.has(document.value) ? 'Replace upload' : 'Upload' }}
           </button>
           <span v-if="completed.has(document.value)" class="upload-success">Uploaded successfully</span>
         </form>
         <p class="upload-expiry">This link expires {{ formatDate(invite.expires_at) }}.</p>
+        <p class="upload-note">Staff can send a new link if this one expires.</p>
       </template>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { getApiUrl } from '../config/api'
 
@@ -46,12 +68,17 @@ interface InvitePayload {
   uploads_remaining: number
 }
 
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.pdf', '.doc', '.docx', '.txt']
+
 const route = useRoute()
 const invite = ref<InvitePayload | null>(null)
 const loading = ref(true)
 const error = ref('')
+const blockReason = ref('')
+const blockExpiresAt = ref('')
 const uploading = ref('')
 const completed = ref(new Set<string>())
+const fileErrors = reactive<Record<string, string>>({})
 const fileInputs = new Map<string, HTMLInputElement>()
 const token = String(route.params.token || '')
 
@@ -63,12 +90,64 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
+function fileExtension(name: string) {
+  const parts = String(name || '').split('.')
+  return parts.length > 1 ? `.${parts.pop()?.toLowerCase()}` : ''
+}
+
+const pageTitle = computed(() => {
+  if (blockReason.value === 'expired') return 'This upload link expired'
+  if (blockReason.value === 'revoked') return 'This upload link is no longer active'
+  if (blockReason.value === 'used_up') return 'This upload link cannot take more files'
+  if (blockReason.value) return 'This upload link is not available'
+  return 'Secure document upload'
+})
+
+const blockMessage = computed(() => {
+  if (blockReason.value === 'expired') {
+    return 'The secure link you opened is past its expiration date, so files cannot be uploaded here.'
+  }
+  if (blockReason.value === 'revoked') {
+    return 'Staff turned this link off. A new link can be sent if you still need to upload files.'
+  }
+  if (blockReason.value === 'used_up') {
+    return 'This link has already received the maximum number of uploads.'
+  }
+  return 'This upload link is invalid or has expired.'
+})
+
+const expiredOn = computed(() => {
+  if (blockReason.value !== 'expired' || !blockExpiresAt.value) return ''
+  return formatDate(blockExpiresAt.value)
+})
+
+function onFileChosen(docType: string, event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) {
+    delete fileErrors[docType]
+    return
+  }
+  const extension = fileExtension(file.name)
+  if (!ALLOWED_EXTENSIONS.includes(extension)) {
+    fileErrors[docType] = 'Use a photo, PDF, Word, or text file.'
+    input.value = ''
+    return
+  }
+  delete fileErrors[docType]
+}
+
 async function loadInvite() {
   try {
     const response = await fetch(getApiUrl(`/api/document-upload/${encodeURIComponent(token)}/`))
     const body = await response.json().catch(() => null)
     if (!response.ok) {
-      error.value = body?.detail || 'This upload link is invalid or has expired.'
+      blockReason.value = body?.code || (response.status === 410 ? 'expired' : 'not_found')
+      blockExpiresAt.value = body?.expires_at || ''
+      if (response.status !== 410) {
+        error.value = body?.detail || 'This upload link is invalid or has expired.'
+        blockReason.value = ''
+      }
       return
     }
     invite.value = body
@@ -94,6 +173,12 @@ async function uploadDocument(docType: string) {
       body: data,
     })
     const body = await response.json().catch(() => null)
+    if (response.status === 410) {
+      blockReason.value = body?.code || 'expired'
+      blockExpiresAt.value = body?.expires_at || ''
+      invite.value = null
+      return
+    }
     if (!response.ok) {
       error.value = body?.detail || 'That document could not be uploaded.'
       return
@@ -123,4 +208,8 @@ h1 { margin: .5rem 0; font-size: 1.75rem; }
 .upload-row button:disabled { opacity: .6; cursor: wait; }
 .upload-success { color: #047857; font-size: .85rem; font-weight: 700; }
 .upload-error { margin: 1rem 0; border-radius: .6rem; padding: .8rem; background: #fef2f2; color: #b91c1c; }
+.upload-file-error { margin: 0; color: #b91c1c; font-size: .85rem; font-weight: 600; }
+.upload-expired { margin-top: 1rem; display: grid; gap: .75rem; }
+.upload-expired-lead { font-size: 1.05rem; font-weight: 600; }
+.upload-expired a { color: #c2410c; font-weight: 700; }
 </style>

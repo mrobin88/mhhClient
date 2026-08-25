@@ -91,7 +91,7 @@ class Command(BaseCommand):
         self.stdout.write(f'Sent {result["emails_sent"]} alert(s), {result["errors"]} error(s)')
 
     def _send_schedule_reminders(self, dry_run):
-        self.stdout.write('Skipped (WorkAssignment scheduling retired; use time punches).')
+        self.stdout.write('Skipped (scheduling retired; hours come from time punches).')
 
     def _send_sms_followups(self, dry_run):
         from clients.notifications import send_due_progress_followups

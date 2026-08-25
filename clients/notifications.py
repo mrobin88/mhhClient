@@ -135,18 +135,6 @@ def send_worker_welcome_email(worker_account):
     return _send(subject, plain, html, email)
 
 
-def send_assignment_notification(assignment):
-    """Deprecated: staff no longer schedule via WorkAssignment."""
-    logger.debug('send_assignment_notification skipped (assignments retired)')
-    return False
-
-
-def send_schedule_reminders():
-    """Deprecated: staff no longer schedule via WorkAssignment."""
-    logger.debug('send_schedule_reminders skipped (assignments retired)')
-    return {'sent': 0, 'skipped': 0, 'total': 0}
-
-
 def send_pitstop_application_alert(application):
     """
     Send alert email when a new Pit Stop application is submitted.
@@ -412,24 +400,70 @@ def send_text_message(
     return log, True
 
 
+def mission_hall_phone():
+    """Public front-desk number clients should call to confirm a class."""
+    return (getattr(settings, 'MHH_PUBLIC_PHONE', '') or '(415) 626-1919').strip()
+
+
+def _class_when(session):
+    from django.utils import dateformat
+
+    return (
+        f'{dateformat.format(session.session_date, "l, F j")} at '
+        f'{dateformat.time_format(session.start_time, "g:i A")}'
+    )
+
+
+def _class_first_name(client):
+    return (client.first_name or client.full_name or 'there').strip()
+
+
+def _class_location(session):
+    return (session.location or getattr(session.template, 'location', '') or '').strip()
+
+
 def class_confirmation_body(client, session):
     """
     Short, plain-language confirmation. Many clients read English as a second
     language, so this stays to one fact per sentence.
     """
-    from django.utils import dateformat
-
-    first_name = (client.first_name or client.full_name or 'there').strip()
-    when = (
-        f'{dateformat.format(session.session_date, "l, F j")} at '
-        f'{dateformat.time_format(session.start_time, "g:i A")}'
-    )
-    parts = [f'Hi {first_name}, you are signed up for {session.template.name} on {when}.']
-    location = (session.location or session.template.location or '').strip()
+    parts = [
+        f'Hi {_class_first_name(client)}, you are signed up for {session.template.name} on {_class_when(session)}.'
+    ]
+    location = _class_location(session)
     if location:
         parts.append(f'Where: {location}.')
+    parts.append(f'Call {mission_hall_phone()} to confirm.')
     parts.append('Mission Hiring Hall.')
     return ' '.join(parts)
+
+
+def class_updated_body(client, session):
+    parts = [
+        f'Hi {_class_first_name(client)}, your class {session.template.name} has changed.',
+        f'It is now {_class_when(session)}.',
+    ]
+    location = _class_location(session)
+    if location:
+        parts.append(f'Where: {location}.')
+    parts.append(f'Call {mission_hall_phone()} to confirm.')
+    parts.append('Mission Hiring Hall.')
+    return ' '.join(parts)
+
+
+def class_cancelled_body(client, session):
+    return (
+        f'Hi {_class_first_name(client)}, {session.template.name} on {_class_when(session)} '
+        f'has been cancelled. Call {mission_hall_phone()} to confirm. Mission Hiring Hall.'
+    )
+
+
+def class_removed_body(client, session):
+    return (
+        f'Hi {_class_first_name(client)}, you are no longer signed up for '
+        f'{session.template.name} on {_class_when(session)}. '
+        f'Call {mission_hall_phone()} if you have questions. Mission Hiring Hall.'
+    )
 
 
 def class_confirmation_preview(client, session, today=None):
@@ -491,6 +525,93 @@ def send_class_confirmation(client, session, enrollment, today=None):
     if not attempted:
         return 'skipped', 'Text already sent for this class.'
     return 'failed', log.error_message or 'Text could not be sent.'
+
+
+def _class_texts_enabled():
+    return bool(getattr(settings, 'SMS_CLASS_CONFIRMATION_ENABLED', False))
+
+
+def send_class_roster_notice(enrollment, kind):
+    """
+    Text one enrolled client that a class changed, was cancelled, or they were removed.
+
+    kind: 'updated' | 'cancelled' | 'removed'
+    Never raises — roster edits must succeed even if SMS is down.
+    """
+    from .models_extensions import ClientTextMessage
+
+    client = enrollment.client
+    session = enrollment.session
+    if kind == 'updated':
+        body = class_updated_body(client, session)
+        fingerprint = f'{session.session_date}|{session.start_time}|{session.end_time}|{_class_location(session)}'
+        dedupe_key = f'class-update:{session.pk}:{enrollment.pk}:{fingerprint}'
+    elif kind == 'cancelled':
+        body = class_cancelled_body(client, session)
+        dedupe_key = f'class-cancelled:{session.pk}:{enrollment.pk}'
+    else:
+        body = class_removed_body(client, session)
+        dedupe_key = None
+
+    if not _class_texts_enabled():
+        return 'disabled', 'Class confirmation texts are turned off.'
+    if not (client.phone or '').strip():
+        return 'skipped', 'No phone number on file.'
+
+    try:
+        log, attempted = send_text_message(
+            client=client,
+            body=body,
+            purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE,
+            dedupe_key=dedupe_key,
+            require_enabled_flag=False,
+        )
+    except Exception as exc:
+        logger.error(
+            'Class %s SMS failed for client %s session %s: %s',
+            kind, client.pk, session.pk, exc, exc_info=True,
+        )
+        return 'failed', 'Text could not be sent.'
+
+    if log.status == ClientTextMessage.STATUS_SENT:
+        return 'sent', f'Text sent to {client.phone}.'
+    if not attempted:
+        return 'skipped', 'Text already sent for this change.'
+    return 'failed', log.error_message or 'Text could not be sent.'
+
+
+def notify_class_session_change(session, *, previous_status, details_changed):
+    """Text everyone still on the roster after a session edit or cancel."""
+    enrollments = list(
+        session.enrollments.filter(status__in=['registered', 'attended']).select_related(
+            'client', 'session', 'session__template'
+        )
+    )
+    if not enrollments:
+        return ''
+
+    if session.status == 'cancelled' and previous_status != 'cancelled':
+        kind = 'cancelled'
+    elif details_changed and session.status == 'scheduled':
+        kind = 'updated'
+    else:
+        return ''
+
+    sent = 0
+    failed = 0
+    for enrollment in enrollments:
+        outcome, _detail = send_class_roster_notice(enrollment, kind)
+        if outcome == 'sent':
+            sent += 1
+        elif outcome == 'failed':
+            failed += 1
+
+    parts = []
+    if sent:
+        parts.append(f'Texted {sent} client{"s" if sent != 1 else ""}.')
+    if failed:
+        parts.append(f'{failed} text{"s" if failed != 1 else ""} failed.')
+    return ' '.join(parts)
 
 
 def progress_followup_body(client, checkpoint_days):

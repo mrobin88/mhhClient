@@ -1,6 +1,7 @@
 """Staff-issued, public document upload invitations."""
 
 from datetime import timedelta
+import logging
 
 from django.conf import settings
 from django.core.mail import send_mail
@@ -42,6 +43,33 @@ def _public_invite_payload(invite):
         'expires_at': invite.expires_at,
         'uploads_remaining': max(invite.max_uploads - invite.upload_count, 0),
     }
+
+
+def _unusable_invite_response(invite):
+    if not invite:
+        return Response(
+            {
+                'detail': 'This upload link is invalid or has expired.',
+                'code': 'not_found',
+            },
+            status=status.HTTP_410_GONE,
+        )
+    if invite.revoked_at is not None:
+        code = 'revoked'
+        detail = 'This upload link was turned off by staff.'
+    elif invite.expires_at <= timezone.now():
+        code = 'expired'
+        detail = 'This upload link has expired.'
+    elif invite.upload_count >= invite.max_uploads:
+        code = 'used_up'
+        detail = 'This upload link has already been used the maximum number of times.'
+    else:
+        code = 'not_found'
+        detail = 'This upload link is invalid or has expired.'
+    body = {'detail': detail, 'code': code}
+    if invite.expires_at:
+        body['expires_at'] = invite.expires_at
+    return Response(body, status=status.HTTP_410_GONE)
 
 
 @api_view(['GET', 'POST'])
@@ -175,13 +203,13 @@ class PublicDocumentUploadInviteView(APIView):
     def get(self, request, token):
         invite = _invite_from_token(token)
         if not invite or not invite.is_usable:
-            return Response({'detail': 'This upload link is invalid or has expired.'}, status=410)
+            return _unusable_invite_response(invite)
         return Response(_public_invite_payload(invite))
 
     def post(self, request, token):
         invite = _invite_from_token(token)
         if not invite or not invite.is_usable:
-            return Response({'detail': 'This upload link is invalid or has expired.'}, status=410)
+            return _unusable_invite_response(invite)
         doc_type = str(request.data.get('doc_type') or '')
         if doc_type not in invite.allowed_doc_types:
             return Response({'detail': 'That document was not requested on this link.'}, status=400)
@@ -190,12 +218,23 @@ class PublicDocumentUploadInviteView(APIView):
         if upload_error:
             return Response({'detail': upload_error}, status=400)
 
-        document, created = save_client_document(
-            client=invite.client,
-            doc_type=doc_type,
-            upload=upload,
-            uploaded_by=f'Self upload (invite {invite.token_prefix})',
-        )
+        try:
+            document, created = save_client_document(
+                client=invite.client,
+                doc_type=doc_type,
+                upload=upload,
+                uploaded_by=f'Self upload (invite {invite.token_prefix})',
+            )
+        except Exception as exc:
+            logging.getLogger('clients').exception(
+                'Invite document save failed (%s): %s', type(exc).__name__, exc
+            )
+            return Response(
+                {
+                    'detail': 'That file could not be stored. Try a PDF, JPG, or PNG.'
+                },
+                status=400,
+            )
         DocumentUploadInvite.objects.filter(pk=invite.pk).update(
             upload_count=F('upload_count') + 1,
             last_used_at=timezone.now(),

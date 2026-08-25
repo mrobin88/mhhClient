@@ -281,11 +281,6 @@
         <a class="btn" id="clientFileZip" href="/api/reports/client-file-package/" target="_blank">Download ZIP</a>
       </div>
       <div class="card">
-        <div class="title">⚠️ Call-outs</div>
-        <div class="desc">Attendance risk and same-day coverage pressure.</div>
-        <a class="btn" id="calloutsCsv" href="/api/reports/callouts/" target="_blank">Download CSV</a>
-      </div>
-      <div class="card">
         <div class="title">⏱️ Worker Clock-In Hours</div>
         <div class="desc">PitStop / iPad portal punches — net paid hours with lunch deducted. Honors start/end dates
           above.</div>
@@ -358,7 +353,6 @@
         ...activityDates,
         ...createdRange
       });
-      document.getElementById('calloutsCsv').href = buildUrl('/api/reports/callouts/', activityDates);
       document.getElementById('clientFileZip').href = buildUrl('/api/reports/client-file-package/', {
         client_lookup: clientLookupEl.value || ''
       });

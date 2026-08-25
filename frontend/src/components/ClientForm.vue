@@ -222,7 +222,9 @@
                   class="form-input"
                   placeholder="XXX-XX-XXXX"
                 />
-                <p class="text-xs text-slate-500">For employment verification only</p>
+                <p class="text-xs text-slate-500">
+                  Optional. You can leave this blank and bring your card in person.
+                </p>
               </div>
 
               <div class="form-field">
@@ -332,7 +334,7 @@
                   <option value="asian">Asian</option>
                   <option value="black">Black or African American</option>
                   <option value="white">Caucasian or White</option>
-                  <option value="hispanic_latinx">Hispanic or Latin X</option>
+                  <option value="hispanic_latinx">Hispanic or Latinx</option>
                   <option value="middle_eastern">Middle Eastern</option>
                   <option value="pacific_islander">Native Hawaiian or Other Pacific Islander</option>
                   <option value="other">Other</option>
@@ -812,7 +814,6 @@ const prevStep = () => {
   if (!isFirstStep.value) currentStepIndex.value -= 1
 }
 
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 const MAX_ID_IMAGE_DIMENSION = 1600
 const MAX_ID_IMAGE_BYTES = 2 * 1024 * 1024
 
@@ -886,11 +887,6 @@ const handleResumeUpload = (event) => {
     event.target.value = ''
     return
   }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    error.value = 'Resume must be smaller than 8MB.'
-    event.target.value = ''
-    return
-  }
 
   resumeFile.value = file
   error.value = ''
@@ -912,11 +908,6 @@ const handleIdUpload = async (event) => {
 
   if (!['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'].includes(fileExtension(processed.name))) {
     error.value = 'Please upload a photo or PDF of your ID.'
-    event.target.value = ''
-    return
-  }
-  if (processed.size > MAX_UPLOAD_BYTES) {
-    error.value = 'ID file must be smaller than 8MB.'
     event.target.value = ''
     return
   }

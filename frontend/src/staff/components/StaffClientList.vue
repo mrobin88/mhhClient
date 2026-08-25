@@ -51,6 +51,25 @@
           </button>
         </div>
       </div>
+
+      <div v-if="program === 'citybuild'" class="mt-3">
+        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
+          City Build stage
+          <StaffTip text="Accepted and Dropped are still pre-registration. Enrolled and Arrived are the CBA 12-week program. In the running means file submission." />
+        </p>
+        <div class="staff-chip-row">
+          <button
+            v-for="chip in CITYBUILD_STAGE_CHIPS"
+            :key="chip.value || 'all'"
+            type="button"
+            class="staff-chip"
+            :class="{ 'staff-chip-active': stage === chip.value }"
+            @click="setStage(chip.value)"
+          >
+            {{ chip.label }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <SkeletonClientList v-if="loading" />
@@ -73,6 +92,9 @@
             {{ client.training_interest_display }}
             <template v-if="client.training_interest === 'pit_stop'">
               · {{ client.pit_stop_stage_display }}
+            </template>
+            <template v-else-if="client.training_interest === 'citybuild'">
+              · {{ client.citybuild_stage_display }}
             </template>
           </p>
         </button>
@@ -98,6 +120,8 @@ interface ClientRow {
   training_interest_display: string
   pit_stop_stage: string
   pit_stop_stage_display: string
+  citybuild_stage: string
+  citybuild_stage_display: string
 }
 
 const PROGRAM_CHIPS = [
@@ -118,6 +142,21 @@ const STAGE_CHIPS = [
   { value: 'exited', label: 'Exited' },
 ]
 
+const CITYBUILD_STAGE_CHIPS = [
+  { value: '', label: 'All' },
+  { value: 'general_interest', label: 'Interest' },
+  { value: 'interview_scheduled', label: 'Interview set' },
+  { value: 'interview_completed', label: 'Interviewed' },
+  { value: 'drug_test', label: 'Drug test' },
+  { value: 'in_the_running', label: 'File packet' },
+  { value: 'waitlisted', label: 'Waitlisted' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'dropped', label: 'Dropped' },
+  { value: 'enrolled', label: 'Enrolled' },
+  { value: 'arrived', label: 'Arrived' },
+  { value: 'completed', label: 'Completed' },
+]
+
 const router = useRouter()
 const query = ref('')
 const program = ref('')
@@ -129,7 +168,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 function setProgram(value: string) {
   program.value = program.value === value ? '' : value
-  if (program.value !== 'pit_stop') stage.value = ''
+  if (program.value !== 'pit_stop' && program.value !== 'citybuild') stage.value = ''
   search()
 }
 

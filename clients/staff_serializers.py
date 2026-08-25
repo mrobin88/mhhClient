@@ -12,6 +12,9 @@ class StaffClientListSerializer(serializers.ModelSerializer):
     pit_stop_stage_display = serializers.CharField(
         source='get_pit_stop_stage_display', read_only=True
     )
+    citybuild_stage_display = serializers.CharField(
+        source='get_citybuild_stage_display', read_only=True
+    )
 
     class Meta:
         model = Client
@@ -29,6 +32,8 @@ class StaffClientListSerializer(serializers.ModelSerializer):
             'training_interest_display',
             'pit_stop_stage',
             'pit_stop_stage_display',
+            'citybuild_stage',
+            'citybuild_stage_display',
             'updated_at',
         ]
 
@@ -68,8 +73,12 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
     pit_stop_stage_display = serializers.CharField(
         source='get_pit_stop_stage_display', read_only=True
     )
+    citybuild_stage_display = serializers.CharField(
+        source='get_citybuild_stage_display', read_only=True
+    )
     worker_portal = serializers.SerializerMethodField()
     pit_stop_application = serializers.SerializerMethodField()
+    citybuild_packet = serializers.SerializerMethodField()
 
     class Meta:
         model = Client
@@ -99,6 +108,9 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
             'training_interest_display',
             'pit_stop_stage',
             'pit_stop_stage_display',
+            'citybuild_stage',
+            'citybuild_stage_display',
+            'citybuild_packet',
             'pit_stop_application',
             'worker_portal',
             'program_start_date',
@@ -108,6 +120,29 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+        read_only_fields = [
+            'id',
+            'full_name',
+            'training_interest_display',
+            'pit_stop_stage_display',
+            'citybuild_stage_display',
+            'citybuild_packet',
+            'pit_stop_application',
+            'worker_portal',
+            'age',
+            'case_notes_count',
+            'created_at',
+            'updated_at',
+        ]
+
+    def update(self, instance, validated_data):
+        update_fields = []
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+            update_fields.append(attr)
+        if update_fields:
+            instance.save(update_fields=update_fields)
+        return instance
 
     def get_worker_portal(self, obj):
         """Summary so staff can check portal access without opening Django admin."""
@@ -149,6 +184,18 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
             'is_veteran': app.is_veteran,
             'education_history': app.education_history,
             'created_at': app.created_at,
+        }
+
+    def get_citybuild_packet(self, obj):
+        if obj.training_interest != 'citybuild':
+            return None
+        from .citybuild_docs import citybuild_packet_for_client
+
+        packet = citybuild_packet_for_client(obj)
+        return {
+            'on_file': packet['on_file'],
+            'total': packet['total'],
+            'missing_count': packet['missing_count'],
         }
 
 
