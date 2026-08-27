@@ -5,6 +5,10 @@ class PublicClientCreateThrottle(AnonRateThrottle):
     scope = 'public_client_create'
 
 
+class PublicUpcomingClassesThrottle(AnonRateThrottle):
+    scope = 'public_upcoming_classes'
+
+
 class KioskLookupThrottle(AnonRateThrottle):
     scope = 'kiosk_lookup'
 

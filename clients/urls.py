@@ -51,6 +51,7 @@ from .staff_views import (
 from .dashboard_views import (
     dashboard_recent_clients,
     dashboard_new_pitstop_applications,
+    dashboard_citybuild_interest,
     dashboard_program_distribution,
     dashboard_activity_feed,
     dashboard_usage_stats,
@@ -65,6 +66,7 @@ from .ticket_views import (
     staff_ticket_meta,
 )
 from .class_views import (
+    public_upcoming_classes,
     staff_upcoming_classes,
     staff_class_roster,
     staff_class_enroll,
@@ -132,6 +134,7 @@ urlpatterns = [
     path('kiosk/check-in/lookup/', KioskCheckInLookupView.as_view(), name='kiosk-check-in-lookup'),
     path('kiosk/check-in/submit/', KioskCheckInSubmitView.as_view(), name='kiosk-check-in-submit'),
     path('kiosk/check-in/upload-document/', KioskDocumentUploadView.as_view(), name='kiosk-check-in-upload-document'),
+    path('classes/upcoming/', public_upcoming_classes, name='public-classes-upcoming'),
 
     # Staff SPA (Django session auth)
     path('staff/csrf/', staff_csrf, name='staff-csrf'),
@@ -169,6 +172,11 @@ urlpatterns = [
         'staff/dashboard/new-pitstop-applications/',
         dashboard_new_pitstop_applications,
         name='dashboard-new-pitstop-applications',
+    ),
+    path(
+        'staff/dashboard/citybuild-interest/',
+        dashboard_citybuild_interest,
+        name='dashboard-citybuild-interest',
     ),
     path('staff/dashboard/program-distribution/', dashboard_program_distribution, name='dashboard-program-distribution'),
     path('staff/dashboard/activity-feed/', dashboard_activity_feed, name='dashboard-activity-feed'),

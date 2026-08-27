@@ -29,7 +29,7 @@
           <span class="min-w-0">
             <span class="block text-sm font-semibold truncate">{{ s.template_name }}</span>
             <span class="block text-xs text-stone-500">
-              {{ s.category_display }} · {{ formatSessionDate(s.session_date) }} ·
+              {{ s.program_display }} · {{ s.category_display }} · {{ formatSessionDate(s.session_date) }} ·
               {{ formatTimeRange(s.start_time, s.end_time) }}
             </span>
           </span>
@@ -70,6 +70,7 @@ import StaffTip from '../StaffTip.vue'
 interface UpcomingSession {
   id: number
   template_name: string
+  program_display: string
   category_display: string
   session_date: string
   start_time: string

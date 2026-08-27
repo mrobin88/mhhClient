@@ -16,8 +16,13 @@ from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+    throttle_classes,
+)
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .dashboard_views import _staff_guard
@@ -25,8 +30,12 @@ from .models import Client
 from .models_classes import ClassEnrollment, ClassSession, ClassTemplate
 from .staff_auth import StaffSessionAuthentication
 from .staff_utils import staff_display_name
+from .throttles import PublicUpcomingClassesThrottle
+
+logger = logging.getLogger('clients')
 
 CATEGORY_VALUES = {value for value, _ in ClassTemplate.CATEGORY_CHOICES}
+PROGRAM_VALUES = {value for value, _ in ClassTemplate.PROGRAM_CHOICES}
 RECURRENCE_VALUES = {value for value, _ in ClassTemplate.RECURRENCE_CHOICES}
 WEEKDAY_VALUES = {value for value, _ in ClassTemplate.WEEKDAY_CHOICES}
 WEEK_OF_MONTH_VALUES = {value for value, _ in ClassTemplate.WEEK_OF_MONTH_CHOICES}
@@ -38,6 +47,8 @@ def _template_summary(template):
     return {
         'id': template.id,
         'name': template.name,
+        'program': template.program,
+        'program_display': template.get_program_display(),
         'category': template.category,
         'category_display': template.get_category_display(),
         'description': template.description,
@@ -60,6 +71,8 @@ def _session_summary(session):
         'id': session.id,
         'template_id': session.template_id,
         'template_name': session.template.name,
+        'program': session.template.program,
+        'program_display': session.template.get_program_display(),
         'category': session.template.category,
         'category_display': session.template.get_category_display(),
         'session_date': session.session_date,
@@ -106,7 +119,126 @@ def staff_upcoming_classes(request):
     category = (request.GET.get('category') or '').strip()
     if category:
         sessions = sessions.filter(template__category=category)
+    program = (request.GET.get('program') or '').strip()
+    if program:
+        sessions = sessions.filter(template__program=program)
 
+    return Response({'results': [_session_summary(s) for s in sessions]})
+
+
+def _parse_class_session_id(raw):
+    if isinstance(raw, (list, tuple)):
+        raw = raw[0] if raw else None
+    if raw in (None, '', 'null', 'undefined'):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def try_enroll_signup_session(client, data):
+    """
+    Best-effort enroll on public signup. Invalid or full sessions are skipped so
+    the application still saves. Never raises.
+    """
+    session_id = _parse_class_session_id(data.get('class_session_id') if data is not None else None)
+    if not session_id or client is None:
+        return None
+
+    try:
+        session = (
+            ClassSession.objects.select_related('template')
+            .annotate(
+                _enrolled_count=Count(
+                    'enrollments', filter=Q(enrollments__status__in=['registered', 'attended'])
+                )
+            )
+            .get(pk=session_id)
+        )
+    except ClassSession.DoesNotExist:
+        return None
+
+    today = timezone.localdate()
+    if (
+        session.status != 'scheduled'
+        or session.session_date < today
+        or not session.template.is_active
+        or session.template.program != client.training_interest
+    ):
+        return None
+
+    existing = ClassEnrollment.objects.filter(session=session, client=client).first()
+    if existing and existing.status in ('registered', 'attended'):
+        return existing
+    if not existing and session._enrolled_count >= session.capacity:
+        return None
+
+    if existing:
+        existing.status = 'registered'
+        existing.registered_by = 'Online signup'
+        existing.save(update_fields=['status', 'registered_by'])
+        enrollment = existing
+    else:
+        enrollment = ClassEnrollment.objects.create(
+            session=session,
+            client=client,
+            registered_by='Online signup',
+        )
+
+    try:
+        from .notifications import send_class_confirmation
+
+        send_class_confirmation(client, session, enrollment)
+    except Exception:
+        logger.exception(
+            'Signup class confirmation SMS failed for client %s session %s',
+            client.pk,
+            session.pk,
+        )
+    return enrollment
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([PublicUpcomingClassesThrottle])
+def public_upcoming_classes(request):
+    """
+    Public list of upcoming scheduled sessions for one program.
+
+    Used on signup so City Build applicants can pick an info session. Requires
+    `program` so the full class calendar is not exposed unfiltered.
+    """
+    program = (request.GET.get('program') or '').strip()
+    if program not in PROGRAM_VALUES:
+        return Response(
+            {'error': 'Choose a program to see upcoming classes.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        days = min(int(request.GET.get('days') or 90), 180)
+    except (TypeError, ValueError):
+        days = 90
+    today = timezone.localdate()
+    horizon = today + timedelta(days=days)
+    sessions = (
+        ClassSession.objects.filter(
+            status='scheduled',
+            session_date__gte=today,
+            session_date__lte=horizon,
+            template__is_active=True,
+            template__program=program,
+        )
+        .select_related('template')
+        .annotate(
+            _enrolled_count=Count(
+                'enrollments', filter=Q(enrollments__status__in=['registered', 'attended'])
+            )
+        )
+        .order_by('session_date', 'start_time')
+    )
     return Response({'results': [_session_summary(s) for s in sessions]})
 
 
@@ -386,7 +518,7 @@ def staff_class_template_update(request, template_id):
         if field in request.data:
             setattr(template, field, str(request.data.get(field) or '').strip())
 
-    for field in ('category', 'recurrence'):
+    for field in ('category', 'program', 'recurrence'):
         if field in request.data:
             setattr(template, field, str(request.data.get(field) or '').strip())
     for field in ('start_time', 'end_time'):
@@ -401,6 +533,8 @@ def staff_class_template_update(request, template_id):
         errors['name'] = ['Enter a class name.']
     if template.category not in CATEGORY_VALUES:
         errors['category'] = ['Choose a valid category.']
+    if template.program not in PROGRAM_VALUES:
+        errors['program'] = ['Choose a valid program.']
     if template.recurrence not in RECURRENCE_VALUES:
         errors['recurrence'] = ['Choose a valid recurrence.']
     if 'capacity' in request.data:
@@ -461,6 +595,7 @@ def staff_class_template_create(request):
     data = request.data
     name = str(data.get('name') or '').strip()
     category = str(data.get('category') or 'training').strip()
+    program = str(data.get('program') or 'general').strip()
     recurrence = str(data.get('recurrence') or 'none').strip()
     start_time = data.get('start_time')
     end_time = data.get('end_time')
@@ -471,6 +606,8 @@ def staff_class_template_create(request):
         errors['name'] = ['Enter a class name.']
     if category not in CATEGORY_VALUES:
         errors['category'] = ['Choose a valid category.']
+    if program not in PROGRAM_VALUES:
+        errors['program'] = ['Choose a valid program.']
     if recurrence not in RECURRENCE_VALUES:
         errors['recurrence'] = ['Choose a valid recurrence.']
     if not start_time:
@@ -508,6 +645,7 @@ def staff_class_template_create(request):
 
     template = ClassTemplate(
         name=name,
+        program=program,
         category=category,
         description=str(data.get('description') or '').strip(),
         location=str(data.get('location') or '').strip(),

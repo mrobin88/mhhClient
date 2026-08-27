@@ -169,6 +169,9 @@ class ClientViewSet(viewsets.ModelViewSet):
         - doc_other (+ optional doc_other_name)
         """
         client = serializer.save()
+        from .class_views import try_enroll_signup_session
+
+        try_enroll_signup_session(client, self.request.data)
 
         files = getattr(self.request, 'FILES', None)
         if not files:

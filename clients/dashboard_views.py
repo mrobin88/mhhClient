@@ -22,6 +22,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Client, Document, PitStopApplication
+from .models_classes import ClassEnrollment
+from .phone_utils import phone_digits
 from .staff_auth import StaffSessionAuthentication
 from .staff_utils import staff_display_name
 from .views import (
@@ -108,6 +110,86 @@ def dashboard_new_pitstop_applications(request):
             ).count(),
         }
     )
+
+
+CITYBUILD_INTEREST_STAGES = Client.CITYBUILD_PRE_REGISTRATION_STAGES - {
+    Client.CITYBUILD_STAGE_DROPPED,
+}
+
+
+def _client_area_code(client):
+    digits = phone_digits(client.phone or '')
+    if len(digits) == 11 and digits.startswith('1'):
+        digits = digits[1:]
+    return digits[:3] if len(digits) == 10 else ''
+
+
+@api_view(['GET'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def dashboard_citybuild_interest(request):
+    """
+    City Build interest / pre-registration applicants — the dashboard analog
+    of new Pit Stop applications. Dropped and CBA 12-week stages are omitted.
+    """
+    err = _staff_guard(request)
+    if err:
+        return err
+
+    limit = min(int(request.GET.get('limit') or 5), 20)
+    queryset = Client.objects.filter(
+        training_interest='citybuild',
+        citybuild_stage__in=CITYBUILD_INTEREST_STAGES,
+    ).order_by('-created_at')
+    total = queryset.count()
+    clients = list(queryset[:limit])
+
+    next_session_by_client = {}
+    if clients:
+        today = timezone.localdate()
+        enrollments = (
+            ClassEnrollment.objects.filter(
+                client_id__in=[c.pk for c in clients],
+                status__in=['registered', 'attended'],
+                session__status='scheduled',
+                session__session_date__gte=today,
+                session__template__program='citybuild',
+            )
+            .select_related('session', 'session__template')
+            .order_by('session__session_date', 'session__start_time')
+        )
+        for enrollment in enrollments:
+            next_session_by_client.setdefault(enrollment.client_id, enrollment.session)
+
+    data = []
+    for client in clients:
+        session = next_session_by_client.get(client.pk)
+        data.append(
+            {
+                'id': client.pk,
+                'client_id': client.pk,
+                'full_name': client.full_name,
+                'phone': client.phone or '',
+                'area_code': _client_area_code(client),
+                'status': client.status,
+                'status_display': client.get_status_display(),
+                'citybuild_stage': client.citybuild_stage,
+                'citybuild_stage_display': client.get_citybuild_stage_display(),
+                'staff_name': client.staff_name or '',
+                'created_at': client.created_at,
+                'info_session': (
+                    {
+                        'id': session.pk,
+                        'name': session.template.name,
+                        'session_date': session.session_date,
+                        'start_time': session.start_time,
+                    }
+                    if session
+                    else None
+                ),
+            }
+        )
+    return Response({'results': data, 'total_interest': total})
 
 
 @api_view(['GET'])

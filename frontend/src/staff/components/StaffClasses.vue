@@ -4,7 +4,7 @@
       <div class="staff-panel-header">
         <span class="material-symbols-outlined" aria-hidden="true">event</span>
         <h3>Classes &amp; Trainings</h3>
-        <StaffTip text="Create Orientation, Job Readiness Training (JRT), resume workshops, and other classes. Set them to repeat weekly or monthly, then mark who showed up." />
+        <StaffTip text="Create Orientation, Job Readiness Training (JRT), resume workshops, and other classes. Set the program so City Build info sessions show on City Build signup." />
         <button
           type="button"
           class="staff-btn staff-btn-secondary shrink-0"
@@ -26,6 +26,12 @@
           <div class="space-y-1">
             <label class="text-xs font-semibold text-stone-600">Class name</label>
             <input v-model="form.name" type="text" class="staff-input" placeholder="e.g. Resume Workshop" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold text-stone-600">Program</label>
+            <select v-model="form.program" class="staff-input">
+              <option v-for="opt in PROGRAM_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
           </div>
           <div class="space-y-1">
             <label class="text-xs font-semibold text-stone-600">Category</label>
@@ -122,7 +128,7 @@
             <button type="button" class="min-w-0 flex-1 text-left" @click="toggleTemplate(t.id)">
               <span class="block text-sm font-semibold truncate">{{ t.name }}</span>
               <span class="block text-xs text-stone-500">
-                {{ t.category_display }} · {{ t.recurrence_summary }} · {{ t.capacity }} seats ·
+                {{ t.program_display }} · {{ t.category_display }} · {{ t.recurrence_summary }} · {{ t.capacity }} seats ·
                 {{ t.upcoming_sessions_count }} upcoming
               </span>
             </button>
@@ -273,6 +279,13 @@ import StaffTip from './StaffTip.vue'
 
 const toast = useToast()
 
+const PROGRAM_OPTIONS = [
+  { value: 'general', label: 'General Employment Assistance' },
+  { value: 'citybuild', label: 'City Build' },
+  { value: 'pit_stop', label: 'Pit Stop' },
+  { value: 'capsa', label: 'CAPSA' },
+  { value: 'guard_card', label: 'Security Guard Card Training' },
+]
 const CATEGORY_OPTIONS = [
   { value: 'orientation', label: 'Orientation' },
   { value: 'job_readiness', label: 'Job Readiness Training' },
@@ -310,6 +323,8 @@ const ENROLLMENT_STATUS_OPTIONS = [
 interface ClassTemplate {
   id: number
   name: string
+  program: string
+  program_display: string
   category: string
   category_display: string
   description: string
@@ -355,6 +370,7 @@ const editingTemplateId = ref<number | null>(null)
 const creating = ref(false)
 const form = reactive({
   name: '',
+  program: 'general',
   category: 'training',
   recurrence: 'none' as 'none' | 'weekly' | 'monthly',
   recurrence_weekday: '' as number | '',
@@ -440,6 +456,7 @@ function toggleCreateForm() {
 
 function resetForm() {
   form.name = ''
+  form.program = 'general'
   form.category = 'training'
   form.recurrence = 'none'
   form.recurrence_weekday = ''
@@ -458,6 +475,7 @@ function startEditTemplate(template: ClassTemplate) {
   editingTemplateId.value = template.id
   showCreateForm.value = false
   form.name = template.name
+  form.program = template.program
   form.category = template.category
   form.recurrence = template.recurrence
   form.recurrence_weekday = template.recurrence_weekday ?? ''

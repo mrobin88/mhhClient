@@ -366,6 +366,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         # Public endpoints only (applied via explicit throttle classes)
         'public_client_create': os.getenv('THROTTLE_PUBLIC_CLIENT_CREATE', '20/hour'),
+        'public_upcoming_classes': os.getenv('THROTTLE_PUBLIC_UPCOMING_CLASSES', '60/hour'),
         'kiosk_lookup': os.getenv('THROTTLE_KIOSK_LOOKUP', '120/hour'),
         'kiosk_submit': os.getenv('THROTTLE_KIOSK_SUBMIT', '40/hour'),
         'kiosk_upload': os.getenv('THROTTLE_KIOSK_UPLOAD', '30/hour'),

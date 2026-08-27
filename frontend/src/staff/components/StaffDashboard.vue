@@ -13,6 +13,9 @@
         <DashboardModule id="pitstop">
           <NewPitStopApplicationsCard />
         </DashboardModule>
+        <DashboardModule id="citybuild">
+          <NewCityBuildInterestCard />
+        </DashboardModule>
         <DashboardModule id="classes">
           <UpcomingClassesCard />
         </DashboardModule>
@@ -54,6 +57,7 @@ import DashboardModule from './dashboard/DashboardModule.vue'
 import UsageStatsCard from './dashboard/UsageStatsCard.vue'
 import RecentClientsCard from './dashboard/RecentClientsCard.vue'
 import NewPitStopApplicationsCard from './dashboard/NewPitStopApplicationsCard.vue'
+import NewCityBuildInterestCard from './dashboard/NewCityBuildInterestCard.vue'
 import UpcomingClassesCard from './dashboard/UpcomingClassesCard.vue'
 import ProgramDistributionChart from './dashboard/ProgramDistributionChart.vue'
 import ActivityFeedCard from './dashboard/ActivityFeedCard.vue'

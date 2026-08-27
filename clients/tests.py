@@ -685,6 +685,39 @@ class StaffClassManagementTests(TestCase):
         self.assertEqual(self.template.capacity, 18)
         self.assertFalse(self.template.is_active)
 
+    def test_staff_can_set_class_program(self):
+        response = self.http.patch(
+            f'/api/staff/classes/templates/{self.template.pk}/',
+            data=json.dumps({'program': 'citybuild'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.template.refresh_from_db()
+        self.assertEqual(self.template.program, 'citybuild')
+        self.assertEqual(response.json()['template']['program_display'], 'City Build')
+
+    def test_staff_upcoming_can_filter_by_program(self):
+        citybuild_template = ClassTemplate.objects.create(
+            name='City Build Info',
+            program='citybuild',
+            category='orientation',
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+        )
+        ClassSession.objects.create(
+            template=citybuild_template,
+            session_date=timezone.localdate() + timedelta(days=3),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            capacity=15,
+        )
+
+        response = self.http.get('/api/staff/classes/upcoming/?program=citybuild')
+        self.assertEqual(response.status_code, 200)
+        names = [row['template_name'] for row in response.json()['results']]
+        self.assertEqual(names, ['City Build Info'])
+
     def test_staff_can_edit_and_cancel_session(self):
         response = self.http.patch(
             f'/api/staff/classes/sessions/{self.session.pk}/',
@@ -1571,6 +1604,64 @@ class StaffSpaApiTests(TestCase):
         self.assertEqual([row['full_name'] for row in body['results']], ['New Candidate'])
         self.assertEqual(body['results'][0]['area_code'], '628')
 
+    def test_dashboard_surfaces_citybuild_interest_not_cba_enrolled(self):
+        interested = Client.objects.create(
+            first_name='Amina',
+            last_name='Interest',
+            phone='4155551414',
+            gender='F',
+            training_interest='citybuild',
+            citybuild_stage=Client.CITYBUILD_STAGE_GENERAL_INTEREST,
+            staff_name='Jordan',
+            status='active',
+        )
+        Client.objects.create(
+            first_name='CBA',
+            last_name='Enrolled',
+            phone='4155551515',
+            gender='M',
+            training_interest='citybuild',
+            citybuild_stage=Client.CITYBUILD_STAGE_ENROLLED,
+            status='active',
+        )
+        Client.objects.create(
+            first_name='Dropped',
+            last_name='Applicant',
+            phone='4155551616',
+            gender='F',
+            training_interest='citybuild',
+            citybuild_stage=Client.CITYBUILD_STAGE_DROPPED,
+            status='inactive',
+        )
+        template = ClassTemplate.objects.create(
+            name='City Build Info Session',
+            program='citybuild',
+            category='orientation',
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+        )
+        session = ClassSession.objects.create(
+            template=template,
+            session_date=timezone.localdate() + timedelta(days=5),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            capacity=20,
+        )
+        ClassEnrollment.objects.create(session=session, client=interested)
+
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.get('/api/staff/dashboard/citybuild-interest/')
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['total_interest'], 1)
+        self.assertEqual([row['full_name'] for row in body['results']], ['Amina Interest'])
+        self.assertEqual(body['results'][0]['status_display'], 'Active')
+        self.assertEqual(body['results'][0]['citybuild_stage'], 'general_interest')
+        self.assertEqual(body['results'][0]['staff_name'], 'Jordan')
+        self.assertEqual(body['results'][0]['area_code'], '415')
+        self.assertEqual(body['results'][0]['info_session']['name'], 'City Build Info Session')
+
     def test_client_detail_includes_pitstop_application_summary(self):
         self.client_record.training_interest = 'pit_stop'
         self.client_record.dob = date(1990, 6, 4)
@@ -2019,6 +2110,91 @@ class PublicClientRegistrationTests(TestCase):
         client = Client.objects.get(pk=response.json()['id'])
         self.assertEqual(client.neighborhood, 'outside_sf')
         self.assertEqual(client.neighborhood_other, 'Daly City')
+
+    def test_public_upcoming_classes_lists_only_that_program(self):
+        citybuild = ClassTemplate.objects.create(
+            name='City Build Orientation',
+            program='citybuild',
+            category='orientation',
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+        )
+        general = ClassTemplate.objects.create(
+            name='General Orientation',
+            program='general',
+            category='orientation',
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+        ClassSession.objects.create(
+            template=citybuild,
+            session_date=timezone.localdate() + timedelta(days=4),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location='3120 Mission St',
+            capacity=20,
+        )
+        ClassSession.objects.create(
+            template=general,
+            session_date=timezone.localdate() + timedelta(days=4),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            capacity=20,
+        )
+
+        missing = self.api.get('/api/classes/upcoming/')
+        self.assertEqual(missing.status_code, 400)
+
+        response = self.api.get('/api/classes/upcoming/?program=citybuild')
+        self.assertEqual(response.status_code, 200)
+        results = response.json()['results']
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['template_name'], 'City Build Orientation')
+        self.assertEqual(results[0]['program'], 'citybuild')
+        self.assertGreater(results[0]['spots_remaining'], 0)
+
+    def test_citybuild_signup_enrolls_in_chosen_info_session(self):
+        template = ClassTemplate.objects.create(
+            name='City Build Info Session',
+            program='citybuild',
+            category='orientation',
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+        )
+        session = ClassSession.objects.create(
+            template=template,
+            session_date=timezone.localdate() + timedelta(days=6),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            capacity=20,
+        )
+        payload = {
+            **self._registration_payload(),
+            'training_interest': 'citybuild',
+            'class_session_id': session.pk,
+        }
+        response = self.api.post('/api/clients/', payload, format='json')
+        self.assertEqual(response.status_code, 201)
+        client = Client.objects.get(pk=response.json()['id'])
+        self.assertEqual(client.training_interest, 'citybuild')
+        self.assertEqual(client.citybuild_stage, Client.CITYBUILD_STAGE_GENERAL_INTEREST)
+        self.assertTrue(
+            ClassEnrollment.objects.filter(
+                client=client, session=session, status='registered'
+            ).exists()
+        )
+
+    def test_citybuild_signup_still_saves_if_class_session_is_invalid(self):
+        payload = {
+            **self._registration_payload(),
+            'training_interest': 'citybuild',
+            'class_session_id': 999999,
+        }
+        response = self.api.post('/api/clients/', payload, format='json')
+        self.assertEqual(response.status_code, 201)
+        client = Client.objects.get(pk=response.json()['id'])
+        self.assertEqual(client.training_interest, 'citybuild')
+        self.assertFalse(ClassEnrollment.objects.filter(client=client).exists())
 
     @override_settings(
         SSN_ACTIVE_KEY_ID='v1',

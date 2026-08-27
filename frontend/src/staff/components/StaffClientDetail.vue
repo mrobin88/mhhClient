@@ -762,7 +762,13 @@ const hopActive = computed(() => {
 
 function scrollToFocus() {
   const focus = String(route.query.focus || '')
-  const id = focus === 'notes' ? 'client-notes' : focus === 'classes' ? 'client-classes' : ''
+  const ids = {
+    notes: 'client-notes',
+    classes: 'client-classes',
+    pitstop: 'client-pitstop',
+    citybuild: 'client-citybuild',
+  }
+  const id = ids[focus] || ''
   if (!id) return
   requestAnimationFrame(() => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })

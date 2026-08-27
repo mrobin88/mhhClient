@@ -181,7 +181,7 @@ const apps = [
 const screens = [
   {
     name: 'Home',
-    body: 'Add a client from an outside referral, review recent signups and classes, search, upload staff-received documents.',
+    body: 'Add a client from an outside referral, review new Pit Stop and City Build signups, search, upload staff-received documents.',
     links: [{ to: '/dashboard', label: 'Open Home' }],
   },
   {

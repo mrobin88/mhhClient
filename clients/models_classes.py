@@ -26,6 +26,10 @@ class ClassTemplate(models.Model):
         ('other', 'Other'),
     ]
 
+    # Same programs as Client.training_interest so a class can be shown on
+    # public signup when someone picks that program (e.g. City Build info sessions).
+    PROGRAM_CHOICES = Client.TRAINING_INTEREST_CHOICES
+
     RECURRENCE_CHOICES = [
         ('none', 'Does not repeat'),
         ('weekly', 'Weekly'),
@@ -50,6 +54,13 @@ class ClassTemplate(models.Model):
     ]
 
     name = models.CharField(max_length=150, help_text='e.g. "New Client Orientation" or "Resume Workshop"')
+    program = models.CharField(
+        max_length=20,
+        choices=PROGRAM_CHOICES,
+        default='general',
+        db_index=True,
+        help_text='Which client program this class belongs to. City Build info sessions must be City Build.',
+    )
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='training')
     description = models.TextField(blank=True)
     location = models.CharField(max_length=200, blank=True, help_text='Room or address; can be overridden per session.')

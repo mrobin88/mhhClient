@@ -439,6 +439,57 @@
             </div>
           </div>
 
+          <div v-else-if="currentStep === 'citybuild_session'" class="space-y-6">
+            <div class="section-header">
+              <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
+              <h3 class="section-title font-semibold text-slate-800">City Build info session</h3>
+            </div>
+            <p class="text-sm text-slate-600">
+              Pick an upcoming info session if one is listed. You can skip this and still submit —
+              staff will follow up.
+            </p>
+            <p v-if="cityBuildSessionsLoading" class="text-sm text-slate-500">Loading dates…</p>
+            <p v-else-if="cityBuildSessionsError" class="text-sm text-slate-500">{{ cityBuildSessionsError }}</p>
+            <p v-else-if="cityBuildSessions.length === 0" class="text-sm text-slate-600">
+              No City Build info sessions are scheduled right now. Submit this form and we will contact you.
+            </p>
+            <div v-else class="form-stack">
+              <label
+                v-for="session in cityBuildSessions"
+                :key="session.id"
+                class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"
+                :class="classSessionId === String(session.id) ? 'border-mission-500 bg-mission-50' : 'border-slate-200'"
+              >
+                <input
+                  v-model="classSessionId"
+                  type="radio"
+                  class="mt-1"
+                  name="citybuild_session"
+                  :value="String(session.id)"
+                  :disabled="session.spots_remaining <= 0"
+                />
+                <span>
+                  <span class="block text-sm font-semibold text-slate-800">
+                    {{ formatCityBuildSessionDate(session.session_date) }}
+                    · {{ formatCityBuildTimeRange(session.start_time, session.end_time) }}
+                  </span>
+                  <span class="block text-xs text-slate-500">
+                    {{ session.template_name }}
+                    <template v-if="session.location"> · {{ session.location }}</template>
+                    · {{ session.spots_remaining > 0 ? `${session.spots_remaining} seats open` : 'full' }}
+                  </span>
+                </span>
+              </label>
+              <label
+                class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"
+                :class="classSessionId === '' ? 'border-mission-500 bg-mission-50' : 'border-slate-200'"
+              >
+                <input v-model="classSessionId" type="radio" class="mt-1" name="citybuild_session" value="" />
+                <span class="text-sm text-slate-700">I’ll pick a date later</span>
+              </label>
+            </div>
+          </div>
+
           <div v-else-if="currentStep === 'documents'" class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
@@ -758,10 +809,17 @@ const resumeInput = ref(null)
 const idInput = ref(null)
 
 const isPitStop = computed(() => form.value.training_interest === 'pit_stop')
+const isCityBuild = computed(() => form.value.training_interest === 'citybuild')
+
+const classSessionId = ref('')
+const cityBuildSessions = ref([])
+const cityBuildSessionsLoading = ref(false)
+const cityBuildSessionsError = ref('')
 
 const stepOrder = computed(() => {
   const steps = ['program', 'personal', 'address', 'background', 'employment']
   if (isPitStop.value) steps.push('pitstop')
+  if (isCityBuild.value) steps.push('citybuild_session')
   steps.push('documents')
   return steps
 })
@@ -773,6 +831,7 @@ const stepTitles = {
   background: 'Background',
   employment: 'Employment',
   pitstop: 'Pit Stop',
+  citybuild_session: 'Info Session',
   documents: 'Resume & ID',
 }
 
@@ -792,6 +851,46 @@ watch(stepOrder, (steps) => {
     currentStepIndex.value = steps.length - 1
   }
 })
+
+watch(isCityBuild, (on) => {
+  if (on) {
+    loadCityBuildSessions()
+  } else {
+    classSessionId.value = ''
+    cityBuildSessions.value = []
+    cityBuildSessionsError.value = ''
+  }
+})
+
+function formatCityBuildSessionDate(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return dateStr
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+function formatCityBuildTimeRange(start, end) {
+  const fmt = (t) => {
+    const [h, m] = String(t).split(':').map(Number)
+    const period = h >= 12 ? 'PM' : 'AM'
+    const hour12 = h % 12 === 0 ? 12 : h % 12
+    return `${hour12}:${String(m).padStart(2, '0')} ${period}`
+  }
+  return `${fmt(start)}–${fmt(end)}`
+}
+
+async function loadCityBuildSessions() {
+  cityBuildSessionsLoading.value = true
+  cityBuildSessionsError.value = ''
+  try {
+    const response = await axios.get(getApiUrl('/api/classes/upcoming/?program=citybuild'))
+    cityBuildSessions.value = response.data?.results || []
+  } catch {
+    cityBuildSessionsError.value = 'Could not load info sessions. You can still submit this form.'
+    cityBuildSessions.value = []
+  } finally {
+    cityBuildSessionsLoading.value = false
+  }
+}
 
 const nextStep = () => {
   // Program drives later steps (Pit Stop adds one), so it cannot be skipped —
@@ -1096,6 +1195,9 @@ async function handleSubmit() {
         payload[key] = key === 'dob' ? normalizeDateInput(form.value[key]) : form.value[key]
       }
     })
+    if (isCityBuild.value && classSessionId.value) {
+      payload.class_session_id = Number(classSessionId.value)
+    }
 
     const url = getApiUrl('/api/clients/')
     console.log('[Submit] POST', url)
@@ -1170,6 +1272,8 @@ async function handleSubmit() {
       
       resumeFile.value = null
       idFile.value = null
+      classSessionId.value = ''
+      cityBuildSessions.value = []
 
       // Reset pitstop
       pitstop.value = {

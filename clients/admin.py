@@ -2452,6 +2452,7 @@ class ClassEnrollmentInline(admin.TabularInline):
 class ClassTemplateAdmin(admin.ModelAdmin):
     list_display = [
         'name',
+        'program',
         'category',
         'recurrence_summary',
         'start_time',
@@ -2460,14 +2461,14 @@ class ClassTemplateAdmin(admin.ModelAdmin):
         'is_active',
         'upcoming_sessions_count',
     ]
-    list_filter = ['category', 'recurrence', 'is_active']
+    list_filter = ['program', 'category', 'recurrence', 'is_active']
     search_fields = ['name', 'description', 'facilitator', 'location']
     readonly_fields = ['created_at', 'updated_at']
     actions = ['generate_sessions_action']
 
     fieldsets = (
         ('Class Info', {
-            'fields': ('name', 'category', 'description', 'location', 'facilitator', 'capacity', 'is_active'),
+            'fields': ('name', 'program', 'category', 'description', 'location', 'facilitator', 'capacity', 'is_active'),
         }),
         ('Default Schedule', {
             'fields': ('start_time', 'end_time'),
@@ -2523,7 +2524,7 @@ class ClassSessionAdmin(admin.ModelAdmin):
         'status',
         'roster_display',
     ]
-    list_filter = ['status', 'template__category', 'session_date']
+    list_filter = ['status', 'template__program', 'template__category', 'session_date']
     search_fields = ['template__name', 'location', 'facilitator']
     date_hierarchy = 'session_date'
     autocomplete_fields = ['template']

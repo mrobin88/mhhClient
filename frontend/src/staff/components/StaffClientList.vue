@@ -105,7 +105,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import SkeletonClientList from './SkeletonClientList.vue'
@@ -157,7 +157,7 @@ const CITYBUILD_STAGE_CHIPS = [
   { value: 'completed', label: 'Completed' },
 ]
 
-const router = useRouter()
+const route = useRoute()
 const query = ref('')
 const program = ref('')
 const stage = ref('')
@@ -204,5 +204,11 @@ function debouncedSearch() {
   debounceTimer = setTimeout(search, 250)
 }
 
-onMounted(search)
+onMounted(() => {
+  const qProgram = String(route.query.program || '')
+  if (qProgram) program.value = qProgram
+  const qStage = String(route.query.stage || '')
+  if (qStage) stage.value = qStage
+  search()
+})
 </script>
