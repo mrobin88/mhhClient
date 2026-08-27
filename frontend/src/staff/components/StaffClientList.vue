@@ -105,7 +105,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import SkeletonClientList from './SkeletonClientList.vue'
@@ -158,6 +158,7 @@ const CITYBUILD_STAGE_CHIPS = [
 ]
 
 const route = useRoute()
+const router = useRouter()
 const query = ref('')
 const program = ref('')
 const stage = ref('')

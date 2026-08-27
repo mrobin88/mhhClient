@@ -762,7 +762,7 @@ const hopActive = computed(() => {
 
 function scrollToFocus() {
   const focus = String(route.query.focus || '')
-  const ids = {
+  const ids: Record<string, string> = {
     notes: 'client-notes',
     classes: 'client-classes',
     pitstop: 'client-pitstop',
