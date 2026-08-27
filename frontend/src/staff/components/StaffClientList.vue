@@ -104,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
@@ -205,10 +205,22 @@ function debouncedSearch() {
 }
 
 onMounted(() => {
-  const qProgram = String(route.query.program || '')
-  if (qProgram) program.value = qProgram
-  const qStage = String(route.query.stage || '')
-  if (qStage) stage.value = qStage
+  applyRouteFilters()
   search()
 })
+
+watch(
+  () => [route.query.program, route.query.stage],
+  () => {
+    applyRouteFilters()
+    search()
+  },
+)
+
+function applyRouteFilters() {
+  const qProgram = String(route.query.program || '')
+  program.value = qProgram
+  const qStage = String(route.query.stage || '')
+  stage.value = qProgram === 'pit_stop' || qProgram === 'citybuild' ? qStage : ''
+}
 </script>

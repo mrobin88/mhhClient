@@ -181,7 +181,7 @@ const apps = [
 const screens = [
   {
     name: 'Home',
-    body: 'Add a client from an outside referral, review new Pit Stop and City Build signups, search, upload staff-received documents.',
+    body: 'Add a client from an outside referral, review new Pit Stop and City Build signups, search, upload staff-received documents. The Menu bar at the bottom opens every staff screen plus signup, check-in, the worker portal, Django, and reports.',
     links: [{ to: '/dashboard', label: 'Open Home' }],
   },
   {
