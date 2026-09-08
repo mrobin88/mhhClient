@@ -5,4 +5,5 @@ export interface StaffUser {
   role: string
   accent_color?: string
   dashboard_collapsed?: string[]
+  dashboard_order?: string[]
 }

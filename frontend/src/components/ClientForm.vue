@@ -13,8 +13,13 @@
         </h1>
         <p class="registration-subtitle text-slate-600 relative z-10">Professional Service Management System</p>
         <p class="text-mission-800 relative z-10 mt-3 text-base">
-          Already registered?
-          <RouterLink to="/checkin" class="font-semibold underline hover:text-mission-900">Check in here</RouterLink>
+          New client signup
+        </p>
+        <p class="text-slate-600 relative z-10 mt-2 text-sm">
+          <RouterLink to="/" class="font-semibold underline hover:text-mission-800">Home</RouterLink>
+          <span class="mx-2 text-slate-400">·</span>
+          Already with us?
+          <RouterLink to="/checkin" class="font-semibold underline hover:text-mission-900">Check in</RouterLink>
         </p>
 
         <div class="mt-4 flex justify-center space-x-2">
@@ -129,6 +134,68 @@
             <p v-if="!form.training_interest && formAttempted" class="text-red-600 text-sm">
               Please select a program to continue
             </p>
+
+            <div v-if="isCityBuild" class="citybuild-session-list">
+              <h4 class="text-sm font-semibold text-slate-800">Upcoming City Build classes</h4>
+              <p class="text-sm text-slate-600">
+                These are the City Build dates staff scheduled. Pick one if you can come.
+                You can skip and still submit.
+              </p>
+              <p v-if="cityBuildSessionsLoading" class="text-sm text-slate-500">Loading dates…</p>
+              <p v-else-if="cityBuildSessionsError" class="text-sm text-slate-500">{{ cityBuildSessionsError }}</p>
+              <p v-else-if="cityBuildSessions.length === 0" class="text-sm text-slate-600">
+                No City Build classes are on the calendar right now. Submit this form and we will contact you.
+              </p>
+              <div v-else class="form-stack">
+                <label
+                  v-for="session in cityBuildSessions"
+                  :key="session.id"
+                  class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"
+                  :class="classSessionId === String(session.id) ? 'border-mission-500 bg-mission-50' : 'border-slate-200'"
+                >
+                  <input
+                    v-model="classSessionId"
+                    type="radio"
+                    class="mt-1"
+                    name="citybuild_session"
+                    :value="String(session.id)"
+                    :disabled="session.spots_remaining <= 0"
+                  />
+                  <span>
+                    <span class="block text-sm font-semibold text-slate-800">
+                      {{ session.template_name }}
+                    </span>
+                    <span class="block text-sm text-slate-700">
+                      {{ formatCityBuildSessionDate(session.session_date) }}
+                      · {{ formatCityBuildTimeRange(session.start_time, session.end_time) }}
+                    </span>
+                    <span class="block text-xs text-slate-500">
+                      <template v-if="session.location">{{ session.location }} · </template>
+                      {{ session.spots_remaining > 0 ? `${session.spots_remaining} seats open` : 'full' }}
+                    </span>
+                  </span>
+                </label>
+                <label
+                  class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"
+                  :class="classSessionId === '' ? 'border-mission-500 bg-mission-50' : 'border-slate-200'"
+                >
+                  <input v-model="classSessionId" type="radio" class="mt-1" name="citybuild_session" value="" />
+                  <span class="text-sm text-slate-700">I’ll pick a date later</span>
+                </label>
+              </div>
+            </div>
+
+            <div
+              v-if="isPitStop"
+              class="rounded-xl border border-mission-200 bg-mission-50 p-4 text-sm text-slate-700 space-y-2"
+            >
+              <p class="font-semibold text-slate-800">Pit Stop is a workforce program, not a job.</p>
+              <p>
+                Participants gain work experience and skills so they can find lasting employment
+                afterward. Applying does not mean you have been hired. The next section asks a few
+                questions about that, and a resume is required.
+              </p>
+            </div>
           </div>
 
           <!-- Personal Information Section -->
@@ -439,57 +506,6 @@
             </div>
           </div>
 
-          <div v-else-if="currentStep === 'citybuild_session'" class="space-y-6">
-            <div class="section-header">
-              <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
-              <h3 class="section-title font-semibold text-slate-800">City Build info session</h3>
-            </div>
-            <p class="text-sm text-slate-600">
-              Pick an upcoming info session if one is listed. You can skip this and still submit —
-              staff will follow up.
-            </p>
-            <p v-if="cityBuildSessionsLoading" class="text-sm text-slate-500">Loading dates…</p>
-            <p v-else-if="cityBuildSessionsError" class="text-sm text-slate-500">{{ cityBuildSessionsError }}</p>
-            <p v-else-if="cityBuildSessions.length === 0" class="text-sm text-slate-600">
-              No City Build info sessions are scheduled right now. Submit this form and we will contact you.
-            </p>
-            <div v-else class="form-stack">
-              <label
-                v-for="session in cityBuildSessions"
-                :key="session.id"
-                class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"
-                :class="classSessionId === String(session.id) ? 'border-mission-500 bg-mission-50' : 'border-slate-200'"
-              >
-                <input
-                  v-model="classSessionId"
-                  type="radio"
-                  class="mt-1"
-                  name="citybuild_session"
-                  :value="String(session.id)"
-                  :disabled="session.spots_remaining <= 0"
-                />
-                <span>
-                  <span class="block text-sm font-semibold text-slate-800">
-                    {{ formatCityBuildSessionDate(session.session_date) }}
-                    · {{ formatCityBuildTimeRange(session.start_time, session.end_time) }}
-                  </span>
-                  <span class="block text-xs text-slate-500">
-                    {{ session.template_name }}
-                    <template v-if="session.location"> · {{ session.location }}</template>
-                    · {{ session.spots_remaining > 0 ? `${session.spots_remaining} seats open` : 'full' }}
-                  </span>
-                </span>
-              </label>
-              <label
-                class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"
-                :class="classSessionId === '' ? 'border-mission-500 bg-mission-50' : 'border-slate-200'"
-              >
-                <input v-model="classSessionId" type="radio" class="mt-1" name="citybuild_session" value="" />
-                <span class="text-sm text-slate-700">I’ll pick a date later</span>
-              </label>
-            </div>
-          </div>
-
           <div v-else-if="currentStep === 'documents'" class="space-y-6">
             <div class="section-header">
               <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
@@ -497,8 +513,8 @@
             </div>
 
             <p v-if="isPitStop" class="text-sm text-slate-700">
-              Pit Stop applications need a resume. Attach it here — we no longer ask you to type out
-              past jobs. Your ID is still optional and you can bring it with you.
+              Pit Stop applications need a resume. This is in addition to the work history you
+              already filled in. Your ID is still optional and you can bring it with you.
             </p>
             <p v-else class="text-sm text-slate-600">
               You can add these now or bring them with you. You do not need them to finish this
@@ -515,18 +531,23 @@
                   <div class="doc-subtitle">
                     PDF or Word file.
                     {{ isPitStop
-                      ? 'Required for Pit Stop — it replaces the work history questions.'
+                      ? 'Required for Pit Stop. Email copies also go to Pitstop@missionhiringhall.org if you need a backup.'
                       : 'Optional.' }}
                   </div>
                   <input
                     ref="resumeInput"
                     type="file"
                     class="doc-input"
-                    accept=".pdf,.doc,.docx,.txt"
+                    accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,.pdf,.doc,.docx,.txt"
+                    @click="resumePicking = true"
                     @change="handleResumeUpload"
                   />
+                  <p v-if="resumePicking && !resumeFile" class="doc-picking" role="status">Opening files on this phone…</p>
                   <div v-if="resumeFile" class="doc-selected">
-                    <span class="doc-filename">{{ resumeFile.name }}</span>
+                    <div class="min-w-0">
+                      <p class="doc-staged-label">File selected</p>
+                      <span class="doc-filename">{{ resumeFile.name }}</span>
+                    </div>
                     <button type="button" class="doc-remove-btn" @click="removeResume">
                       Remove resume
                     </button>
@@ -543,11 +564,18 @@
                     ref="idInput"
                     type="file"
                     class="doc-input"
-                    accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                    accept="image/*,application/pdf"
+                    @click="idPicking = true"
                     @change="handleIdUpload"
                   />
+                  <p v-if="idPicking && !idFile" class="doc-picking" role="status">
+                    {{ idCompressing ? 'Preparing your photo…' : 'Opening files on this phone…' }}
+                  </p>
                   <div v-if="idFile" class="doc-selected">
-                    <span class="doc-filename">{{ idFile.name }}</span>
+                    <div class="min-w-0">
+                      <p class="doc-staged-label">File selected</p>
+                      <span class="doc-filename">{{ idFile.name }}</span>
+                    </div>
                     <button type="button" class="doc-remove-btn" @click="removeId">
                       Remove ID
                     </button>
@@ -565,6 +593,10 @@
           <!-- Pit Stop Specific Fields (shown after main application) -->
           <div v-else-if="currentStep === 'pitstop'" class="space-y-6 p-6 border rounded-xl bg-slate-50">
             <h4 class="text-xl font-semibold text-slate-800">Pit Stop Application</h4>
+            <p class="text-sm text-slate-700">
+              This replaces the paper participant application. Please complete every section so
+              staff can review a printed copy of what you submit.
+            </p>
             <div class="form-stack">
               <div class="form-field">
                 <label class="form-label">Are you legally able to work in the U.S.?</label>
@@ -589,7 +621,7 @@
                 <input v-model="pitstop.available_start_date" type="date" class="form-input" />
               </div>
               <div class="form-field">
-                <label class="form-label">Employment desired</label>
+                <label class="form-label">Desired schedule <span class="text-mission-600">*</span></label>
                 <div class="mobile-checkbox-row flex gap-4">
                   <label class="inline-flex items-center"><input type="checkbox" value="full_time" v-model="pitstop.employment_desired" class="mr-2"/> Full-time</label>
                   <label class="inline-flex items-center"><input type="checkbox" value="part_time" v-model="pitstop.employment_desired" class="mr-2"/> Part-time</label>
@@ -600,8 +632,8 @@
             <div>
               <div class="flex items-center justify-between mb-3">
                 <div>
-                  <label class="form-label">Weekly Schedule Availability</label>
-                  <p class="text-xs text-slate-600">Select all available time slots</p>
+                  <label class="form-label">Weekly schedule availability <span class="text-mission-600">*</span></label>
+                  <p class="text-xs text-slate-600">Mark each shift you can work</p>
                 </div>
                 <button
                   type="button"
@@ -637,14 +669,144 @@
                 </div>
               </div>
             </div>
-            <div>
-              <label class="form-label">Education History</label>
-              <textarea v-model="pitstop.education_history" class="form-input" rows="3" placeholder="Schools, certifications, etc."></textarea>
+
+            <div class="space-y-4">
+              <div>
+                <h5 class="text-base font-semibold text-slate-800">Employment history</h5>
+                <p class="text-sm text-slate-600">
+                  This is a workforce development program, so recent work history helps us plan
+                  next steps. List up to two jobs. You will still attach a resume on the next step.
+                </p>
+              </div>
+              <div
+                v-for="(job, index) in pitstop.employment_history"
+                :key="index"
+                class="bg-white border border-slate-200 rounded-lg p-4 space-y-3"
+              >
+                <p class="text-sm font-semibold text-slate-700">
+                  Job {{ index + 1 }}
+                  <span v-if="index === 0" class="text-mission-600">*</span>
+                  <span v-else class="text-slate-500 font-normal">(optional)</span>
+                </p>
+                <div class="form-stack">
+                  <div class="form-field">
+                    <label class="form-label">Company name</label>
+                    <input v-model="job.company_name" type="text" class="form-input" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Dates of employment</label>
+                    <input v-model="job.dates_of_employment" type="text" class="form-input" placeholder="Jan 2023 – Jun 2024" />
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="form-field">
+                      <label class="form-label">City</label>
+                      <input v-model="job.city" type="text" class="form-input" />
+                    </div>
+                    <div class="form-field">
+                      <label class="form-label">State</label>
+                      <input v-model="job.state" type="text" class="form-input" />
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Manager / supervisor name</label>
+                    <input v-model="job.manager_name" type="text" class="form-input" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Supervisor phone</label>
+                    <input v-model="job.manager_phone" type="tel" class="form-input" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Job title / role</label>
+                    <input v-model="job.job_title" type="text" class="form-input" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Responsibilities</label>
+                    <textarea v-model="job.responsibilities" class="form-input" rows="3"></textarea>
+                  </div>
+                </div>
+              </div>
             </div>
-            <p class="text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3">
-              We no longer ask about past jobs here. Attach your resume on the last step instead —
-              Pit Stop applications need one.
-            </p>
+
+            <div class="space-y-3">
+              <h5 class="text-base font-semibold text-slate-800">Education history</h5>
+              <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+                <p class="text-sm font-semibold text-slate-700">High school <span class="text-mission-600">*</span></p>
+                <div class="form-field">
+                  <label class="form-label">School name</label>
+                  <input v-model="pitstop.high_school_name" type="text" class="form-input" />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="form-field">
+                    <label class="form-label">City</label>
+                    <input v-model="pitstop.high_school_city" type="text" class="form-input" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">State</label>
+                    <input v-model="pitstop.high_school_state" type="text" class="form-input" />
+                  </div>
+                </div>
+              </div>
+              <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+                <p class="text-sm font-semibold text-slate-700">Post-secondary education</p>
+                <p class="text-xs text-slate-500">College, trade school, or certification. Leave blank if none.</p>
+                <div class="form-field">
+                  <label class="form-label">School or program</label>
+                  <input v-model="pitstop.post_secondary_name" type="text" class="form-input" />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="form-field">
+                    <label class="form-label">City</label>
+                    <input v-model="pitstop.post_secondary_city" type="text" class="form-input" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">State</label>
+                    <input v-model="pitstop.post_secondary_state" type="text" class="form-input" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700">
+                Pit Stop is a <strong>workforce training program</strong>. Completing this
+                application is not a job offer. The goal is to help you prepare for lasting
+                employment after the program.
+              </div>
+              <div class="form-field">
+                <label class="form-label">What is Pit Stop? <span class="text-mission-600">*</span></label>
+                <p class="text-xs text-slate-600 mb-1">In your own words, what is this program?</p>
+                <textarea v-model="pitstop.what_is_pit_stop" class="form-input" rows="3"></textarea>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Why do you want to participate in Pit Stop? <span class="text-mission-600">*</span></label>
+                <textarea v-model="pitstop.why_participate" class="form-input" rows="3"></textarea>
+              </div>
+              <div class="form-field">
+                <label class="form-label">What goals do you have after completing the Pit Stop workforce program? <span class="text-mission-600">*</span></label>
+                <p class="text-xs text-slate-600 mb-1">Think about the job or career you want after this program.</p>
+                <textarea v-model="pitstop.goals_after_program" class="form-input" rows="3"></textarea>
+              </div>
+              <div class="form-field">
+                <label class="form-label">In what ways can this program support you and your long-term professional goals in joining the workforce? <span class="text-mission-600">*</span></label>
+                <textarea v-model="pitstop.how_program_supports_goals" class="form-input" rows="3"></textarea>
+              </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+              <p class="text-sm font-semibold text-slate-800">Signature</p>
+              <p class="text-xs text-slate-600">
+                Type your full name to confirm this information is accurate. This stands in for the
+                signature on the paper application.
+              </p>
+              <div class="form-field">
+                <label class="form-label">Typed signature <span class="text-mission-600">*</span></label>
+                <input v-model="pitstop.signature_name" type="text" class="form-input" placeholder="Your full name" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Date</label>
+                <input v-model="pitstop.signed_on" type="date" class="form-input" />
+              </div>
+            </div>
           </div>
             </div>
           </Transition>
@@ -709,7 +871,11 @@
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
               </svg>
               <div>
-                <p class="text-green-800 font-medium">Application submitted successfully! We'll contact you within 2-3 business days.</p>
+                <p class="text-green-800 font-medium">
+                  {{ submittedAsPitStop
+                    ? 'Thank you. We received your Pit Stop application and will review it within 2 to 3 weeks.'
+                    : "Application submitted successfully! We'll contact you within 2-3 business days." }}
+                </p>
                 <p v-if="uploadWarning" class="text-amber-800 text-sm mt-2 font-semibold">
                   {{ uploadWarning }}
                 </p>
@@ -719,9 +885,11 @@
                   with you. You do not need to send us signed forms right now.
                 </p>
                 <p class="text-green-800 text-sm mt-2 font-semibold">
-                  If you have not heard from us in one week, please call or email
+                  {{ submittedAsPitStop
+                    ? 'If you have not heard from us after 3 weeks, please call or email'
+                    : 'If you have not heard from us in one week, please call or email' }}
                   <a href="mailto:info@missionhiringhall.org" class="underline">info@missionhiringhall.org</a>
-                  to confirm your appointment and ask what happens next.
+                  {{ submittedAsPitStop ? 'to ask about your application.' : 'to confirm your appointment and ask what happens next.' }}
                 </p>
               </div>
             </div>
@@ -778,7 +946,7 @@ const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sun
 const shifts = [
   { value: '7-4', label: '7:00AM - 4:00PM' },
   { value: '8-5', label: '8:00AM - 5:00PM' },
-  { value: '9-6', label: '9:00AM - 6:00PM' },
+  { value: '9-5', label: '9:00AM - 5:00PM' },
   { value: '10-7', label: '10:00AM - 7:00PM' },
   { value: '11-8', label: '11:00AM - 8:00PM' },
   { value: '12-9', label: '12:00PM - 9:00PM' },
@@ -787,18 +955,45 @@ const shifts = [
   { value: '23-8', label: '11:00PM - 8:00AM' },
 ]
 
-const pitstop = ref({
+const emptyEmploymentJob = () => ({
+  company_name: '',
+  dates_of_employment: '',
+  city: '',
+  state: '',
+  manager_name: '',
+  manager_phone: '',
+  job_title: '',
+  responsibilities: '',
+})
+
+const emptyPitstop = () => ({
   can_work_us: false,
   is_veteran: false,
   position_applied_for: 'Pit Stop Attendant',
   available_start_date: '',
   employment_desired: [],
   weekly_schedule: {},
+  employment_history: [emptyEmploymentJob(), emptyEmploymentJob()],
+  high_school_name: '',
+  high_school_city: '',
+  high_school_state: '',
+  post_secondary_name: '',
+  post_secondary_city: '',
+  post_secondary_state: '',
   education_history: '',
+  what_is_pit_stop: '',
+  why_participate: '',
+  goals_after_program: '',
+  how_program_supports_goals: '',
+  signature_name: '',
+  signed_on: new Date().toISOString().slice(0, 10),
 })
+
+const pitstop = ref(emptyPitstop())
 
 const error = ref('')
 const success = ref(false)
+const submittedAsPitStop = ref(false)
 const uploadWarning = ref('')
 const isSubmitting = ref(false)
 const formAttempted = ref(false)
@@ -807,6 +1002,9 @@ const resumeFile = ref(null)
 const idFile = ref(null)
 const resumeInput = ref(null)
 const idInput = ref(null)
+const resumePicking = ref(false)
+const idPicking = ref(false)
+const idCompressing = ref(false)
 
 const isPitStop = computed(() => form.value.training_interest === 'pit_stop')
 const isCityBuild = computed(() => form.value.training_interest === 'citybuild')
@@ -819,7 +1017,6 @@ const cityBuildSessionsError = ref('')
 const stepOrder = computed(() => {
   const steps = ['program', 'personal', 'address', 'background', 'employment']
   if (isPitStop.value) steps.push('pitstop')
-  if (isCityBuild.value) steps.push('citybuild_session')
   steps.push('documents')
   return steps
 })
@@ -831,7 +1028,6 @@ const stepTitles = {
   background: 'Background',
   employment: 'Employment',
   pitstop: 'Pit Stop',
-  citybuild_session: 'Info Session',
   documents: 'Resume & ID',
 }
 
@@ -904,6 +1100,14 @@ const nextStep = () => {
     formAttempted.value = true
     error.value = 'Pit Stop applications need your date of birth.'
     return
+  }
+  if (currentStep.value === 'pitstop') {
+    const pitstopError = validatePitStopStep()
+    if (pitstopError) {
+      formAttempted.value = true
+      error.value = pitstopError
+      return
+    }
   }
   error.value = ''
   if (!isLastStep.value) currentStepIndex.value += 1
@@ -979,6 +1183,7 @@ const fileExtension = (name) => `.${String(name || '').split('.').pop().toLowerC
 
 const handleResumeUpload = (event) => {
   const file = event.target.files[0]
+  resumePicking.value = false
   if (!file) return
 
   if (!['.pdf', '.doc', '.docx', '.txt'].includes(fileExtension(file.name))) {
@@ -993,17 +1198,25 @@ const handleResumeUpload = (event) => {
 
 const handleIdUpload = async (event) => {
   const file = event.target.files[0]
-  if (!file) return
+  if (!file) {
+    idPicking.value = false
+    return
+  }
 
   let processed = file
   if ((file.type || '').startsWith('image/')) {
+    idCompressing.value = true
     try {
       processed = await compressImageFile(file)
     } catch (compressionError) {
       console.warn('Image compression skipped:', compressionError)
       processed = file
+    } finally {
+      idCompressing.value = false
     }
   }
+
+  idPicking.value = false
 
   if (!['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'].includes(fileExtension(processed.name))) {
     error.value = 'Please upload a photo or PDF of your ID.'
@@ -1018,12 +1231,15 @@ const handleIdUpload = async (event) => {
 // Clear a staged file before submit so a wrong or too-big pick can be swapped out.
 const removeResume = () => {
   resumeFile.value = null
+  resumePicking.value = false
   if (resumeInput.value) resumeInput.value.value = ''
   error.value = ''
 }
 
 const removeId = () => {
   idFile.value = null
+  idPicking.value = false
+  idCompressing.value = false
   if (idInput.value) idInput.value.value = ''
   error.value = ''
 }
@@ -1097,6 +1313,7 @@ const getShiftLabel = (value) => {
   const labels = {
     '7-4': '7am-4pm',
     '8-5': '8am-5pm',
+    '9-5': '9am-5pm',
     '9-6': '9am-6pm',
     '10-7': '10am-7pm',
     '11-8': '11am-8pm',
@@ -1106,6 +1323,54 @@ const getShiftLabel = (value) => {
     '23-8': '11pm-8am',
   }
   return labels[value] || value
+}
+
+function validatePitStopStep() {
+  if (!pitstop.value.position_applied_for.trim()) {
+    return 'Please enter the position you are applying for.'
+  }
+  if (!pitstop.value.employment_desired.length) {
+    return 'Please choose full-time, part-time, and/or relief list.'
+  }
+  if (!Object.keys(pitstop.value.weekly_schedule).length) {
+    return 'Please mark at least one shift you can work, or tap Open Availability.'
+  }
+  const firstJob = pitstop.value.employment_history[0] || {}
+  if (!String(firstJob.company_name || '').trim() || !String(firstJob.job_title || '').trim()) {
+    return 'Please enter the company name and job title for your most recent job.'
+  }
+  if (!pitstop.value.high_school_name.trim()) {
+    return 'Please enter your high school name.'
+  }
+  if (!pitstop.value.what_is_pit_stop.trim()) {
+    return 'Please tell us, in your own words, what Pit Stop is.'
+  }
+  if (!pitstop.value.why_participate.trim()) {
+    return 'Please tell us why you want to participate in Pit Stop.'
+  }
+  if (!pitstop.value.goals_after_program.trim()) {
+    return 'Please tell us what goals you have after completing the program.'
+  }
+  if (!pitstop.value.how_program_supports_goals.trim()) {
+    return 'Please tell us how this program can support your long-term goals.'
+  }
+  if (!pitstop.value.signature_name.trim()) {
+    return 'Please type your full name as a signature.'
+  }
+  return ''
+}
+
+function composeEducationHistory() {
+  const parts = []
+  const hs = [pitstop.value.high_school_name, pitstop.value.high_school_city, pitstop.value.high_school_state]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+  if (hs.length) parts.push(`High school: ${hs.join(', ')}`)
+  const post = [pitstop.value.post_secondary_name, pitstop.value.post_secondary_city, pitstop.value.post_secondary_state]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+  if (post.length) parts.push(`Post-secondary: ${post.join(', ')}`)
+  return parts.join('\n')
 }
 
 const normalizeDateInput = (value) => {
@@ -1211,6 +1476,7 @@ async function handleSubmit() {
     
     if (response.status === 201 || response.status === 200) {
       success.value = true
+      submittedAsPitStop.value = form.value.training_interest === 'pit_stop'
 
       const newClientId = response.data.id
       const submittedPhone = form.value.phone
@@ -1232,7 +1498,20 @@ async function handleSubmit() {
           available_start_date: pitstop.value.available_start_date || null,
           employment_desired: pitstop.value.employment_desired,
           weekly_schedule: pitstop.value.weekly_schedule,
-          education_history: pitstop.value.education_history,
+          employment_history: pitstop.value.employment_history,
+          high_school_name: pitstop.value.high_school_name,
+          high_school_city: pitstop.value.high_school_city,
+          high_school_state: pitstop.value.high_school_state,
+          post_secondary_name: pitstop.value.post_secondary_name,
+          post_secondary_city: pitstop.value.post_secondary_city,
+          post_secondary_state: pitstop.value.post_secondary_state,
+          education_history: composeEducationHistory(),
+          what_is_pit_stop: pitstop.value.what_is_pit_stop,
+          why_participate: pitstop.value.why_participate,
+          goals_after_program: pitstop.value.goals_after_program,
+          how_program_supports_goals: pitstop.value.how_program_supports_goals,
+          signature_name: pitstop.value.signature_name,
+          signed_on: pitstop.value.signed_on || null,
         }
         try {
           await axios.post(getApiUrl('/api/pitstop-applications/'), application)
@@ -1276,15 +1555,7 @@ async function handleSubmit() {
       cityBuildSessions.value = []
 
       // Reset pitstop
-      pitstop.value = {
-        can_work_us: false,
-        is_veteran: false,
-        position_applied_for: 'Pit Stop Attendant',
-        available_start_date: '',
-        employment_desired: [],
-        weekly_schedule: {},
-        education_history: '',
-      }
+      pitstop.value = emptyPitstop()
 
     } else {
       error.value = getResponseErrorMessage(response)
@@ -1443,6 +1714,17 @@ async function handleSubmit() {
   width: 100%;
 }
 
+.citybuild-session-list {
+  margin-top: 0.35rem;
+  padding: 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
 /* Program buttons — full-width tap targets for phones */
 .program-btn-compact {
   width: 100%;
@@ -1567,15 +1849,47 @@ async function handleSubmit() {
 }
 
 .doc-input {
+  display: block;
   width: 100%;
+  min-height: 3.15rem;
+  font-size: 16px;
+  padding: 0.55rem 0.35rem;
+  background: #fff;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.65rem;
+  color: #0f172a;
+}
+
+.doc-picking {
+  margin: 0.55rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.65rem;
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  color: #155e75;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .doc-selected {
-  margin-top: 0.5rem;
+  margin-top: 0.65rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border: 2px solid #99f6e4;
+  background: #ecfdf5;
+  border-radius: 0.75rem;
+}
+
+.doc-staged-label {
+  margin: 0 0 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0f766e;
 }
 
 .doc-filename {

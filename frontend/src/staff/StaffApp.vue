@@ -29,6 +29,7 @@ async function saveStaffPrefs(patch: StaffPrefsPatch, options: { persist?: boole
   writeLocalPrefs(current.id, {
     accent_color: next.accent_color,
     dashboard_collapsed: next.dashboard_collapsed,
+    dashboard_order: next.dashboard_order,
   })
   if (options.persist === false) return true
 

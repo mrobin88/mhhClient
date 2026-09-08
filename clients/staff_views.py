@@ -32,12 +32,26 @@ from .phone_utils import phone_digits
 from .staff_utils import staff_display_name
 
 ACCENT_HEX_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
+DASHBOARD_MODULE_IDS = {
+    'usage',
+    'recent-clients',
+    'pitstop',
+    'citybuild',
+    'classes',
+    'programs',
+    'activity',
+    'tickets',
+    'documents',
+}
 
 
 def _staff_payload(user):
     collapsed = getattr(user, 'dashboard_collapsed', None)
     if not isinstance(collapsed, list):
         collapsed = []
+    order = getattr(user, 'dashboard_order', None)
+    if not isinstance(order, list):
+        order = []
     return {
         'id': user.pk,
         'username': user.username,
@@ -46,6 +60,7 @@ def _staff_payload(user):
         'is_superuser': bool(user.is_superuser),
         'accent_color': (getattr(user, 'accent_color', None) or '').upper(),
         'dashboard_collapsed': [str(item)[:40] for item in collapsed if item],
+        'dashboard_order': [str(item)[:40] for item in order if item],
     }
 
 
@@ -136,6 +151,23 @@ def staff_profile(request):
             )
         request.user.dashboard_collapsed = collapsed
         update_fields.append('dashboard_collapsed')
+
+    if 'dashboard_order' in request.data:
+        raw = request.data.get('dashboard_order')
+        if raw is None:
+            order = []
+        elif (
+            isinstance(raw, list)
+            and all(isinstance(item, str) and item in DASHBOARD_MODULE_IDS for item in raw)
+        ):
+            order = list(dict.fromkeys(raw[:24]))
+        else:
+            return Response(
+                {'error': 'Could not save dashboard card order.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.user.dashboard_order = order
+        update_fields.append('dashboard_order')
 
     if update_fields:
         request.user.save(update_fields=update_fields)

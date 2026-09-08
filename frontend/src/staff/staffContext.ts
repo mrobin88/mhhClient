@@ -4,6 +4,7 @@ import type { StaffUser } from './types'
 export type StaffPrefsPatch = {
   accent_color?: string
   dashboard_collapsed?: string[]
+  dashboard_order?: string[]
 }
 
 export const staffUserKey: InjectionKey<Ref<StaffUser | null>> = Symbol('staffUser')

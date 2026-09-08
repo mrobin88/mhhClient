@@ -32,7 +32,10 @@
   --staff-success: #15803d;
   font-family: 'DM Sans', system-ui, sans-serif;
   color: var(--staff-ink);
-  background: var(--staff-bg);
+  background:
+    radial-gradient(ellipse 90% 50% at 8% -10%, rgba(var(--staff-accent-rgb), 0.16), transparent 52%),
+    radial-gradient(ellipse 70% 40% at 100% 0%, rgba(255, 255, 255, 0.7), transparent 46%),
+    linear-gradient(180deg, #f7f4e8 0%, var(--staff-bg) 38%, #efeae0 100%);
   min-height: 100vh;
   max-width: 100%;
   overflow-x: hidden;
@@ -45,15 +48,41 @@
   box-sizing: border-box;
 }
 
+.staff-chrome-bar {
+  background: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid rgba(231, 229, 228, 0.8);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+}
+
 .staff-card {
-  background: var(--staff-surface);
-  border: 1px solid var(--staff-border);
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 0.75rem;
-  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04), 0 8px 20px rgba(28, 25, 23, 0.05);
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04), 0 10px 28px rgba(28, 25, 23, 0.06);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
   /* Keep visible so tips/controls are not clipped; busy overlays still cover the card. */
   overflow: visible;
   min-width: 0;
   max-width: 100%;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .staff-card {
+    background: var(--staff-surface);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .staff-card,
+  .staff-chrome-bar,
+  .staff-nav,
+  .staff-nav-toggle {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--staff-surface);
+  }
 }
 
 /* Adobe-style panel head: a distinct shaded strip separating a module's
@@ -65,8 +94,8 @@
   gap: 0.55rem;
   margin: -1rem -1rem 0.9rem -1rem;
   padding: 0.7rem 1rem;
-  background: linear-gradient(180deg, #fbfaf7 0%, #f4f1ea 100%);
-  border-bottom: 1px solid var(--staff-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(244, 241, 234, 0.42) 100%);
+  border-bottom: 1px solid rgba(231, 229, 228, 0.8);
   border-radius: 0.75rem 0.75rem 0 0;
   overflow: visible;
   position: relative;
@@ -165,6 +194,149 @@
 .staff-btn-ghost:not(:disabled):hover {
   background: var(--staff-bg);
   color: var(--staff-ink);
+}
+.staff-btn-sm {
+  min-height: 2.35rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+}
+.staff-btn-danger {
+  background: #fff;
+  color: var(--staff-danger);
+  border: 1px solid #fecaca;
+  padding: 0.95rem 1.15rem;
+}
+.staff-btn-danger:not(:disabled):hover {
+  background: #fef2f2;
+  border-color: #f87171;
+}
+.staff-btn-danger-solid {
+  background: var(--staff-danger);
+  color: #fff;
+  border: 1px solid var(--staff-danger);
+  padding: 0.95rem 1.15rem;
+}
+.staff-btn-danger-solid:not(:disabled):hover {
+  background: #991b1b;
+  border-color: #991b1b;
+}
+.staff-btn-sm.staff-btn-danger,
+.staff-btn-sm.staff-btn-danger-solid {
+  padding: 0.4rem 0.8rem;
+}
+
+.staff-roster {
+  border: 1px solid var(--staff-border);
+  border-radius: 0.85rem;
+  overflow: hidden;
+  background: #fff;
+}
+.staff-roster-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.65rem 0.75rem;
+  background: #fafaf9;
+  border-bottom: 1px solid var(--staff-border);
+}
+.staff-roster-confirm {
+  margin: 0.65rem 0.75rem 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.65rem;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.staff-roster-confirm.is-delete {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+.staff-roster-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.staff-roster-empty,
+.staff-roster-summary {
+  padding: 0.7rem 0.85rem;
+  font-size: 0.78rem;
+  color: var(--staff-muted);
+}
+.staff-roster-summary {
+  padding-bottom: 0.2rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.staff-roster-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.45rem 0.6rem;
+  padding: 0.65rem 0.85rem;
+  border-top: 1px solid var(--staff-border);
+}
+.staff-roster-who {
+  min-width: 0;
+}
+.staff-roster-name {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--staff-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-roster-meta {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--staff-muted);
+}
+.staff-roster-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+}
+.staff-roster-badge.is-yes {
+  background: #d1fae5;
+  color: #047857;
+}
+.staff-roster-badge.is-wait {
+  background: #fef3c7;
+  color: #b45309;
+}
+.staff-roster-status {
+  width: auto;
+  min-width: 7.5rem;
+  padding: 0.35rem 1.75rem 0.35rem 0.6rem;
+  font-size: 0.75rem;
+  min-height: 2.15rem;
+}
+.staff-roster-remove {
+  color: var(--staff-danger);
+}
+.staff-roster-hint {
+  padding: 0 0.85rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--staff-muted);
+}
+@media (max-width: 640px) {
+  .staff-roster-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .staff-roster-status,
+  .staff-roster-remove {
+    grid-column: 1 / -1;
+  }
 }
 
 .staff-input {
@@ -363,8 +535,10 @@ select.staff-input:disabled {
   bottom: 0;
   left: 0;
   right: 0;
-  background: #fff;
-  border-top: 1px solid var(--staff-border);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  border-top: 1px solid rgba(255, 255, 255, 0.7);
   z-index: 50;
   padding-bottom: env(safe-area-inset-bottom);
   box-shadow: 0 -8px 24px rgba(28, 25, 23, 0.08);
@@ -381,7 +555,7 @@ select.staff-input:disabled {
   align-items: center;
   gap: 0.65rem;
   padding: 0.7rem 1rem;
-  background: #fff;
+  background: transparent;
   border: 0;
   text-align: left;
   cursor: pointer;
@@ -506,6 +680,83 @@ select.staff-input:disabled {
   box-sizing: border-box;
 }
 
+/* Classes page: one column per program (City Build, Pit Stop, CAPSA, Guard Card, General). */
+.staff-program-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 800px) {
+  .staff-program-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1200px) {
+  .staff-program-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.staff-program-col {
+  border: 1px solid var(--staff-border);
+  border-radius: 0.85rem;
+  padding: 0.75rem 0.85rem 0.9rem;
+  background: #fafaf9;
+  min-width: 0;
+}
+.staff-program-col-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--staff-border);
+}
+.staff-program-col-header h4 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--staff-ink);
+}
+.staff-program-col-header span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--staff-muted);
+}
+.staff-program-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--staff-muted);
+}
+.staff-program-pick {
+  width: auto;
+  min-width: 8.5rem;
+  min-height: 2.35rem;
+  padding: 0.35rem 1.75rem 0.35rem 0.6rem;
+  font-size: 0.78rem;
+}
+.staff-upcoming-programs {
+  display: grid;
+  gap: 0.85rem;
+}
+.staff-upcoming-program-title {
+  margin: 0 0 0.35rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--staff-ink);
+}
+.staff-upcoming-program-title span {
+  font-size: 0.7rem;
+  color: var(--staff-muted);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 /* Flex wrap: cards reflow by available width without side-scrolling.
    flex-basis ~18rem packs 1–2 columns as the viewport allows. */
 .staff-dashboard-grid {
@@ -538,6 +789,9 @@ select.staff-input:disabled {
 .staff-dash-module .staff-panel-header {
   padding-right: 2.45rem;
 }
+.staff-dash-module.is-reorderable .staff-panel-header {
+  padding-right: 7.4rem;
+}
 .staff-collapse-btn {
   display: inline-flex;
   align-items: center;
@@ -547,10 +801,14 @@ select.staff-input:disabled {
   padding: 0;
   border-radius: 0.45rem;
   border: 1px solid var(--staff-border);
-  background: #fff;
+  background: rgba(255, 255, 255, 0.88);
   color: var(--staff-muted);
   cursor: pointer;
   flex-shrink: 0;
+}
+.staff-collapse-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 .staff-collapse-btn .material-symbols-outlined,
 .staff-panel-header .staff-collapse-btn .material-symbols-outlined {
@@ -561,16 +819,50 @@ select.staff-input:disabled {
   font-size: 18px;
   color: inherit;
 }
-.staff-collapse-btn:hover {
+.staff-collapse-btn:hover:not(:disabled) {
   border-color: var(--staff-accent);
   color: var(--staff-accent-dark);
   background: var(--staff-accent-soft);
+}
+.staff-dash-tools {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
 }
 .staff-dash-module > .staff-collapse-btn {
   position: absolute;
   top: 0.55rem;
   right: 0.55rem;
   z-index: 6;
+}
+.staff-drag-handle {
+  cursor: grab;
+}
+.staff-drag-handle:active {
+  cursor: grabbing;
+}
+.staff-dash-module.is-dragging {
+  opacity: 0.55;
+}
+.staff-dash-module.is-drop-target > .staff-card {
+  outline: 2px dashed var(--staff-accent);
+  outline-offset: 2px;
+}
+.staff-layout-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.staff-layout-bar p {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--staff-muted);
 }
 .staff-collapse-btn-inline {
   position: static;
@@ -656,10 +948,10 @@ select.staff-input:disabled {
 }
 
 .staff-stat-tile {
-  border: 1px solid var(--staff-border);
+  border: 1px solid rgba(231, 229, 228, 0.85);
   border-radius: 0.75rem;
   padding: 0.6rem 0.7rem;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .staff-stat-tile .staff-stat-value {
@@ -1211,4 +1503,28 @@ select.staff-input:disabled {
 .staff-color-reset {
   min-height: 2.2rem;
   font-size: 0.78rem;
+}
+
+@media print {
+  .staff-app header,
+  .staff-nav,
+  .staff-nav-backdrop,
+  .no-print {
+    display: none !important;
+  }
+  .staff-app {
+    background: #fff;
+  }
+  .staff-main-pad {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .staff-card {
+    box-shadow: none;
+    border: none;
+  }
+  .ps-print-sheet {
+    break-inside: avoid;
+  }
 }

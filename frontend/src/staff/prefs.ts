@@ -7,6 +7,7 @@ const PREFS_PREFIX = 'mhh-staff-prefs:'
 export interface StaffPrefs {
   accent_color?: string
   dashboard_collapsed?: string[]
+  dashboard_order?: string[]
 }
 
 function safeParse(raw: string | null): StaffPrefs {
@@ -64,14 +65,21 @@ export function hydrateStaffUser(user: StaffUser): StaffUser {
     : Array.isArray(user.dashboard_collapsed)
       ? user.dashboard_collapsed
       : []
+  const order = Array.isArray(local.dashboard_order)
+    ? local.dashboard_order
+    : Array.isArray(user.dashboard_order)
+      ? user.dashboard_order
+      : []
   const hydrated: StaffUser = {
     ...user,
     accent_color: localColor || serverColor || '',
     dashboard_collapsed: collapsed,
+    dashboard_order: order,
   }
   writeLocalPrefs(user.id, {
     accent_color: hydrated.accent_color,
     dashboard_collapsed: hydrated.dashboard_collapsed,
+    dashboard_order: hydrated.dashboard_order,
   })
   return hydrated
 }

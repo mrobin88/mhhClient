@@ -24,6 +24,11 @@ class StaffUser(AbstractUser):
         blank=True,
         help_text='Dashboard card ids this staff member has minimized.',
     )
+    dashboard_order = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Dashboard card ids in the order this staff member prefers.',
+    )
     
     # Override inherited fields to ensure proper defaults
     is_active = models.BooleanField(default=True)

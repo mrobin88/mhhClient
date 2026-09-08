@@ -208,37 +208,49 @@
                 <p class="text-center text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
                   Upload Government Photo ID
                 </p>
-                <div class="space-y-4">
-                  <div>
-                    <label for="docTitle" class="block text-sm font-semibold text-slate-700 mb-2">Document title</label>
-                    <input
-                      id="docTitle"
-                      v-model="uploadTitle"
-                      type="text"
-                      class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-800"
-                      placeholder="Example: Driver License, Resume, Diploma"
-                    />
+                <div class="space-y-5">
+                  <div class="space-y-2">
+                    <label for="docTitle" class="block text-sm font-semibold text-slate-700">Document title</label>
+                    <div class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2">
+                      <input
+                        id="docTitle"
+                        v-model="uploadTitle"
+                        type="text"
+                        class="checkin-field-input w-full rounded-lg border border-slate-100 bg-white px-4 py-3.5 text-base text-slate-800 placeholder:text-slate-400"
+                        placeholder="Example: Driver License"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label for="docFile" class="block text-sm font-semibold text-slate-700 mb-2">Choose file</label>
-                    <input
-                      id="docFile"
-                      ref="docFileInput"
-                      type="file"
-                      accept="image/*,.pdf"
-                      class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-700 bg-white"
-                      @change="onFileChange"
-                    />
-                    <p class="mt-2 text-xs text-slate-500">Accepted by device: photo/image or PDF.</p>
+                  <div class="space-y-2">
+                    <label for="docFile" class="block text-sm font-semibold text-slate-700">Choose a photo or PDF</label>
+                    <div class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2">
+                      <input
+                        id="docFile"
+                        ref="docFileInput"
+                        type="file"
+                        accept="image/*,application/pdf"
+                        class="checkin-file-input w-full rounded-lg border border-slate-100 bg-white px-3 py-3 text-slate-800"
+                        @click="onFilePickerOpen"
+                        @change="onFileChange"
+                      />
+                    </div>
+                    <p class="text-sm text-slate-500">Tap the box above. Use Camera, Gallery, or Files — photos and PDFs both work.</p>
+                    <p v-if="filePicking" class="checkin-file-status" role="status">
+                      Opening files on this phone…
+                    </p>
                     <div
                       v-if="uploadFile"
-                      class="mt-2 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                      class="checkin-file-staged"
                     >
-                      <span class="text-sm text-slate-700 truncate">{{ uploadFile.name }}</span>
+                      <div class="min-w-0">
+                        <p class="text-xs font-bold uppercase tracking-wide text-emerald-800">File selected</p>
+                        <p class="text-sm font-semibold text-slate-800 break-words">{{ uploadFile.name }}</p>
+                        <p class="text-xs text-slate-500">{{ formatFileSize(uploadFile.size) }}</p>
+                      </div>
                       <button
                         type="button"
-                        class="flex-shrink-0 text-sm font-bold text-red-600 hover:text-red-700"
+                        class="flex-shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700"
                         @click="removeUploadFile"
                       >
                         Remove
@@ -246,26 +258,34 @@
                     </div>
                   </div>
 
-                  <div>
-                    <label for="docNotes" class="block text-sm font-semibold text-slate-700 mb-2">Notes (optional)</label>
-                    <textarea
-                      id="docNotes"
-                      v-model="uploadNotes"
-                      rows="3"
-                      class="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-800"
-                      placeholder="Optional notes about this document."
-                    />
+                  <div class="space-y-2">
+                    <label for="docNotes" class="block text-sm font-semibold text-slate-700">Notes (optional)</label>
+                    <div class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2">
+                      <textarea
+                        id="docNotes"
+                        v-model="uploadNotes"
+                        rows="3"
+                        class="checkin-field-input w-full resize-none rounded-lg border border-slate-100 bg-white px-4 py-3.5 text-base text-slate-800 placeholder:text-slate-400"
+                        placeholder="Optional notes about this document."
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    class="w-full rounded-xl py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-white bg-mission-600 hover:bg-mission-700 disabled:opacity-45"
+                    class="checkin-cta w-full rounded-xl py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-white bg-mission-600 hover:bg-mission-700 disabled:opacity-45"
                     :disabled="loading || !uploadFile"
                     @click="submitUpload"
                   >
-                    <span v-if="loading">Uploading</span>
+                    <span v-if="loading" class="inline-flex items-center justify-center gap-3">
+                      <span
+                        class="checkin-spinner h-5 w-5 rounded-full border-2 border-white/35 border-t-white"
+                        aria-hidden="true"
+                      />
+                      Uploading
+                    </span>
                     <span v-else>Upload document</span>
                   </button>
                   <button
@@ -320,19 +340,19 @@
       >
         New to services?
         <RouterLink
-          to="/"
+          to="/signup"
           class="text-mission-700 hover:text-mission-800 font-semibold underline underline-offset-4 decoration-mission-300 hover:decoration-mission-600 transition-colors"
         >
-          Client registration
+          Sign up
         </RouterLink>
-        — this kiosk is for returning clients.
+        — this kiosk is for people who already have a profile.
       </p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getApiUrl } from '../config/api'
 
 type ClientRow = { id: number; first_name: string; last_name: string }
@@ -352,6 +372,7 @@ const uploadTitle = ref('')
 const uploadNotes = ref('')
 const uploadFile = ref<File | null>(null)
 const uploadedCount = ref(0)
+const filePicking = ref(false)
 const docFileInput = ref<HTMLInputElement | null>(null)
 
 const API_LOOKUP = getApiUrl('/api/kiosk/check-in/lookup/')
@@ -397,7 +418,7 @@ async function lookup() {
       message.value =
         typeof data.detail === 'string'
           ? data.detail
-          : 'No profile for that number. Use registration on the home page first.'
+          : 'No profile for that number. Sign up from the home page first.'
       return
     }
     if (!res.ok) {
@@ -465,17 +486,43 @@ async function submitCheckIn() {
 
 function goToUpload() {
   clearMessage()
+  filePicking.value = false
   step.value = 'upload'
+}
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return 'Selected'
+  if (bytes < 1024) return `${bytes} bytes`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function onFilePickerOpen() {
+  filePicking.value = true
+}
+
+function stageChosenFile(file: File | null | undefined) {
+  filePicking.value = false
+  if (!file) return
+  uploadFile.value = file
+  clearMessage()
 }
 
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement | null
-  uploadFile.value = input?.files?.[0] ?? null
+  stageChosenFile(input?.files?.[0])
+}
+
+function harvestPickedFile() {
+  const file = docFileInput.value?.files?.[0]
+  if (file && file !== uploadFile.value) stageChosenFile(file)
+  else filePicking.value = false
 }
 
 // Clear a staged file before upload so a wrong or too-big pick can be swapped out.
 function removeUploadFile() {
   uploadFile.value = null
+  filePicking.value = false
   if (docFileInput.value) docFileInput.value.value = ''
   clearMessage()
 }
@@ -507,8 +554,10 @@ async function submitUpload() {
 
     uploadedCount.value += 1
     uploadFile.value = null
+    filePicking.value = false
     uploadTitle.value = 'Government Photo ID'
     uploadNotes.value = ''
+    if (docFileInput.value) docFileInput.value.value = ''
     messageKind.value = 'ok'
     message.value = 'Government Photo ID uploaded successfully.'
   } finally {
@@ -531,9 +580,21 @@ function resetFlow() {
   uploadTitle.value = 'Government Photo ID'
   uploadNotes.value = ''
   uploadFile.value = null
+  filePicking.value = false
   uploadedCount.value = 0
+  if (docFileInput.value) docFileInput.value.value = ''
   clearMessage()
 }
+
+onMounted(() => {
+  window.addEventListener('focus', harvestPickedFile)
+  document.addEventListener('visibilitychange', harvestPickedFile)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', harvestPickedFile)
+  document.removeEventListener('visibilitychange', harvestPickedFile)
+})
 </script>
 
 <style scoped>
@@ -565,8 +626,42 @@ function resetFlow() {
 }
 
 .checkin-textarea:focus,
-.checkin-phone-input:focus {
+.checkin-phone-input:focus,
+.checkin-field-input:focus {
   outline: none;
+}
+
+.checkin-field-input,
+.checkin-file-input {
+  font-size: 16px;
+  min-height: 3.15rem;
+}
+
+.checkin-file-input {
+  display: block;
+  color: #0f172a;
+}
+
+.checkin-file-status {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.75rem;
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  color: #155e75;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.checkin-file-staged {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 0.75rem;
+  border: 2px solid #99f6e4;
+  background: #ecfdf5;
 }
 
 .checkin-well:focus-within {
