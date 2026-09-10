@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db import connection
@@ -27,8 +28,10 @@ from clients.models_extensions import (
     WorkerDailyFeedback,
     WorkerTimePunch,
     WorkSite,
+    ApplicantStaleAlert,
 )
 from clients.worker_views import WorkerSession
+from clients.teams_alerts import send_stale_applicant_alerts
 
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp()
@@ -44,6 +47,7 @@ class WorkerTimePunchTests(TestCase):
         shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
+        cache.clear()
         self.api = APIClient()
         self.client_record = Client.objects.create(
             first_name='Test',
@@ -210,10 +214,9 @@ class WorkerTimePunchTests(TestCase):
         self.assertIsNotNone(punch.clock_out_at)
 
     def test_worker_lunch_flow_subtracts_from_net_hours(self):
-        # Clock in 8h ago.
         punch = WorkerTimePunch.objects.create(
             worker_account=self.worker,
-            clock_in_at=timezone.now() - timedelta(hours=8),
+            clock_in_at=timezone.now() - timedelta(hours=3),
             clock_in_geo_status='captured',
             clock_in_geo_basic_ok=True,
         )
@@ -259,6 +262,102 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(punch.lunch_minutes, 30)
         # 8h worked − 0.5h lunch = 7.5h net.
         self.assertAlmostEqual(punch.net_hours, 7.5, places=2)
+
+    def test_open_punch_past_eight_hours_closes_on_fetch(self):
+        punch = WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=timezone.now() - timedelta(hours=9),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+        )
+        punch.lunch_start_at = punch.clock_in_at + timedelta(hours=7, minutes=30)
+        punch.save(update_fields=['lunch_start_at'])
+
+        response = self.api.get('/api/worker/time-punch/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data['active_punch'])
+        punch.refresh_from_db()
+        self.assertIsNotNone(punch.clock_out_at)
+        self.assertEqual(punch.clock_out_at, punch.clock_in_at + timedelta(hours=8))
+        self.assertEqual(punch.lunch_end_at, punch.clock_out_at)
+        self.assertEqual(punch.lunch_minutes, 30)
+        self.assertAlmostEqual(punch.net_hours, 7.5, places=2)
+        self.assertAlmostEqual(float(response.data['week_hours']), 7.5, places=2)
+
+    def test_clock_out_after_eight_hours_is_capped(self):
+        punch = WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=timezone.now() - timedelta(hours=10),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+        )
+
+        response = self.api.post(
+            '/api/worker/time-punch/',
+            {
+                'action': 'clock_out',
+                'geolocation': (
+                    '{"status":"captured","latitude":37.7749,'
+                    '"longitude":-122.4194,"accuracy":25}'
+                ),
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        punch.refresh_from_db()
+        self.assertEqual(punch.clock_out_at, punch.clock_in_at + timedelta(hours=8))
+        self.assertAlmostEqual(punch.net_hours, 8.0, places=2)
+        self.assertLessEqual(punch.net_hours, 8.0)
+
+    def test_stale_open_punch_does_not_block_next_clock_in(self):
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=timezone.now() - timedelta(hours=9),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+        )
+
+        response = self.api.post(
+            '/api/worker/time-punch/',
+            {
+                'action': 'clock_in',
+                'work_site_id': self.site.pk,
+                'geolocation': (
+                    '{"status":"captured","latitude":37.7749,'
+                    '"longitude":-122.4194,"accuracy":20}'
+                ),
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            WorkerTimePunch.objects.filter(worker_account=self.worker).count(),
+            2,
+        )
+        stale = WorkerTimePunch.objects.filter(
+            worker_account=self.worker,
+            clock_out_at__isnull=False,
+        ).get()
+        self.assertAlmostEqual(stale.net_hours, 8.0, places=2)
+
+    def test_net_hours_never_exceed_eight(self):
+        punch = WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=timezone.now() - timedelta(hours=12),
+            clock_out_at=timezone.now(),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+            clock_out_geo_status='captured',
+            clock_out_geo_basic_ok=True,
+        )
+        self.assertAlmostEqual(punch.net_hours, 8.0, places=2)
 
     def test_start_lunch_requires_clock_in(self):
         response = self.api.post(
@@ -401,6 +500,18 @@ class WorkerTimePunchTests(TestCase):
         self.assertEqual(response.data['incident_reports_today'], 2)
         self.assertTrue(response.data['has_feedback_today'])
 
+    def test_dashboard_summary_treats_stale_punch_as_clocked_out(self):
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=timezone.now() - timedelta(hours=9),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+        )
+        response = self.api.get('/api/worker/dashboard-summary/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['is_clocked_in'])
+
     def _login_superuser(self):
         User = get_user_model()
         admin_user = User.objects.create_superuser(
@@ -447,6 +558,27 @@ class WorkerTimePunchTests(TestCase):
         self.assertIn('Mission Pit Stop', body)
         self.assertIn('4.50', body)
         self.assertIn('Complete', body)
+
+    def test_pitstop_hours_csv_caps_long_punch_at_eight_hours(self):
+        clock_in = timezone.now().replace(microsecond=0) - timedelta(hours=13)
+        WorkerTimePunch.objects.create(
+            worker_account=self.worker,
+            work_site=self.site,
+            clock_in_at=clock_in,
+            clock_out_at=clock_in + timedelta(hours=12),
+            clock_in_geo_status='captured',
+            clock_in_geo_basic_ok=True,
+            clock_out_geo_status='captured',
+            clock_out_geo_basic_ok=True,
+        )
+
+        client = self._login_superuser()
+        response = client.get(reverse('pitstop-hours-report-csv') + '?only_complete=1')
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode('utf-8')
+        self.assertIn('8.00', body)
+        self.assertNotIn('12.00', body)
 
     def test_pitstop_hours_csv_skips_open_punch_when_only_complete(self):
         WorkerTimePunch.objects.create(
@@ -928,6 +1060,25 @@ class DocumentUploadInviteTests(TestCase):
         message = send_mock.call_args.args[1]
         self.assertTrue(message.startswith(link), message)
         self.assertNotIn('by ', message.split('\n', 1)[0])
+
+    def test_a_phone_photo_without_a_filename_suffix_still_uploads(self):
+        _invite, token = DocumentUploadInvite.issue(
+            client=self.client_record,
+            allowed_doc_types=['id'],
+            created_by=self.staff,
+        )
+        public = APIClient()
+        response = public.post(
+            f'/api/document-upload/{token}/',
+            {
+                'doc_type': 'id',
+                'file': SimpleUploadedFile('image', b'\xff\xd8\xff fakejpeg', content_type='image/jpeg'),
+            },
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, 201)
+        stored = self.client_record.documents.get(doc_type='id')
+        self.assertTrue(stored.file.name.endswith('.jpg'))
 
 
 @override_settings(
@@ -1526,6 +1677,32 @@ class StaffSpaApiTests(TestCase):
         self.staff.refresh_from_db()
         self.assertEqual(self.staff.dashboard_collapsed, ['usage', 'tickets'])
 
+    def test_staff_profile_saves_dashboard_order(self):
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.patch(
+            '/api/staff/profile/',
+            data={'dashboard_order': ['tickets', 'usage', 'documents']},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()['user']['dashboard_order'],
+            ['tickets', 'usage', 'documents'],
+        )
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.dashboard_order, ['tickets', 'usage', 'documents'])
+
+    def test_staff_profile_rejects_unknown_dashboard_order_ids(self):
+        self.http.login(username='case_mgr', password='staffpass123')
+        response = self.http.patch(
+            '/api/staff/profile/',
+            data={'dashboard_order': ['usage', 'not-a-card']},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.dashboard_order, [])
+
     def test_client_list_filters_by_program_and_stage(self):
         Client.objects.create(
             first_name='Pit',
@@ -1954,7 +2131,7 @@ class ClassConfirmationSmsTests(TestCase):
     def test_signup_text_includes_the_mission_hall_phone(self):
         body = self._preview().json()['body']
         self.assertIn('(415) 626-1919', body)
-        self.assertIn('to confirm', body)
+        self.assertIn('Reply YES', body)
 
     def _enroll(self, sms_client_mock):
         sms_client_mock.return_value.send.return_value = self._sent_result()
@@ -2015,7 +2192,7 @@ class ClassConfirmationSmsTests(TestCase):
         self.assertFalse(ClientTextMessage.objects.filter(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE).exists())
 
     @patch('clients.notifications._sms_client')
-    def test_removing_someone_texts_them_to_call_the_hall(self, sms_client_mock):
+    def test_removing_someone_texts_them_about_a_new_date(self, sms_client_mock):
         self._enroll(sms_client_mock)
         response = self.http.post(
             f'/api/staff/classes/{self.session.pk}/unenroll/',
@@ -2026,7 +2203,9 @@ class ClassConfirmationSmsTests(TestCase):
         self.assertIn('texted', response.json()['message'].lower())
         update = ClientTextMessage.objects.get(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE)
         self.assertIn('no longer signed up', update.body)
+        self.assertIn('working on a new schedule date', update.body)
         self.assertIn('(415) 626-1919', update.body)
+        self.assertIn('come in', update.body)
 
     @patch('clients.notifications._sms_client')
     def test_class_change_is_silent_when_texting_is_off(self, sms_client_mock):
@@ -2040,6 +2219,185 @@ class ClassConfirmationSmsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['message'], 'Session updated.')
         self.assertFalse(ClientTextMessage.objects.filter(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE).exists())
+
+
+@override_settings(
+    AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake',
+    AZURE_COMMUNICATION_SMS_FROM='+15555550123',
+    SMS_CLASS_CONFIRMATION_ENABLED=True,
+    SMS_INBOUND_WEBHOOK_SECRET='inbound-secret',
+    SMS_APPEND_COMPLIANCE_FOOTER=False,
+)
+class ClassRosterControlTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='roster_mgr',
+            password='staffpass123',
+            email='roster@example.com',
+            role='case_manager',
+        )
+        self.client_record = Client.objects.create(
+            first_name='Marco',
+            last_name='Reyes',
+            phone='4155557788',
+            email='marco@example.com',
+            gender='M',
+            training_interest='general',
+        )
+        self.template = ClassTemplate.objects.create(
+            name='Job Readiness Training',
+            category='job_readiness',
+            location='3120 Mission St',
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+        )
+        self.session = ClassSession.objects.create(
+            template=self.template,
+            session_date=timezone.localdate() + timedelta(days=7),
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+            location='3120 Mission St',
+            capacity=20,
+        )
+        self.http = DjangoTestClient()
+        self.http.login(username='roster_mgr', password='staffpass123')
+
+    @staticmethod
+    def _sent_result():
+        class SmsResult:
+            successful = True
+            message_id = 'msg-roster-1'
+            http_status_code = 202
+            error_message = None
+
+        return [SmsResult()]
+
+    def _enroll(self, sms_client_mock):
+        sms_client_mock.return_value.send.return_value = self._sent_result()
+        response = self.http.post(
+            f'/api/staff/classes/{self.session.pk}/enroll/',
+            data={'client_id': self.client_record.pk},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201)
+        return ClassEnrollment.objects.get(session=self.session, client=self.client_record)
+
+    def test_roster_includes_confirm_fields(self):
+        ClassEnrollment.objects.create(session=self.session, client=self.client_record)
+        response = self.http.get(f'/api/staff/classes/{self.session.pk}/roster/')
+        self.assertEqual(response.status_code, 200)
+        row = response.json()['roster'][0]
+        self.assertEqual(row['last_name'], 'Reyes')
+        self.assertEqual(row['first_name'], 'Marco')
+        self.assertEqual(row['phone'], '4155557788')
+        self.assertEqual(row['email'], 'marco@example.com')
+        self.assertFalse(row['confirmed'])
+
+    def test_signin_csv_has_blank_signature_columns(self):
+        ClassEnrollment.objects.create(session=self.session, client=self.client_record)
+        response = self.http.get(f'/api/staff/classes/{self.session.pk}/roster.csv')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('text/csv', response['Content-Type'])
+        body = response.content.decode('utf-8-sig')
+        self.assertIn('Last name,First name,Phone number,Email,Signature,Time in,Need sponsorship', body)
+        self.assertIn('Reyes,Marco,4155557788,marco@example.com,,,', body)
+
+    @patch('clients.notifications._sms_client')
+    def test_rescheduling_clears_yes_confirmations(self, sms_client_mock):
+        sms_client_mock.return_value.send.return_value = self._sent_result()
+        enrollment = ClassEnrollment.objects.create(
+            session=self.session,
+            client=self.client_record,
+            confirmed_at=timezone.now(),
+        )
+        new_date = (timezone.localdate() + timedelta(days=11)).isoformat()
+        response = self.http.patch(
+            f'/api/staff/classes/sessions/{self.session.pk}/',
+            data=json.dumps({'session_date': new_date}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        enrollment.refresh_from_db()
+        self.assertIsNone(enrollment.confirmed_at)
+
+    @patch('clients.notifications._sms_client')
+    def test_deleting_a_date_texts_the_roster_then_removes_it(self, sms_client_mock):
+        self._enroll(sms_client_mock)
+        response = self.http.delete(f'/api/staff/classes/sessions/{self.session.pk}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Deleted', response.json()['message'])
+        self.assertIn('Texted', response.json()['message'])
+        self.assertFalse(ClassSession.objects.filter(pk=self.session.pk).exists())
+        update = ClientTextMessage.objects.get(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE)
+        self.assertIn('cancelled', update.body)
+
+    @patch('clients.notifications._sms_client')
+    def test_deleting_a_class_texts_upcoming_rosters(self, sms_client_mock):
+        self._enroll(sms_client_mock)
+        response = self.http.delete(f'/api/staff/classes/templates/{self.template.pk}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ClassTemplate.objects.filter(pk=self.template.pk).exists())
+        update = ClientTextMessage.objects.get(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE)
+        self.assertIn('cancelled', update.body)
+
+    @patch('clients.notifications._sms_client')
+    def test_yes_reply_confirms_the_next_upcoming_class(self, sms_client_mock):
+        enrollment = self._enroll(sms_client_mock)
+        self.assertIsNone(enrollment.confirmed_at)
+
+        inbound = DjangoTestClient()
+        response = inbound.post(
+            '/api/sms/inbound/?token=inbound-secret',
+            data=json.dumps({
+                'eventType': 'Microsoft.Communication.SMSReceived',
+                'id': 'acs-msg-1',
+                'data': {
+                    'messageId': 'acs-msg-1',
+                    'from': '+14155557788',
+                    'to': '+15555550123',
+                    'message': 'YES',
+                },
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['results'][0]['confirmed'])
+
+        enrollment.refresh_from_db()
+        self.assertIsNotNone(enrollment.confirmed_at)
+        inbound_log = ClientTextMessage.objects.get(
+            direction=ClientTextMessage.DIRECTION_INBOUND,
+            provider_message_id='acs-msg-1',
+        )
+        self.assertEqual(inbound_log.body, 'YES')
+        ack = ClientTextMessage.objects.filter(
+            purpose=ClientTextMessage.PURPOSE_CLASS_CONFIRMATION,
+            direction=ClientTextMessage.DIRECTION_OUTBOUND,
+        ).exclude(dedupe_key=f'class-confirmation:{enrollment.pk}').get()
+        self.assertIn('you are confirmed', ack.body)
+
+    def test_event_grid_subscription_validation(self):
+        inbound = DjangoTestClient()
+        response = inbound.post(
+            '/api/sms/inbound/?token=inbound-secret',
+            data=json.dumps([{
+                'eventType': 'Microsoft.EventGrid.SubscriptionValidationEvent',
+                'data': {'validationCode': 'abc-123'},
+            }]),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['validationResponse'], 'abc-123')
+
+    def test_inbound_webhook_rejects_a_bad_token(self):
+        inbound = DjangoTestClient()
+        response = inbound.post(
+            '/api/sms/inbound/?token=wrong',
+            data=json.dumps({'from': '+14155557788', 'message': 'YES'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 403)
 
 
 @override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
@@ -2364,6 +2722,164 @@ class PitStopApplicationReviewTests(TestCase):
         self.assertNotIn('review_notes', body)
         self.assertNotIn('reviewed_by', body)
 
+    def test_public_create_stores_paper_fields_and_program_answers(self):
+        response = self.api.post(
+            '/api/pitstop-applications/',
+            {
+                'client': self.client_record.pk,
+                'position_applied_for': 'Pit Stop Attendant',
+                'can_work_us': True,
+                'employment_desired': ['full_time'],
+                'weekly_schedule': {'Monday': ['7-4']},
+                'employment_history': [
+                    {
+                        'company_name': 'Cafe Luna',
+                        'dates_of_employment': '2023-2024',
+                        'city': 'San Francisco',
+                        'state': 'CA',
+                        'manager_name': 'Lee',
+                        'manager_phone': '4155550100',
+                        'job_title': 'Barista',
+                        'responsibilities': 'Opened the shop and trained new staff.',
+                    }
+                ],
+                'high_school_name': 'Mission High',
+                'high_school_city': 'San Francisco',
+                'high_school_state': 'CA',
+                'what_is_pit_stop': 'A workforce training program, not a job.',
+                'why_participate': 'I want job experience.',
+                'goals_after_program': 'Find lasting work in facilities.',
+                'how_program_supports_goals': 'Practice showing up and working with the public.',
+                'signature_name': 'Dana Ruiz',
+                'signed_on': '2026-09-04',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        created = PitStopApplication.objects.get(pk=response.json()['id'])
+        self.assertEqual(created.high_school_name, 'Mission High')
+        self.assertEqual(created.what_is_pit_stop, 'A workforce training program, not a job.')
+        self.assertEqual(created.signature_name, 'Dana Ruiz')
+        self.assertEqual(created.employment_history[0]['company_name'], 'Cafe Luna')
+
+    @override_settings(
+        AZURE_COMMUNICATION_CONNECTION_STRING='endpoint=https://example.test/;accesskey=fake',
+        AZURE_COMMUNICATION_SMS_FROM='+15555550123',
+        SMS_PITSTOP_APPLICATION_ENABLED=True,
+        SMS_INTERNAL_ONLY=False,
+        SMS_APPEND_COMPLIANCE_FOOTER=False,
+        PITSTOP_APPLICATION_ALERT_EMAILS='',
+    )
+    @patch('clients.notifications._sms_client')
+    def test_submitting_texts_a_thank_you_with_the_review_window(self, sms_client_mock):
+        class SmsResult:
+            successful = True
+            message_id = 'msg-pitstop-1'
+            http_status_code = 202
+            error_message = None
+
+        sms_client_mock.return_value.send.return_value = [SmsResult()]
+        response = self.api.post(
+            '/api/pitstop-applications/',
+            {
+                'client': self.client_record.pk,
+                'position_applied_for': 'Pit Stop Attendant',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        sms_client_mock.return_value.send.assert_called_once()
+        body = sms_client_mock.return_value.send.call_args.kwargs['message']
+        self.assertIn('thank you for applying', body.lower())
+        self.assertIn('2 to 3 weeks', body)
+        self.assertIn('not a job offer', body.lower())
+        log = ClientTextMessage.objects.get(purpose=ClientTextMessage.PURPOSE_PITSTOP_APPLICATION)
+        self.assertEqual(log.status, ClientTextMessage.STATUS_SENT)
+        self.assertEqual(log.client_id, self.client_record.pk)
+
+    @override_settings(SMS_PITSTOP_APPLICATION_ENABLED=False)
+    @patch('clients.notifications._sms_client')
+    def test_thank_you_text_stays_off_when_the_switch_is_off(self, sms_client_mock):
+        response = self.api.post(
+            '/api/pitstop-applications/',
+            {
+                'client': self.client_record.pk,
+                'position_applied_for': 'Pit Stop Attendant',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        sms_client_mock.assert_not_called()
+
+
+class StaffPitStopApplicationReviewApiTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='ps_reviewer',
+            password='staffpass123',
+            email='ps@example.com',
+            first_name='Rosa',
+            last_name='Lane',
+            role='case_manager',
+        )
+        self.client_record = Client.objects.create(
+            first_name='Dana',
+            last_name='Ruiz',
+            phone='(628) 555-0142',
+            gender='F',
+            dob=date(1994, 5, 20),
+            training_interest='pit_stop',
+            address='123 Mission St',
+            city='San Francisco',
+            state='CA',
+            zip_code='94110',
+        )
+        self.application = PitStopApplication.objects.create(
+            client=self.client_record,
+            position_applied_for='Pit Stop Attendant',
+            what_is_pit_stop='A workforce program.',
+            why_participate='I want experience.',
+            goals_after_program='Find a job.',
+            how_program_supports_goals='Practice work habits.',
+            signature_name='Dana Ruiz',
+        )
+        self.http = DjangoTestClient()
+        self.http.login(username='ps_reviewer', password='staffpass123')
+
+    def test_list_shows_new_applications_for_staff(self):
+        response = self.http.get('/api/staff/pitstop-applications/?status=new')
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['total'], 1)
+        self.assertEqual(body['results'][0]['full_name'], self.client_record.full_name)
+        self.assertEqual(body['results'][0]['id'], self.application.pk)
+
+    def test_detail_includes_program_answers_and_contact(self):
+        response = self.http.get(f'/api/staff/pitstop-applications/{self.application.pk}/')
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['what_is_pit_stop'], 'A workforce program.')
+        self.assertEqual(body['address'], '123 Mission St')
+        self.assertEqual(body['signature_name'], 'Dana Ruiz')
+
+    def test_staff_can_update_review_status_and_notes(self):
+        response = self.http.patch(
+            f'/api/staff/pitstop-applications/{self.application.pk}/',
+            data=json.dumps({
+                'review_status': PitStopApplication.REVIEW_INTERVIEWED,
+                'review_notes': 'Strong answers. Check schedule.',
+                'interviewed_on': '2026-09-10',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.review_status, PitStopApplication.REVIEW_INTERVIEWED)
+        self.assertEqual(self.application.review_notes, 'Strong answers. Check schedule.')
+        self.assertEqual(str(self.application.interviewed_on), '2026-09-10')
+        self.assertIn('Rosa', self.application.reviewed_by)
+
 
 class PitStopApplicationAdminTests(TestCase):
     def setUp(self):
@@ -2635,3 +3151,107 @@ class ProductionSaveAndUploadWithoutSsnKeysTests(TestCase):
         client = Client.objects.get(pk=client_id)
         self.assertEqual(client.ssn, '123-45-6789')
         self.assertTrue(client.documents.filter(doc_type='resume').exists())
+
+
+@override_settings(
+    TEAMS_STALE_ALERTS_ENABLED=True,
+    TEAMS_STALE_APPLICANT_DAYS=21,
+    TEAMS_ALERT_EMAIL='MHHALLSTAFF@missionhiringhall.org',
+    TEAMS_WEBHOOK_URL='',
+    TEAMS_GRAPH_CLIENT_ID='',
+    TEAMS_ALERT_JOB_SECRET='job-secret-test',
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    STAFF_APP_BASE_URL='https://example.test/staff',
+)
+class StaleApplicantTeamsAlertTests(TestCase):
+    def setUp(self):
+        self.today = timezone.localdate()
+
+    def _applicant(self, **kwargs):
+        days = kwargs.pop('days_ago', 22)
+        client = Client.objects.create(
+            first_name=kwargs.pop('first_name', 'Ana'),
+            last_name=kwargs.pop('last_name', 'Lopez'),
+            phone=kwargs.pop('phone', '4155550100'),
+            gender=kwargs.pop('gender', 'F'),
+            training_interest=kwargs.pop('training_interest', 'citybuild'),
+            status=kwargs.pop('status', 'active'),
+            **kwargs,
+        )
+        Client.objects.filter(pk=client.pk).update(
+            created_at=timezone.now() - timedelta(days=days)
+        )
+        client.refresh_from_db()
+        return client
+
+    def test_stale_citybuild_applicant_is_emailed_to_the_teams_channel(self):
+        from django.core import mail
+
+        stale = self._applicant(training_interest='citybuild', first_name='Ana')
+        self._applicant(days_ago=5, first_name='New', phone='4155550101')
+
+        result = send_stale_applicant_alerts(today=self.today)
+        self.assertEqual(result['due'], 1)
+        self.assertEqual(result['sent'], 1)
+        self.assertEqual(result['channel'], 'email')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('Ana Lopez', mail.outbox[0].body)
+        self.assertIn('City Build', mail.outbox[0].body)
+        self.assertIn(f'/#/clients/{stale.pk}', mail.outbox[0].body)
+        self.assertTrue(ApplicantStaleAlert.objects.filter(client=stale).exists())
+
+    def test_a_case_note_counts_as_outreach_and_skips_the_alert(self):
+        from django.core import mail
+
+        client = self._applicant(first_name='Noted')
+        CaseNote.objects.create(
+            client=client,
+            staff_member='Staff',
+            note_type='follow_up',
+            content='Called, left a voicemail.',
+        )
+        result = send_stale_applicant_alerts(today=self.today)
+        self.assertEqual(result['due'], 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_pit_stop_position_is_included_in_applied_for(self):
+        from django.core import mail
+
+        client = self._applicant(
+            training_interest='pit_stop',
+            first_name='Diego',
+            last_name='Cruz',
+            phone='4155550102',
+        )
+        PitStopApplication.objects.create(
+            client=client,
+            position_applied_for='Site supervisor',
+            can_work_us=True,
+        )
+        result = send_stale_applicant_alerts(today=self.today)
+        self.assertEqual(result['sent'], 1)
+        self.assertIn('Pit Stop — Site supervisor', mail.outbox[0].body)
+
+    def test_already_alerted_applicants_are_not_posted_again(self):
+        from django.core import mail
+
+        self._applicant(first_name='Once')
+        first = send_stale_applicant_alerts(today=self.today)
+        self.assertEqual(first['sent'], 1)
+        second = send_stale_applicant_alerts(today=self.today)
+        self.assertEqual(second['due'], 0)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_job_endpoint_requires_the_secret_and_posts(self):
+        from django.core import mail
+
+        self._applicant(first_name='Job')
+        http = DjangoTestClient()
+        denied = http.post('/api/jobs/stale-applicant-alerts/')
+        self.assertEqual(denied.status_code, 403)
+        ok = http.post('/api/jobs/stale-applicant-alerts/?token=job-secret-test')
+        self.assertEqual(ok.status_code, 200, ok.content)
+        body = ok.json()
+        self.assertEqual(body['sent'], 1)
+        self.assertEqual(len(mail.outbox), 1)
+

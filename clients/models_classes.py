@@ -241,6 +241,11 @@ class ClassEnrollment(models.Model):
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='registered')
     registered_by = models.CharField(max_length=100, blank=True, help_text='Staff member who added this client.')
     registered_at = models.DateTimeField(auto_now_add=True)
+    confirmed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text='When the client replied YES to confirm they are coming.',
+    )
     notes = models.TextField(blank=True)
 
     class Meta:

@@ -12,6 +12,8 @@ import StaffClasses from './components/StaffClasses.vue'
 import StaffTickets from './components/StaffTickets.vue'
 import StaffTicketDetail from './components/StaffTicketDetail.vue'
 import StaffHowItWorks from './components/StaffHowItWorks.vue'
+import StaffPitStopApplications from './components/StaffPitStopApplications.vue'
+import StaffPitStopApplicationDetail from './components/StaffPitStopApplicationDetail.vue'
 
 export function createStaffRouter() {
   return createRouter({
@@ -32,6 +34,8 @@ export function createStaffRouter() {
       { path: '/clients/:id', name: 'ClientDetail', component: StaffClientDetail },
       { path: '/messages', name: 'Messages', component: StaffMessages },
       { path: '/classes', name: 'Classes', component: StaffClasses },
+      { path: '/pitstop-applications', name: 'PitStopApplications', component: StaffPitStopApplications },
+      { path: '/pitstop-applications/:id', name: 'PitStopApplicationDetail', component: StaffPitStopApplicationDetail },
       { path: '/tickets', name: 'Tickets', component: StaffTickets },
       { path: '/tickets/:id', name: 'TicketDetail', component: StaffTicketDetail },
       { path: '/create-skill', name: 'CreateSkill', component: StaffCreateSkill },

@@ -478,6 +478,11 @@ class PitStopApplicationViewSet(viewsets.ModelViewSet):
             send_pitstop_application_alert(app)
         except Exception:
             pass
+        try:
+            from .notifications import send_pitstop_application_received_sms
+            send_pitstop_application_received_sms(app)
+        except Exception:
+            pass
 
     @staticmethod
     def _is_open_availability(obj):

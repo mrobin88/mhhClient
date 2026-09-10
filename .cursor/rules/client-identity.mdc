@@ -1,0 +1,10 @@
+---
+description: Do not add unique-email or unique-phone identity for duplicate client signups until it is designed.
+alwaysApply: true
+---
+
+# Client identity (not built yet)
+
+People sign up for more than one program, create a second account, or use a different phone number. Do not add unique constraints on email or phone, merge-by-phone, or "one UUID per person" matching unless Matthew asks for that work.
+
+When we design it, the usual model is one person id; email-cannot-be-the-same is a common first lock. Phone is a bad unique key here because people share phones and change numbers. Until then, multiple Client rows for one person are allowed.

@@ -4,7 +4,7 @@
       <div class="staff-panel-header">
         <span class="material-symbols-outlined" aria-hidden="true">event</span>
         <h3>Classes &amp; Trainings</h3>
-        <StaffTip text="Create Orientation, Job Readiness Training (JRT), resume workshops, and other classes. Set the program so City Build info sessions show on City Build signup." />
+        <StaffTip text="Classes are grouped by program. Set Program so a Guard Card class lands in Guard Card, not General. City Build info sessions must be City Build to show on public signup." />
         <button
           type="button"
           class="staff-btn staff-btn-secondary shrink-0"
@@ -15,7 +15,9 @@
       </div>
       <p class="text-xs text-stone-500 mb-3">
         Add classes, schedule recurring sessions, and track who attends — all from here.
-        You can also enroll someone from their client page.
+        Classes sit in a column for their program (City Build, Pit Stop, CAPSA, Guard Card, General).
+        Use the program menu on a class to move it. Cancel a date to keep a record, or delete it.
+        Export CSV for a paper sign-in sheet (signature, time in, and sponsorship columns are blank).
       </p>
 
       <form v-if="showCreateForm || editingTemplateId" class="space-y-3 border border-stone-200 rounded-xl p-3 mb-3" @submit.prevent="submitTemplate">
@@ -30,7 +32,7 @@
           <div class="space-y-1">
             <label class="text-xs font-semibold text-stone-600">Program</label>
             <select v-model="form.program" class="staff-input">
-              <option v-for="opt in PROGRAM_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              <option v-for="opt in PROGRAM_COLUMNS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
           </div>
           <div class="space-y-1">
@@ -114,35 +116,55 @@
 
       <CardSkeleton v-if="templatesLoading" variant="list" :count="3" />
       <p v-else-if="templatesError" class="text-sm text-stone-500">{{ templatesError }}</p>
-      <p v-else-if="templates.length === 0" class="text-sm text-stone-500">
-        No classes yet — use "+ New class" above to add your first one.
-      </p>
 
-      <ul v-else class="space-y-2 staff-fade-in">
-        <li
-          v-for="t in templates"
-          :key="t.id"
-          class="border-t border-stone-100 pt-2 first:border-0 first:pt-0"
+      <div v-else class="staff-program-grid staff-fade-in">
+        <section
+          v-for="group in programGroups"
+          :key="group.value"
+          class="staff-program-col"
         >
-          <div class="flex items-center justify-between gap-2">
+          <div class="staff-program-col-header">
+            <h4>{{ group.label }}</h4>
+            <span>{{ group.templates.length }}</span>
+          </div>
+          <p v-if="group.templates.length === 0" class="staff-program-empty">
+            No classes in this program yet.
+          </p>
+          <ul v-else class="space-y-2">
+            <li
+              v-for="t in group.templates"
+              :key="t.id"
+              class="border-t border-stone-200/80 pt-2 first:border-0 first:pt-0"
+            >
+          <div class="flex items-start justify-between gap-2">
             <button type="button" class="min-w-0 flex-1 text-left" @click="toggleTemplate(t.id)">
               <span class="block text-sm font-semibold truncate">{{ t.name }}</span>
               <span class="block text-xs text-stone-500">
-                {{ t.program_display }} · {{ t.category_display }} · {{ t.recurrence_summary }} · {{ t.capacity }} seats ·
+                {{ t.category_display }} · {{ t.recurrence_summary }} · {{ t.capacity }} seats ·
                 {{ t.upcoming_sessions_count }} upcoming
               </span>
             </button>
-            <span class="material-symbols-outlined text-stone-400 shrink-0" aria-hidden="true">
+            <span class="material-symbols-outlined text-stone-400 shrink-0 mt-0.5" aria-hidden="true">
               {{ expandedTemplateId === t.id ? 'expand_less' : 'expand_more' }}
             </span>
           </div>
 
           <div v-if="expandedTemplateId === t.id" class="mt-2 pl-1 space-y-2">
             <div class="flex flex-wrap gap-2">
+              <select
+                class="staff-input staff-program-pick"
+                :value="t.program"
+                :disabled="movingProgramId === t.id"
+                aria-label="Move to program"
+                @change="setTemplateProgram(t, $event)"
+              >
+                <option v-for="opt in PROGRAM_COLUMNS" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
               <button
                 type="button"
-                class="staff-btn staff-btn-secondary"
-                style="padding: 0.5rem 0.75rem; font-size: 0.8rem;"
+                class="staff-btn staff-btn-secondary staff-btn-sm"
                 @click="startEditTemplate(t)"
               >
                 Edit class
@@ -150,8 +172,7 @@
               <button
                 v-if="t.recurrence !== 'none'"
                 type="button"
-                class="staff-btn staff-btn-secondary"
-                style="padding: 0.5rem 0.75rem; font-size: 0.8rem;"
+                class="staff-btn staff-btn-secondary staff-btn-sm"
                 :disabled="generatingId === t.id"
                 @click="generateSessions(t)"
               >
@@ -159,12 +180,39 @@
               </button>
               <button
                 type="button"
-                class="staff-btn staff-btn-secondary"
-                style="padding: 0.5rem 0.75rem; font-size: 0.8rem;"
+                class="staff-btn staff-btn-secondary staff-btn-sm"
                 @click="toggleAddDateForm(t.id)"
               >
                 + One-off date
               </button>
+              <button
+                type="button"
+                class="staff-btn staff-btn-danger staff-btn-sm"
+                :disabled="deletingTemplateId === t.id"
+                @click="askDeleteTemplate(t.id)"
+              >
+                Delete class
+              </button>
+            </div>
+
+            <div v-if="pendingDeleteTemplateId === t.id" class="staff-roster-confirm is-delete">
+              <p>
+                Delete this class and every date? People on upcoming dates get a text that the
+                class is cancelled.
+              </p>
+              <div class="staff-roster-confirm-actions">
+                <button type="button" class="staff-btn staff-btn-secondary staff-btn-sm" @click="pendingDeleteTemplateId = null">
+                  Keep the class
+                </button>
+                <button
+                  type="button"
+                  class="staff-btn staff-btn-danger-solid staff-btn-sm"
+                  :disabled="deletingTemplateId === t.id"
+                  @click="deleteTemplate(t)"
+                >
+                  Yes, delete it
+                </button>
+              </div>
             </div>
 
             <div v-if="addDateTemplateId === t.id" class="flex gap-2">
@@ -205,6 +253,9 @@
                   </button>
                   <button type="button" class="text-xs font-semibold staff-link" @click="startEditSession(s)">Edit</button>
                 </div>
+                <p v-if="s.status !== 'cancelled' && s.enrolled_count" class="text-[11px] text-stone-500 pl-0.5">
+                  {{ s.confirmed_count }} confirmed · {{ Math.max(s.enrolled_count - s.confirmed_count, 0) }} waiting for YES
+                </p>
 
                 <form
                   v-if="editingSessionId === s.id"
@@ -228,63 +279,45 @@
                   </div>
                 </form>
 
-                <div v-if="expandedSessionId === s.id" class="mt-2 space-y-1.5">
-                  <p v-if="rosterLoadingId === s.id" class="text-xs text-stone-500">Loading roster…</p>
-                  <template v-else>
-                    <p v-if="(rosterBySession[s.id] || []).length === 0" class="text-xs text-stone-400">
-                      No one signed up yet.
-                    </p>
-                    <div
-                      v-for="r in rosterBySession[s.id]"
-                      :key="r.enrollment_id"
-                      class="flex items-center justify-between gap-2"
-                    >
-                      <RouterLink
-                        :to="{ name: 'ClientDetail', params: { id: r.client_id } }"
-                        class="text-xs font-medium text-stone-700 staff-hover-accent-text truncate"
-                      >
-                        {{ r.client_full_name }}
-                      </RouterLink>
-                      <select
-                        class="staff-input shrink-0"
-                        style="width: auto; padding: 0.35rem 1.75rem 0.35rem 0.6rem; font-size: 0.72rem;"
-                        :value="r.status"
-                        :disabled="statusUpdatingId === r.enrollment_id"
-                        @change="onStatusChange(r, s.id, $event)"
-                      >
-                        <option v-for="opt in ENROLLMENT_STATUS_OPTIONS" :key="opt.value" :value="opt.value">
-                          {{ opt.label }}
-                        </option>
-                      </select>
-                    </div>
-                  </template>
+                <div v-if="expandedSessionId === s.id" class="mt-2">
+                  <ClassRosterPanel
+                    :session-id="s.id"
+                    :session-name="t.name"
+                    :session-date="s.session_date"
+                    :session-status="s.status"
+                    @changed="onRosterChanged(t.id)"
+                    @cancelled="onRosterChanged(t.id)"
+                    @deleted="onSessionDeleted(t.id, s.id)"
+                  />
                 </div>
               </div>
             </div>
           </div>
-        </li>
-      </ul>
+            </li>
+          </ul>
+        </section>
+      </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import { useToast } from '../composables/useToast'
 import CardSkeleton from './dashboard/CardSkeleton.vue'
+import ClassRosterPanel from './ClassRosterPanel.vue'
 import StaffTip from './StaffTip.vue'
 
 const toast = useToast()
 
-const PROGRAM_OPTIONS = [
-  { value: 'general', label: 'General Employment Assistance' },
+const PROGRAM_COLUMNS = [
   { value: 'citybuild', label: 'City Build' },
   { value: 'pit_stop', label: 'Pit Stop' },
   { value: 'capsa', label: 'CAPSA' },
-  { value: 'guard_card', label: 'Security Guard Card Training' },
+  { value: 'guard_card', label: 'Guard Card' },
+  { value: 'general', label: 'General' },
 ]
 const CATEGORY_OPTIONS = [
   { value: 'orientation', label: 'Orientation' },
@@ -312,12 +345,6 @@ const WEEK_OF_MONTH_OPTIONS = [
   { value: 2, label: '2nd' },
   { value: 3, label: '3rd' },
   { value: 4, label: '4th' },
-]
-const ENROLLMENT_STATUS_OPTIONS = [
-  { value: 'registered', label: 'Registered' },
-  { value: 'attended', label: 'Attended' },
-  { value: 'no_show', label: 'No Show' },
-  { value: 'cancelled', label: 'Removed' },
 ]
 
 interface ClassTemplate {
@@ -350,20 +377,32 @@ interface ClassSessionSummary {
   facilitator: string
   capacity: number
   enrolled_count: number
+  confirmed_count: number
   spots_remaining: number
   status: 'scheduled' | 'completed' | 'cancelled'
-}
-
-interface RosterEntry {
-  enrollment_id: number
-  client_id: number
-  client_full_name: string
-  status: string
 }
 
 const templates = ref<ClassTemplate[]>([])
 const templatesLoading = ref(true)
 const templatesError = ref('')
+const movingProgramId = ref<number | null>(null)
+
+const knownPrograms = new Set(PROGRAM_COLUMNS.map((col) => col.value))
+const programGroups = computed(() => {
+  const groups = PROGRAM_COLUMNS.map((col) => ({
+    ...col,
+    templates: templates.value.filter((t) => t.program === col.value),
+  }))
+  const leftover = templates.value.filter((t) => !knownPrograms.has(t.program))
+  if (leftover.length) {
+    groups.push({
+      value: 'other',
+      label: leftover[0].program_display || 'Other',
+      templates: leftover,
+    })
+  }
+  return groups
+})
 
 const showCreateForm = ref(false)
 const editingTemplateId = ref<number | null>(null)
@@ -395,11 +434,10 @@ const addDateValue = ref('')
 const addingDate = ref(false)
 
 const expandedSessionId = ref<number | null>(null)
-const rosterBySession = reactive<Record<number, RosterEntry[]>>({})
-const rosterLoadingId = ref<number | null>(null)
-const statusUpdatingId = ref<number | null>(null)
 const editingSessionId = ref<number | null>(null)
 const savingSession = ref(false)
+const pendingDeleteTemplateId = ref<number | null>(null)
+const deletingTemplateId = ref<number | null>(null)
 const sessionForm = reactive({
   session_date: '',
   start_time: '',
@@ -441,6 +479,32 @@ async function loadTemplates() {
     templatesError.value = 'No connection.'
   } finally {
     templatesLoading.value = false
+  }
+}
+
+async function setTemplateProgram(t: ClassTemplate, event: Event) {
+  const program = (event.target as HTMLSelectElement).value
+  if (!program || program === t.program) return
+  movingProgramId.value = t.id
+  try {
+    const resp = await staffFetch(`/api/staff/classes/templates/${t.id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ program }),
+    })
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok) {
+      toast.error(friendlyError(body, 'Could not move that class.'))
+      ;(event.target as HTMLSelectElement).value = t.program
+      return
+    }
+    toast.success(`Moved to ${PROGRAM_COLUMNS.find((col) => col.value === program)?.label || program}.`)
+    await loadTemplates()
+  } catch (e) {
+    ;(event.target as HTMLSelectElement).value = t.program
+    toast.error(networkErrorMessage(e))
+  } finally {
+    movingProgramId.value = null
   }
 }
 
@@ -593,21 +657,41 @@ async function submitAddDate(t: ClassTemplate) {
 }
 
 async function toggleSessionRoster(sessionId: number) {
-  if (expandedSessionId.value === sessionId) {
-    expandedSessionId.value = null
-    return
-  }
-  expandedSessionId.value = sessionId
-  if (rosterBySession[sessionId]) return
-  rosterLoadingId.value = sessionId
+  expandedSessionId.value = expandedSessionId.value === sessionId ? null : sessionId
+}
+
+function onRosterChanged(templateId: number) {
+  loadSessions(templateId)
+  loadTemplates()
+}
+
+function onSessionDeleted(templateId: number, sessionId: number) {
+  sessionsByTemplate[templateId] = (sessionsByTemplate[templateId] || []).filter((s) => s.id !== sessionId)
+  if (expandedSessionId.value === sessionId) expandedSessionId.value = null
+  loadTemplates()
+}
+
+function askDeleteTemplate(templateId: number) {
+  pendingDeleteTemplateId.value = pendingDeleteTemplateId.value === templateId ? null : templateId
+}
+
+async function deleteTemplate(t: ClassTemplate) {
+  deletingTemplateId.value = t.id
   try {
-    const resp = await staffFetch(`/api/staff/classes/${sessionId}/roster/`)
-    const body = resp.ok ? await resp.json() : { roster: [] }
-    rosterBySession[sessionId] = body.roster || []
-  } catch {
-    rosterBySession[sessionId] = rosterBySession[sessionId] || []
+    const resp = await staffFetch(`/api/staff/classes/templates/${t.id}/`, { method: 'DELETE' })
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok) {
+      toast.error(friendlyError(body, 'Could not delete that class.'))
+      return
+    }
+    toast.success(body?.message || 'Class deleted.')
+    pendingDeleteTemplateId.value = null
+    if (expandedTemplateId.value === t.id) expandedTemplateId.value = null
+    await loadTemplates()
+  } catch (e) {
+    toast.error(networkErrorMessage(e))
   } finally {
-    rosterLoadingId.value = null
+    deletingTemplateId.value = null
   }
 }
 
@@ -644,43 +728,6 @@ async function submitSessionEdit(templateId: number) {
   } finally {
     savingSession.value = false
   }
-}
-
-async function onStatusChange(entry: RosterEntry, sessionId: number, event: Event) {
-  const newStatus = (event.target as HTMLSelectElement).value
-  const previous = entry.status
-  statusUpdatingId.value = entry.enrollment_id
-  try {
-    const resp = await staffFetch(`/api/staff/classes/enrollments/${entry.enrollment_id}/status/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus }),
-    })
-    const body = await resp.json().catch(() => null)
-    if (!resp.ok) {
-      toast.error(friendlyError(body, 'Could not update that.'))
-      return
-    }
-    entry.status = newStatus
-    if (newStatus === 'cancelled') {
-      rosterBySession[sessionId] = (rosterBySession[sessionId] || []).filter(
-        (r) => r.enrollment_id !== entry.enrollment_id,
-      )
-    }
-    await loadSessions(templateIdForSession(sessionId))
-  } catch (e) {
-    entry.status = previous
-    toast.error(networkErrorMessage(e))
-  } finally {
-    statusUpdatingId.value = null
-  }
-}
-
-function templateIdForSession(sessionId: number): number {
-  for (const [templateId, sessions] of Object.entries(sessionsByTemplate)) {
-    if (sessions.some((s) => s.id === sessionId)) return Number(templateId)
-  }
-  return expandedTemplateId.value || 0
 }
 
 onMounted(loadTemplates)

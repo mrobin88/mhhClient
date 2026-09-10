@@ -69,6 +69,7 @@ from .class_views import (
     public_upcoming_classes,
     staff_upcoming_classes,
     staff_class_roster,
+    staff_class_roster_csv,
     staff_class_enroll,
     staff_class_text_preview,
     staff_class_unenroll,
@@ -82,6 +83,9 @@ from .class_views import (
     staff_class_session_update,
     staff_class_enrollment_status,
 )
+from .sms_views import sms_inbound
+from .job_views import stale_applicant_alerts_job
+from .pitstop_staff_views import staff_pitstop_application_detail, staff_pitstop_applications
 from .upload_invite_views import (
     PublicDocumentUploadInviteView,
     staff_client_upload_invites,
@@ -135,6 +139,12 @@ urlpatterns = [
     path('kiosk/check-in/submit/', KioskCheckInSubmitView.as_view(), name='kiosk-check-in-submit'),
     path('kiosk/check-in/upload-document/', KioskDocumentUploadView.as_view(), name='kiosk-check-in-upload-document'),
     path('classes/upcoming/', public_upcoming_classes, name='public-classes-upcoming'),
+    path('sms/inbound/', sms_inbound, name='sms-inbound'),
+    path(
+        'jobs/stale-applicant-alerts/',
+        stale_applicant_alerts_job,
+        name='jobs-stale-applicant-alerts',
+    ),
 
     # Staff SPA (Django session auth)
     path('staff/csrf/', staff_csrf, name='staff-csrf'),
@@ -163,6 +173,12 @@ urlpatterns = [
     ),
     path('staff/password-reset/', staff_password_reset, name='staff-password-reset'),
     path('staff/password-reset/confirm/', staff_password_reset_confirm, name='staff-password-reset-confirm'),
+    path('staff/pitstop-applications/', staff_pitstop_applications, name='staff-pitstop-applications'),
+    path(
+        'staff/pitstop-applications/<int:pk>/',
+        staff_pitstop_application_detail,
+        name='staff-pitstop-application-detail',
+    ),
     path('staff/messages/', staff_messages, name='staff-messages'),
     path('staff/messages/unread-count/', staff_messages_unread_count, name='staff-messages-unread-count'),
 
@@ -192,6 +208,11 @@ urlpatterns = [
     # Classes & Trainings
     path('staff/classes/upcoming/', staff_upcoming_classes, name='staff-classes-upcoming'),
     path('staff/classes/<int:session_id>/roster/', staff_class_roster, name='staff-classes-roster'),
+    path(
+        'staff/classes/<int:session_id>/roster.csv',
+        staff_class_roster_csv,
+        name='staff-classes-roster-csv',
+    ),
     path('staff/classes/<int:session_id>/enroll/', staff_class_enroll, name='staff-classes-enroll'),
     path('staff/classes/<int:session_id>/unenroll/', staff_class_unenroll, name='staff-classes-unenroll'),
     path(

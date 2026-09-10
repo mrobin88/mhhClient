@@ -48,7 +48,7 @@
   <div class="checklist-grid">
     {% for item in checklist %}
     <div class="check-item {% if item.present %}present{% else %}missing{% endif %}">
-      <strong>{% if item.present %}✓{% else %}○{% endif %} {{ item.label }}</strong>
+      <strong>{{ item.label }}</strong>
       <span style="font-size:12px;color:#64748b;">{% if item.present %}On file{% else %}Missing{% endif %}</span>
     </div>
     {% endfor %}

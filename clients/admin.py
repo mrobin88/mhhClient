@@ -25,7 +25,10 @@ from .models_extensions import (
     WorkerAccount,
     WorkerDailyFeedback,
     WorkerTimePunch,
+    close_expired_open_punches,
+    worker_max_shift_hours,
     ClientTextMessage,
+    ApplicantStaleAlert,
     StaffFeedback,
     StaffTicket,
     StaffTicketAttachment,
@@ -98,12 +101,13 @@ def _punch_duration_hours(punch):
     if not punch.clock_in_at or not punch.clock_out_at:
         return 0
     seconds = max((punch.clock_out_at - punch.clock_in_at).total_seconds(), 0)
-    return seconds / 3600
+    return min(seconds / 3600, worker_max_shift_hours())
 
 
 def _weekly_hours_for_worker(account):
     if not account or not account.pk:
         return 0
+    close_expired_open_punches(account)
     week_start, week_end = _current_week_bounds()
     punches = WorkerTimePunch.objects.filter(
         worker_account=account,
@@ -116,6 +120,7 @@ def _weekly_hours_for_worker(account):
 def _total_hours_for_worker(account):
     if not account or not account.pk:
         return 0
+    close_expired_open_punches(account)
     punches = WorkerTimePunch.objects.filter(worker_account=account).exclude(clock_out_at__isnull=True)
     return sum(_punch_duration_hours(punch) for punch in punches)
 
@@ -643,24 +648,21 @@ class ClientAdmin(admin.ModelAdmin):
             html_parts = []
             for panel in ctx['panels']:
                 html_parts.append(format_html(
-                    '<tr><td colspan="3" style="padding:10px 10px 4px;font-size:11px;'
+                    '<tr><td colspan="2" style="padding:10px 10px 4px;font-size:11px;'
                     'text-transform:uppercase;letter-spacing:.04em;color:#64748b;font-weight:700;">{}</td></tr>',
                     panel['title'],
                 ))
                 for item in panel['items']:
                     if item['present']:
-                        icon = '✓'
                         color = '#059669'
                         status = 'On file'
                     else:
-                        icon = '○'
                         color = '#dc2626'
                         status = 'Missing'
                     html_parts.append(format_html(
-                        '<tr><td style="padding:6px 10px;color:{};font-weight:700;">{}</td>'
-                        '<td style="padding:6px 10px;"><strong>{}</strong></td>'
-                        '<td style="padding:6px 10px;color:#64748b;">{}</td></tr>',
-                        color, icon, item['label'], status,
+                        '<tr><td style="padding:6px 10px;"><strong>{}</strong></td>'
+                        '<td style="padding:6px 10px;color:{};font-weight:700;">{}</td></tr>',
+                        item['label'], color, status,
                     ))
             summary = format_html(
                 '<p style="margin:0 0 8px;font-size:13px;color:#334155;">'
@@ -686,17 +688,16 @@ class ClientAdmin(admin.ModelAdmin):
         rows = []
         for code, label in CLIENT_DOC_CHECKLIST:
             if code in present:
-                icon = format_html('<span style="color:#059669;font-weight:700;">✓</span>')
+                color = '#059669'
                 status = 'On file'
             else:
-                icon = format_html('<span style="color:#dc2626;font-weight:700;">○</span>')
+                color = '#dc2626'
                 status = 'Missing'
-            rows.append((icon, label, status))
+            rows.append((label, color, status))
         table_rows = format_html_join(
             '',
-            '<tr><td style="padding:6px 10px;">{}</td>'
-            '<td style="padding:6px 10px;"><strong>{}</strong></td>'
-            '<td style="padding:6px 10px;color:#64748b;">{}</td></tr>',
+            '<tr><td style="padding:6px 10px;"><strong>{}</strong></td>'
+            '<td style="padding:6px 10px;color:{};font-weight:700;">{}</td></tr>',
             rows,
         )
         return format_html(
@@ -1680,7 +1681,7 @@ class PitStopApplicationAdmin(admin.ModelAdmin):
         'availability_detail',
         'reviewed_by',
         'review_updated_at',
-        'legacy_employment_history',
+        'employment_history_display',
     ]
     actions = [
         'mark_interviewed',
@@ -1714,14 +1715,32 @@ class PitStopApplicationAdmin(admin.ModelAdmin):
                 'availability_detail',
             ),
         }),
-        ('Education', {
-            'classes': ('collapse',),
-            'fields': ('education_history',),
+        ('Employment history', {
+            'fields': ('employment_history_display',),
+            'description': 'Typed from the digital form. The resume is also required.',
         }),
-        ('Older applications only', {
-            'classes': ('collapse',),
-            'fields': ('legacy_employment_history',),
-            'description': 'Work history is no longer collected — the resume covers it.',
+        ('Education', {
+            'fields': (
+                'high_school_name',
+                'high_school_city',
+                'high_school_state',
+                'post_secondary_name',
+                'post_secondary_city',
+                'post_secondary_state',
+                'education_history',
+            ),
+        }),
+        ('Program questions', {
+            'fields': (
+                'what_is_pit_stop',
+                'why_participate',
+                'goals_after_program',
+                'how_program_supports_goals',
+            ),
+            'description': 'These answers show whether the applicant understands Pit Stop is a workforce program, not a job.',
+        }),
+        ('Signature', {
+            'fields': ('signature_name', 'signed_on'),
         }),
         ('Timestamps', {
             'classes': ('collapse',),
@@ -1835,22 +1854,30 @@ class PitStopApplicationAdmin(admin.ModelAdmin):
             rows,
         )
 
-    @admin.display(description='Work history from older applications')
-    def legacy_employment_history(self, obj):
+    @admin.display(description='Work history')
+    def employment_history_display(self, obj):
         entries = [e for e in (obj.employment_history or []) if any((e or {}).values())]
         if not entries:
-            return 'Nothing recorded. Use the resume.'
-        rows = [
-            (
-                entry.get('company') or '—',
-                entry.get('title') or '—',
-                f"{entry.get('start_date') or '?'} to {entry.get('end_date') or '?'}",
+            return 'Nothing recorded. Check the resume.'
+        rows = []
+        for entry in entries:
+            company = entry.get('company_name') or entry.get('company') or '—'
+            title = entry.get('job_title') or entry.get('title') or '—'
+            dates = (
+                entry.get('dates_of_employment')
+                or f"{entry.get('start_date') or '?'} to {entry.get('end_date') or '?'}"
             )
-            for entry in entries
-        ]
+            place = ', '.join(part for part in [entry.get('city'), entry.get('state')] if part)
+            manager = entry.get('manager_name') or ''
+            phone = entry.get('manager_phone') or ''
+            supervisor = ''
+            if manager:
+                supervisor = f'{manager}' + (f' ({phone})' if phone else '')
+            duties = entry.get('responsibilities') or ''
+            rows.append((company, title, dates, place or '—', supervisor or '—', duties or '—'))
         return format_html_join(
-            format_html('<br>'),
-            '<strong>{}</strong> — {} ({})',
+            format_html('<br><br>'),
+            '<strong>{}</strong> — {} ({})<br>{} · Supervisor: {}<br>{}',
             rows,
         )
 
@@ -2171,6 +2198,14 @@ class WorkSiteAdmin(admin.ModelAdmin):
     gps_status.short_description = 'Geofence'
 
 
+@admin.register(ApplicantStaleAlert)
+class ApplicantStaleAlertAdmin(admin.ModelAdmin):
+    list_display = ['client', 'applied_for', 'days_stale', 'channel', 'notified_at']
+    list_filter = ['channel', 'notified_at']
+    search_fields = ['client__first_name', 'client__last_name', 'applied_for']
+    readonly_fields = ['client', 'applied_for', 'days_stale', 'channel', 'notified_at']
+
+
 @admin.register(ClientTextMessage)
 class ClientTextMessageAdmin(admin.ModelAdmin):
     """Admin log for Azure SMS outreach and replies."""
@@ -2300,7 +2335,7 @@ class WorkerTimePunchAdmin(admin.ModelAdmin):
         if not obj or not obj.clock_in_at or not obj.clock_out_at:
             return '—'
         seconds = max((obj.clock_out_at - obj.clock_in_at).total_seconds(), 0)
-        return f'{seconds / 3600:.2f}'
+        return f'{min(seconds / 3600, worker_max_shift_hours()):.2f}'
     hours_display.short_description = 'Hours'
 
     def _map_preview(self, image_field):
@@ -2583,11 +2618,11 @@ class ClassSessionAdmin(admin.ModelAdmin):
 
 @admin.register(ClassEnrollment)
 class ClassEnrollmentAdmin(admin.ModelAdmin):
-    list_display = ['client_link', 'session_display', 'status', 'registered_by', 'registered_at']
+    list_display = ['client_link', 'session_display', 'status', 'confirmed_at', 'registered_by', 'registered_at']
     list_filter = ['status', 'session__template__category']
     search_fields = ['client__first_name', 'client__last_name', 'client__phone', 'session__template__name']
     autocomplete_fields = ['client', 'session']
-    readonly_fields = ['registered_at']
+    readonly_fields = ['registered_at', 'confirmed_at']
 
     def client_link(self, obj):
         url = reverse('admin:clients_client_change', args=[obj.client_id])

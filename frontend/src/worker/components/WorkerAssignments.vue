@@ -128,6 +128,7 @@ interface LocationReference {
 
 const PUNCH_COOLDOWN_MS = 2500
 const LIVE_TICK_MS = 30_000
+const MAX_SHIFT_MS = 8 * 60 * 60 * 1000
 const OSM_STATIC_MAP = 'https://staticmap.openstreetmap.de/staticmap.php'
 
 const activePunch = ref<ActivePunch | null>(null)
@@ -151,7 +152,7 @@ const activeElapsedMs = computed(() => {
   if (!activePunch.value?.clock_in_at) return 0
   const started = new Date(activePunch.value.clock_in_at).getTime()
   if (Number.isNaN(started)) return 0
-  return Math.max(nowTick.value - started, 0)
+  return Math.min(Math.max(nowTick.value - started, 0), MAX_SHIFT_MS)
 })
 
 const activeDurationLabel = computed(() => {
@@ -264,14 +265,18 @@ async function buildLocationReference(coords: Coordinates): Promise<LocationRefe
   }
 }
 
-async function loadClockContext() {
-  loading.value = true
-  error.value = ''
+async function loadClockContext(opts: { silent?: boolean } = {}) {
+  if (!opts.silent) {
+    loading.value = true
+    error.value = ''
+  }
   try {
     const punchResp = await workerFetch('/api/worker/time-punch/')
     const punchBody = await punchResp.json().catch(() => null)
     if (!punchResp.ok || !punchBody) {
-      error.value = punchBody?.error || 'Could not load clock data.'
+      if (!opts.silent) {
+        error.value = punchBody?.error || 'Could not load clock data.'
+      }
       return
     }
     activePunch.value = punchBody.active_punch
@@ -279,9 +284,13 @@ async function loadClockContext() {
     weekHours.value = Number(punchBody.week_hours) || 0
     nowTick.value = Date.now()
   } catch {
-    error.value = 'No connection. Try again.'
+    if (!opts.silent) {
+      error.value = 'No connection. Try again.'
+    }
   } finally {
-    loading.value = false
+    if (!opts.silent) {
+      loading.value = false
+    }
   }
 }
 
@@ -343,6 +352,10 @@ onMounted(() => {
   loadClockContext()
   liveTimer = setInterval(() => {
     nowTick.value = Date.now()
+    if (!activePunch.value) return
+    const started = new Date(activePunch.value.clock_in_at).getTime()
+    if (Number.isNaN(started) || nowTick.value - started < MAX_SHIFT_MS) return
+    loadClockContext({ silent: true })
   }, LIVE_TICK_MS)
 })
 

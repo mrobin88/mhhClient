@@ -1,6 +1,7 @@
 """
 Daily notification command - run via Azure WebJob or cron.
-Sends: overdue follow-up alerts to staff + tomorrow's schedule reminders to workers + SMS progress follow-ups.
+Sends: overdue follow-up alerts to staff + SMS progress follow-ups
++ Teams alerts for applicants with no outreach for 3 weeks.
 
 Usage:
     python manage.py send_daily_notifications
@@ -14,7 +15,7 @@ logger = logging.getLogger('clients')
 
 
 class Command(BaseCommand):
-    help = 'Send daily email notifications: follow-up alerts + schedule reminders'
+    help = 'Send daily notifications: follow-up alerts, SMS follow-ups, Teams applicant alerts'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -37,6 +38,11 @@ class Command(BaseCommand):
             action='store_true',
             help='Skip 30/60/90/120 day SMS progress follow-ups',
         )
+        parser.add_argument(
+            '--skip-stale-applicants',
+            action='store_true',
+            help='Skip 3-week applicant Teams alerts',
+        )
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
@@ -58,6 +64,11 @@ class Command(BaseCommand):
         if not options['skip_sms_followups']:
             self.stdout.write('\n--- Progress SMS Follow-ups ---')
             self._send_sms_followups(dry_run)
+
+        # 4. Applicants with no outreach for 3 weeks → Teams
+        if not options['skip_stale_applicants']:
+            self.stdout.write('\n--- Stale Applicant Teams Alerts ---')
+            self._send_stale_applicant_alerts(dry_run)
 
         self.stdout.write(self.style.SUCCESS('\nDone.'))
 
@@ -109,4 +120,19 @@ class Command(BaseCommand):
             f'Sent {result["sent"]} SMS follow-up(s), '
             f'{result["failed"]} failed, '
             f'{result["skipped"]} skipped'
+        )
+
+    def _send_stale_applicant_alerts(self, dry_run):
+        from clients.teams_alerts import send_stale_applicant_alerts
+
+        result = send_stale_applicant_alerts(dry_run=dry_run)
+        self.stdout.write(f'Found {result["due"]} applicant(s) with no outreach for 3 weeks')
+        if dry_run:
+            for name in result['names'][:10]:
+                self.stdout.write(f'  {name}')
+            return
+        self.stdout.write(
+            f'Posted {result["sent"]} to Teams, '
+            f'{result["skipped"]} skipped, '
+            f'{result["errors"]} error(s)'
         )

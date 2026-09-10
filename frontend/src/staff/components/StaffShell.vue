@@ -3,7 +3,7 @@
     <ToastStack />
     <header
       v-if="showChrome"
-      class="sticky top-0 z-40 bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between"
+      class="staff-chrome-bar sticky top-0 z-40 px-4 py-3 flex items-center justify-between"
     >
       <RouterLink
         to="/dashboard"
@@ -176,6 +176,13 @@ const navGroups: { title: string; items: NavItem[] }[] = [
         badge: true,
       },
       {
+        label: 'Pit Stop apps',
+        hint: 'Review the digital paper form',
+        icon: 'assignment_ind',
+        to: '/pitstop-applications',
+        match: ['PitStopApplications', 'PitStopApplicationDetail'],
+      },
+      {
         label: 'Classes',
         hint: 'Orientation, JRT, attendance',
         icon: 'event',
@@ -228,8 +235,8 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     title: 'Other apps',
     items: [
       {
-        label: 'Public signup',
-        hint: 'The form new clients fill out',
+        label: 'Client portal',
+        hint: 'Check in or sign up',
         icon: 'app_registration',
         href: '/',
       },
@@ -237,7 +244,7 @@ const navGroups: { title: string; items: NavItem[] }[] = [
         label: 'Lobby check-in',
         hint: 'Phone lookup when they arrive',
         icon: 'front_hand',
-        href: '/checkin',
+        href: '/checkin/',
       },
       {
         label: 'Worker portal',
@@ -264,13 +271,6 @@ const navGroups: { title: string; items: NavItem[] }[] = [
         href: getApiUrl('/api/reports/'),
         external: true,
       },
-      {
-        label: 'Pit Stop applications',
-        hint: 'Interview decisions in admin',
-        icon: 'fact_check',
-        href: getApiUrl('/admin/clients/pitstopapplication/'),
-        external: true,
-      },
     ],
   },
 ]
@@ -284,6 +284,7 @@ const currentSection = computed(() => {
     if (route.query.program === 'pit_stop') return 'Pit Stop signups'
     return name === 'ClientDetail' ? 'Client' : 'Clients'
   }
+  if (name === 'PitStopApplications' || name === 'PitStopApplicationDetail') return 'Pit Stop apps'
   if (name === 'TicketDetail') return 'Tickets'
   if (name === 'CreateSkill') return 'Skill note'
   if (name === 'HowItWorks') return 'Guide'
@@ -325,6 +326,8 @@ const mainClass = computed(() => {
     'TicketDetail',
     'Messages',
     'HowItWorks',
+    'PitStopApplications',
+    'PitStopApplicationDetail',
   ].includes(String(route.name))
     ? 'staff-main-wide'
     : 'max-w-lg'

@@ -42,7 +42,7 @@ class Client(models.Model):
         ('asian', 'Asian'),
         ('black', 'Black or African American'),
         ('white', 'Caucasian or White'),
-        ('hispanic_latinx', 'Hispanic or Latin X'),
+        ('hispanic_latinx', 'Hispanic or Latinx'),
         ('middle_eastern', 'Middle Eastern'),
         ('pacific_islander', 'Native Hawaiian or Other Pacific Islander'),
         ('other', 'Other'),
@@ -661,12 +661,50 @@ class PitStopApplication(models.Model):
         help_text='Weekly schedule: {"Mon": ["7-4", "8-5"], "Tue": ["9-5"], ...} - each day can have multiple time slots'
     )
 
-    # Employment history (last job). No longer collected — the resume covers it.
-    # Kept so applications taken before that change are still readable.
-    employment_history = models.JSONField(default=list, help_text='Retired. Older applications may still hold a last-job entry.')
+    # Employment history — same blocks as the paper FY 26-27 application (up to two jobs).
+    # Resume is still required; this is the typed copy staff can print and review.
+    employment_history = models.JSONField(
+        default=list,
+        help_text=(
+            'Up to two jobs: company_name, dates_of_employment, city, state, '
+            'manager_name, manager_phone, job_title, responsibilities.'
+        ),
+    )
 
-    # Education history (free form)
+    # Education — structured like the paper form, plus a free-text fallback.
+    high_school_name = models.CharField(max_length=200, blank=True, default='')
+    high_school_city = models.CharField(max_length=100, blank=True, default='')
+    high_school_state = models.CharField(max_length=50, blank=True, default='')
+    post_secondary_name = models.CharField(max_length=200, blank=True, default='')
+    post_secondary_city = models.CharField(max_length=100, blank=True, default='')
+    post_secondary_state = models.CharField(max_length=50, blank=True, default='')
     education_history = models.TextField(blank=True, null=True)
+
+    # Screening questions — make sure applicants know this is a workforce program, not a job.
+    what_is_pit_stop = models.TextField(
+        blank=True,
+        default='',
+        help_text='In your own words, what is the Pit Stop program?',
+    )
+    why_participate = models.TextField(
+        blank=True,
+        default='',
+        help_text='Why do you want to participate in Pit Stop?',
+    )
+    goals_after_program = models.TextField(
+        blank=True,
+        default='',
+        help_text='What goals do you have after completing the Pit Stop workforce program?',
+    )
+    how_program_supports_goals = models.TextField(
+        blank=True,
+        default='',
+        help_text='How can this program support your long-term professional goals in joining the workforce?',
+    )
+
+    # Typed signature stands in for the paper signature line.
+    signature_name = models.CharField(max_length=200, blank=True, default='')
+    signed_on = models.DateField(blank=True, null=True)
 
     # Review pipeline — staff-only, never set by the applicant.
     review_status = models.CharField(

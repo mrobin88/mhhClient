@@ -14,16 +14,51 @@ IMAGE_OR_DOCUMENT_EXTENSIONS = {
     '.pdf', '.doc', '.docx', '.txt',
 }
 
+# Cheap Android cameras often send image/jpeg with no filename suffix.
+CONTENT_TYPE_EXTENSIONS = {
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/pjpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'image/heic': '.heic',
+    'image/heif': '.heif',
+    'image/gif': '.gif',
+    'application/pdf': '.pdf',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'text/plain': '.txt',
+}
+
+
+def _upload_content_type(upload):
+    return (getattr(upload, 'content_type', '') or '').split(';')[0].strip().lower()
+
+
+def _upload_extension(upload):
+    return Path(getattr(upload, 'name', '') or '').suffix.lower()
+
 
 def validate_self_upload(upload, *, allowed_extensions=None):
     if not upload:
         return 'Select a file to upload.'
     if getattr(upload, 'size', 0) <= 0:
         return 'That file appears to be empty.'
-    extension = Path(getattr(upload, 'name', '') or '').suffix.lower()
-    if extension not in (allowed_extensions or IMAGE_OR_DOCUMENT_EXTENSIONS):
-        return 'Only images, PDF, Word, or text files are allowed.'
-    return None
+    allowed = allowed_extensions or IMAGE_OR_DOCUMENT_EXTENSIONS
+    extension = _upload_extension(upload)
+    if extension in allowed:
+        return None
+    content_type = _upload_content_type(upload)
+    inferred = CONTENT_TYPE_EXTENSIONS.get(content_type, '')
+    if content_type.startswith('image/') and not inferred:
+        inferred = '.jpg'
+    if inferred and inferred in allowed:
+        return None
+    # Some phone browsers send a camera shot as octet-stream with no filename.
+    if not extension and content_type in ('', 'application/octet-stream', 'application/x-octet-stream'):
+        if '.jpg' in allowed or '.jpeg' in allowed:
+            return None
+    return 'Only images, PDF, Word, or text files are allowed.'
 
 
 def save_client_document(*, client, doc_type, upload, uploaded_by, title=None, notes=None):
@@ -31,6 +66,15 @@ def save_client_document(*, client, doc_type, upload, uploaded_by, title=None, n
     labels = dict(Document.DOC_TYPE_CHOICES)
     title = (title or labels.get(doc_type) or 'Client document')[:255]
     original = Path(getattr(upload, 'name', '') or 'upload.bin').name[:120]
+    if not Path(original).suffix:
+        inferred = CONTENT_TYPE_EXTENSIONS.get(_upload_content_type(upload), '')
+        if not inferred and (
+            _upload_content_type(upload).startswith('image/')
+            or _upload_content_type(upload) in ('', 'application/octet-stream', 'application/x-octet-stream')
+        ):
+            inferred = '.jpg'
+        if inferred:
+            original = f'{(original or "upload").rstrip(".")}{inferred}'
     try:
         # Unique blob names so a retry / replace does not collide with
         # AzurePrivateStorage.overwrite_files = False.

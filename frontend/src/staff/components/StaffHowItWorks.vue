@@ -70,8 +70,9 @@
     <article id="pitstop" class="staff-card p-4 staff-guide-section">
       <h4>Pit Stop</h4>
       <p class="staff-guide-lead">
-        Stage lives on the client page. Filter Clients by Pit Stop, then by stage. Portal access is
-        granted from the Pit Stop box on their page.
+        New applications land on Pit Stop apps. Read the digital form, resume, and program
+        answers there — that replaced the paper stack. Stage still lives on the client page.
+        Portal access is granted from the Pit Stop box on their page.
       </p>
       <div class="staff-guide-list">
         <div v-for="stage in pitStopStages" :key="stage.name" class="staff-guide-item">
@@ -80,6 +81,7 @@
         </div>
       </div>
       <div class="staff-guide-item-links">
+        <GuideLink :link="{ to: '/pitstop-applications', label: 'Open Pit Stop applications' }" />
         <GuideLink :link="{ to: '/clients', label: 'Open Clients' }" />
         <GuideLink :link="{ href: workerAdminUrl, label: 'Django: worker accounts' }" />
       </div>
@@ -88,9 +90,11 @@
     <article id="citybuild" class="staff-card p-4 staff-guide-section">
       <h4>City Build</h4>
       <p class="staff-guide-lead">
-        Stage lives on the client page when the program is City Build. Accepted and Dropped are
-        pre-registration. Enrolled and Arrived mean they are in the CBA 12-week program. In the
-        running means it is time for the file packet. Drug-test result is not stored.
+        Stage lives on the client page when the program is City Build. Public signup lists
+        upcoming classes whose Program is City Build — set that on Classes so people can pick
+        a date. Accepted and Dropped are pre-registration. Enrolled and Arrived mean they are
+        in the CBA 12-week program. In the running means it is time for the file packet.
+        Drug-test result is not stored.
       </p>
       <div class="staff-guide-list">
         <div v-for="stage in cityBuildStages" :key="stage.name" class="staff-guide-item">
@@ -149,14 +153,17 @@ const apps = [
   {
     name: 'Public signup',
     who: 'New clients',
-    what: 'Self-register, pick a program, optionally attach a resume or ID photo. Pit Stop asks extra work-history questions.',
-    links: [{ href: '/', label: 'Open signup form' }],
+    what: 'Home page asks Check In or Sign Up. Signup is self-register, pick a program, optionally attach a resume or ID photo. Pit Stop requires a resume, work history, and a few questions about the workforce program.',
+    links: [
+      { href: '/', label: 'Open client portal' },
+      { href: '/signup', label: 'Open signup form' },
+    ],
   },
   {
     name: 'Lobby check-in',
     who: 'Clients already in the system',
     what: 'Phone number, tap their name, say why they came. Writes a case note for you.',
-    links: [{ href: '/checkin', label: 'Open lobby check-in' }],
+    links: [{ href: '/checkin/', label: 'Open lobby check-in' }],
   },
   {
     name: 'Worker portal',
@@ -190,6 +197,11 @@ const screens = [
     links: [{ to: '/clients', label: 'Open Clients' }],
   },
   {
+    name: 'Pit Stop applications',
+    body: 'Read the full digital application, resume, and program answers. Update review status and notes here. Print a copy for the file.',
+    links: [{ to: '/pitstop-applications', label: 'Open Pit Stop applications' }],
+  },
+  {
     name: 'Client page',
     body: 'Edit contact info, program, status, and dates. Sign up for classes, add case notes, send document-upload links.',
     links: [
@@ -199,12 +211,12 @@ const screens = [
   },
   {
     name: 'Messages',
-    body: 'Text threads with clients. Unread replies show as a badge. Automated texts are class signup, class changes, and class cancellations.',
+    body: 'Text threads with clients. Unread replies show as a badge. Automated texts are class signup (reply YES), class changes, removals, cancellations, and a thank-you after a Pit Stop application.',
     links: [{ to: '/messages', label: 'Open Messages' }],
   },
   {
     name: 'Classes',
-    body: 'Templates, dated sessions, recurring dates, and attendance. Editing or cancelling a class texts people on the roster and gives them the Mission Hiring Hall number to confirm.',
+    body: 'Classes are grouped by program (City Build, Pit Stop, CAPSA, Guard Card, General). Set Program so a class lands in the right column. Signup texts ask people to reply YES. Removing someone texts that we are working on a new date. Cancel keeps the date; delete removes it. Export CSV for a paper sign-in sheet.',
     links: [{ to: '/classes', label: 'Open Classes' }],
   },
   {
@@ -222,8 +234,8 @@ const screens = [
 const clientPath = [
   { title: 'They sign up.', body: 'Public form, or Add a client on Home for an outside referral.' },
   { title: 'They become a record.', body: 'Notes, documents, classes, texts, Pit Stop stage, and City Build stage hang off that one page.' },
-  { title: 'You meet with them.', body: 'One case note per meaningful visit.' },
-  { title: 'Classes and documents.', body: 'Sign up from their page. Mark attendance on Classes. Send an upload link for missing paperwork.' },
+  { title: 'You meet with them.', body: 'One case note per meaningful visit. If nobody has reached out for 3 weeks, Teams (MHH ALL STAFF) gets a message with their name and what they applied for.' },
+  { title: 'Classes and documents.', body: 'Sign up from their page — they get a text to reply YES. Mark attendance and export a sign-in sheet on Classes. Send an upload link for missing paperwork.' },
   { title: 'Pit Stop workers.', body: 'Move stages, then grant portal access when they are ready for shifts.' },
 ]
 

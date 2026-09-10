@@ -25,13 +25,15 @@ class Command(BaseCommand):
                 f'Active SSN key {active_key_id!r} is not configured. '
                 'Set SSN_ENCRYPTION_KEYS before running the backfill.'
             )
+ 
 
         batch_size = max(1, options['batch_size'])
         encrypted_count = 0
         inspected_count = 0
         last_pk = 0
-
+       
         while True:
+
             with connection.cursor() as cursor:
                 cursor.execute(
                     """

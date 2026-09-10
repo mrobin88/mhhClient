@@ -286,6 +286,10 @@ SMS_FOLLOWUP_ENABLED = os.getenv('SMS_FOLLOWUP_ENABLED', 'false').lower() == 'tr
 # Separate switch on purpose: class confirmations can be proven in production
 # without also turning on the 30/60/90/120-day follow-up blasts.
 SMS_CLASS_CONFIRMATION_ENABLED = os.getenv('SMS_CLASS_CONFIRMATION_ENABLED', 'false').lower() == 'true'
+# Thank-you text after someone submits a Pit Stop application (2–3 week review window).
+SMS_PITSTOP_APPLICATION_ENABLED = os.getenv('SMS_PITSTOP_APPLICATION_ENABLED', 'true').lower() == 'true'
+# Shared secret on the ACS Event Grid webhook URL (?token=). Required in production.
+SMS_INBOUND_WEBHOOK_SECRET = os.getenv('SMS_INBOUND_WEBHOOK_SECRET', '')
 # Front-desk number included on class signup and class-change texts.
 MHH_PUBLIC_PHONE = os.getenv('MHH_PUBLIC_PHONE', '(415) 626-1919')
 SMS_INTERNAL_ONLY = os.getenv('SMS_INTERNAL_ONLY', 'false').lower() == 'true'
@@ -303,6 +307,22 @@ SMS_FOLLOWUP_START_FIELD = os.getenv('SMS_FOLLOWUP_START_FIELD', 'created_at')
 WORKER_CLOCK_GEOFENCE_METERS = int(os.getenv('WORKER_CLOCK_GEOFENCE_METERS', '183'))
 # Net paid hours below this flag a shift as "short" (possible early departure).
 WORKER_SHORT_SHIFT_HOURS = float(os.getenv('WORKER_SHORT_SHIFT_HOURS', '7.0'))
+WORKER_MAX_SHIFT_HOURS = float(os.getenv('WORKER_MAX_SHIFT_HOURS', '8.0'))
+
+# Teams: 3-week applicant outreach digest (MHH ALL STAFF team).
+# Posts via webhook, Graph, or email to the team's channel address.
+TEAMS_STALE_ALERTS_ENABLED = os.getenv('TEAMS_STALE_ALERTS_ENABLED', 'false').lower() == 'true'
+TEAMS_STALE_APPLICANT_DAYS = int(os.getenv('TEAMS_STALE_APPLICANT_DAYS', '21'))
+TEAMS_WEBHOOK_URL = os.getenv('TEAMS_WEBHOOK_URL', '')
+TEAMS_ALERT_EMAIL = os.getenv('TEAMS_ALERT_EMAIL', '')
+TEAMS_ALERT_JOB_SECRET = os.getenv('TEAMS_ALERT_JOB_SECRET', '')
+TEAMS_GRAPH_TENANT_ID = os.getenv('TEAMS_GRAPH_TENANT_ID', '')
+TEAMS_GRAPH_CLIENT_ID = os.getenv('TEAMS_GRAPH_CLIENT_ID', '')
+TEAMS_GRAPH_CLIENT_SECRET = os.getenv('TEAMS_GRAPH_CLIENT_SECRET', '')
+TEAMS_GRAPH_TEAM_ID = os.getenv('TEAMS_GRAPH_TEAM_ID', '')
+TEAMS_GRAPH_CHANNEL_ID = os.getenv('TEAMS_GRAPH_CHANNEL_ID', '')
+# Mailbox that posts into Teams (pitstopbot@missionhiringhall.org).
+TEAMS_BOT_UPN = os.getenv('TEAMS_BOT_UPN', '')
 
 # Admin base URL for email links
 ADMIN_BASE_URL = os.getenv('ADMIN_BASE_URL', 'https://mhh-client-backend-cuambzgeg3dfbphd.centralus-01.azurewebsites.net')
@@ -372,6 +392,8 @@ REST_FRAMEWORK = {
         'kiosk_upload': os.getenv('THROTTLE_KIOSK_UPLOAD', '30/hour'),
         'upload_invite': os.getenv('THROTTLE_UPLOAD_INVITE', '40/hour'),
         'worker_punch': os.getenv('THROTTLE_WORKER_PUNCH', '10/min'),
+        'sms_inbound': os.getenv('THROTTLE_SMS_INBOUND', '120/hour'),
+        'internal_job': os.getenv('THROTTLE_INTERNAL_JOB', '30/hour'),
     },
 }
 

@@ -3,8 +3,6 @@ Worker Portal API — worker clock in/out with optional map snapshot reference.
 """
 import json
 from datetime import timedelta
-from django.conf import settings
-from django.db.models import DurationField, ExpressionWrapper, F, Sum
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
@@ -26,6 +24,7 @@ from .models_extensions import (
     WorkerSessionToken,
     WorkSite,
     WorkerTimePunch,
+    close_expired_open_punches,
 )
 from .serializers import (
     WorkerLoginSerializer,
@@ -240,39 +239,17 @@ def _local_day_bounds(now=None):
 def _completed_hours_in_range(account, start_dt, end_dt):
     """Net paid hours for completed punches in [start_dt, end_dt) for this worker.
 
-    Net = worked time minus the unpaid lunch. Two SQL aggregates (gross worked
-    and total lunch), subtracted in Python — keeps it DB-agnostic and avoids
-    nested null-duration arithmetic. Open punches are excluded; the frontend
-    adds the live in-progress duration on top of these completed totals.
+    Uses each punch's net_hours so lunch is subtracted and no shift counts
+    above the 8-hour cap. Open punches are excluded; the frontend adds the
+    live in-progress duration on top of these completed totals.
     """
-    aggregates = (
-        WorkerTimePunch.objects.filter(
-            worker_account=account,
-            clock_in_at__gte=start_dt,
-            clock_in_at__lt=end_dt,
-            clock_out_at__isnull=False,
-        )
-        .aggregate(
-            worked=Sum(
-                ExpressionWrapper(
-                    F('clock_out_at') - F('clock_in_at'),
-                    output_field=DurationField(),
-                )
-            ),
-            lunch=Sum(
-                ExpressionWrapper(
-                    F('lunch_end_at') - F('lunch_start_at'),
-                    output_field=DurationField(),
-                )
-            ),
-        )
+    punches = WorkerTimePunch.objects.filter(
+        worker_account=account,
+        clock_in_at__gte=start_dt,
+        clock_in_at__lt=end_dt,
+        clock_out_at__isnull=False,
     )
-    worked = aggregates['worked']
-    lunch = aggregates['lunch']
-    worked_seconds = worked.total_seconds() if worked else 0
-    lunch_seconds = lunch.total_seconds() if lunch else 0
-    net_seconds = max(worked_seconds - lunch_seconds, 0)
-    return round(net_seconds / 3600, 2)
+    return round(sum((punch.net_hours or 0) for punch in punches), 2)
 
 
 def _resolve_optional_work_site(work_site_id):
@@ -419,6 +396,7 @@ def worker_dashboard_summary(request):
     if err:
         return err
 
+    close_expired_open_punches(worker_account)
     today_start, tomorrow_start = _worker_local_day_bounds()
     week_start = today_start - timedelta(days=6)
     incident_notes = CaseNote.objects.filter(
@@ -595,6 +573,7 @@ def worker_time_punch(request):
         return err
 
     if request.method == 'GET':
+        close_expired_open_punches(account)
         punches = (
             WorkerTimePunch.objects.filter(worker_account=account)
             .select_related('work_site')
@@ -640,10 +619,12 @@ def worker_time_punch(request):
     )
 
     if action in {'start_lunch', 'end_lunch'}:
+        if open_punch and open_punch.close_if_past_max_shift(now=now):
+            open_punch = None
         return _handle_lunch_action(action, open_punch, now, geolocation)
 
     if action == 'clock_in':
-        if open_punch:
+        if open_punch and not open_punch.close_if_past_max_shift(now=now):
             return Response(
                 {
                     'error': 'You are already clocked in. Clock out first.',
@@ -687,7 +668,8 @@ def worker_time_punch(request):
     if not geolocation['has_coordinates']:
         return _location_required_error(action)
 
-    if open_punch.is_on_lunch:
+    limit = open_punch.max_clock_out_at()
+    if open_punch.is_on_lunch and (not limit or now <= limit):
         return Response(
             {
                 'error': 'End your lunch before clocking out.',
@@ -696,8 +678,7 @@ def worker_time_punch(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    open_punch.clock_out_at = now
-    open_punch.clock_out_server_received_at = now
+    update_fields = open_punch.apply_clock_out(now, received_at=now)
     open_punch.clock_out_latitude = geolocation['latitude']
     open_punch.clock_out_longitude = geolocation['longitude']
     open_punch.clock_out_accuracy_meters = geolocation['accuracy']
@@ -705,17 +686,17 @@ def worker_time_punch(request):
     open_punch.clock_out_geo_error = geolocation['error']
     open_punch.clock_out_geo_basic_ok = True
     open_punch.clock_out_geo_basic_note = 'Location captured'
-    update_fields = [
-        'clock_out_at',
-        'clock_out_server_received_at',
-        'clock_out_latitude',
-        'clock_out_longitude',
-        'clock_out_accuracy_meters',
-        'clock_out_geo_status',
-        'clock_out_geo_error',
-        'clock_out_geo_basic_ok',
-        'clock_out_geo_basic_note',
-    ]
+    update_fields.extend(
+        [
+            'clock_out_latitude',
+            'clock_out_longitude',
+            'clock_out_accuracy_meters',
+            'clock_out_geo_status',
+            'clock_out_geo_error',
+            'clock_out_geo_basic_ok',
+            'clock_out_geo_basic_note',
+        ]
+    )
     if location_ref:
         _attach_location_snapshot(open_punch, 'clock_out', location_ref)
         update_fields.extend(['clock_out_location_label', 'clock_out_map_image'])

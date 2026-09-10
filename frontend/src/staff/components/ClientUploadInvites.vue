@@ -3,7 +3,7 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
       <h3>Client document upload link</h3>
-      <StaffTip text="Create a secure link that can upload only the documents you select. The link stays active until you revoke it. It cannot view or download the client record." />
+      <StaffTip text="Create a secure link that can upload only the documents you select. The link stays active until you revoke it. It cannot view or download the client record. On some phones the text-message browser cannot open Choose file — they should open the link in Chrome, use a computer, take a photo, or bring copies in." />
     </div>
     <p class="text-xs text-stone-500">
       Select missing documents, then copy the link or send it directly. Links do not expire.

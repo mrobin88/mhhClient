@@ -1,351 +1,164 @@
 <template>
-  <div
-    class="checkin-shell min-h-[100dvh] min-w-full flex flex-col items-center justify-center px-5 py-12 sm:px-8 sm:py-16 text-slate-800 antialiased"
-  >
-    <div class="checkin-shell__grid pointer-events-none fixed inset-0 -z-10" aria-hidden="true" />
-    <div class="checkin-shell__wash pointer-events-none fixed inset-0 -z-10" aria-hidden="true" />
-
-    <div class="w-full max-w-2xl mx-auto flex flex-col items-center">
-      <header class="checkin-reveal text-center mb-10 sm:mb-12 w-full" style="animation-delay: 60ms">
-        <div class="relative">
-          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div class="w-24 h-24 border-4 border-mission-400 rounded-full opacity-20 animate-pulse"></div>
-            <div class="w-12 h-12 border-2 border-mission-500 rounded-full absolute opacity-30 animate-ping"></div>
-          </div>
-          <h1 class="text-5xl font-bold text-slate-800 relative z-10 mb-4">
-            <span class="text-mission-600">Client Services</span> Portal
-          </h1>
-          <p class="text-xl text-slate-600 relative z-10">Professional Service Management System</p>
-          <p class="text-mission-800 relative z-10 mt-3 text-base font-semibold">
-            Visitor check-in
-          </p>
-          <p class="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto font-medium px-2 relative z-10">
-            Enter the phone number we have on file. Your check-in is securely recorded.
-          </p>
-          <div class="mt-4 flex justify-center space-x-2">
-            <div class="w-2 h-2 bg-mission-400 rounded-full"></div>
-            <div class="w-2 h-2 bg-mission-500 rounded-full"></div>
-            <div class="w-2 h-2 bg-mission-600 rounded-full"></div>
-          </div>
-        </div>
+  <div class="checkin-page">
+    <div class="checkin-page__inner">
+      <header class="checkin-header">
+        <p class="checkin-brand">Mission Hiring Hall</p>
+        <h1>{{ heading }}</h1>
+        <p class="checkin-lede">{{ lede }}</p>
       </header>
 
-      <article
-        class="checkin-card w-full rounded-xl border border-slate-200/90 bg-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.06),0_20px_50px_-12px_rgba(15,118,110,0.12)] overflow-hidden checkin-reveal"
-        style="animation-delay: 120ms"
-      >
-        <div class="h-1.5 w-full bg-gradient-to-r from-mission-600 via-mission-500 to-mission-600" aria-hidden="true" />
+      <article class="checkin-card">
+        <p v-if="message" class="checkin-alert" :class="messageKind === 'err' ? 'is-err' : 'is-ok'" role="alert">
+          {{ message }}
+        </p>
 
-        <div class="px-6 sm:px-8 pt-6 pb-2 border-b border-slate-100 bg-slate-50/80">
-          <h2 class="text-xs sm:text-sm font-bold tracking-[0.18em] uppercase text-slate-500">{{ stepTitle }}</h2>
-        </div>
+        <div class="checkin-step">
+          <template v-if="step === 'phone'">
+            <label for="phone">Phone</label>
+            <input
+              id="phone"
+              v-model="phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              enterkeyhint="go"
+              class="checkin-input checkin-input-phone"
+              placeholder="415 555 0123"
+              @keyup.enter="lookup"
+            />
+            <button type="button" class="checkin-btn checkin-btn-primary" :disabled="loading" @click="lookup">
+              <span v-if="loading" class="checkin-spinner" aria-hidden="true" />
+              {{ loading ? 'Looking you up…' : 'Continue' }}
+            </button>
+          </template>
 
-        <div class="p-6 sm:p-8 sm:pt-7 min-h-[240px] bg-white">
-          <Transition name="panel" mode="out-in">
-            <div :key="step" class="space-y-6 sm:space-y-7">
-              <p
-                v-if="message"
-                class="text-base rounded-lg px-4 py-3 border"
-                :class="messageClass"
-                role="alert"
-              >
-                {{ message }}
-              </p>
-
-              <template v-if="step === 'phone'">
-                <div class="space-y-4">
-                  <label
-                    for="phone"
-                    class="block text-center text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase text-slate-500"
-                  >
-                    Phone on file
-                  </label>
-
-                  <div
-                    class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2 sm:p-2.5 shadow-[inset_0_1px_2px_rgba(255,255,255,0.9),inset_0_-2px_8px_rgba(15,23,42,0.04)]"
-                  >
-                    <div class="px-5 py-9 sm:py-11 sm:px-8 rounded-lg bg-white border border-slate-100">
-                      <input
-                        id="phone"
-                        v-model="phone"
-                        type="tel"
-                        inputmode="tel"
-                        autocomplete="tel"
-                        class="checkin-phone-input w-full bg-transparent border-0 text-center text-3xl sm:text-4xl lg:text-[2.65rem] font-semibold tracking-[0.06em] text-slate-900 placeholder:text-slate-400 focus:ring-0 focus:outline-none caret-mission-600"
-                        placeholder="000 000 0000"
-                        @keyup.enter="lookup"
-                      />
-                    </div>
-                  </div>
-                  <p class="text-center text-sm text-slate-500 font-medium">
-                    Digits only or formatted — both work
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  class="checkin-cta w-full rounded-xl py-4 sm:py-5 px-6 font-bold uppercase tracking-[0.16em] text-sm text-white bg-mission-600 hover:bg-mission-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mission-600 disabled:opacity-50 disabled:pointer-events-none shadow-sm hover:shadow-md transition-[transform,box-shadow,background-color] duration-200 ease-out active:translate-y-px"
-                  :disabled="loading"
-                  @click="lookup"
-                >
-                  <span v-if="loading" class="inline-flex items-center justify-center gap-3">
-                    <span
-                      class="checkin-spinner h-5 w-5 rounded-full border-2 border-white/35 border-t-white"
-                      aria-hidden="true"
-                    />
-                    Locating profile
-                  </span>
-                  <span v-else>Continue</span>
+          <template v-else-if="step === 'pick'">
+            <ul class="checkin-names" role="listbox">
+              <li v-for="c in clients" :key="c.id">
+                <button type="button" class="checkin-name" @click="selectClient(c)">
+                  {{ c.first_name }} {{ c.last_name }}
                 </button>
-              </template>
+              </li>
+            </ul>
+            <button type="button" class="checkin-btn checkin-btn-ghost" @click="resetFlow">
+              Use a different number
+            </button>
+          </template>
 
-              <template v-else-if="step === 'pick'">
-                <p class="text-base sm:text-lg text-slate-600 text-center leading-relaxed font-medium">
-                  Multiple profiles match this number. Select the name that is yours.
-                </p>
-                <ul class="space-y-3" role="listbox">
-                  <li
-                    v-for="(c, i) in clients"
-                    :key="c.id"
-                    class="checkin-stagger opacity-0"
-                    :style="{ animationDelay: `${80 + i * 55}ms` }"
-                  >
-                    <button
-                      type="button"
-                      class="checkin-name-btn w-full text-left rounded-xl border-2 border-slate-200 bg-slate-50 px-5 py-4 sm:py-5 text-lg font-semibold text-slate-900 tracking-tight transition-[border-color,background-color,transform,box-shadow] duration-200 ease-out hover:border-mission-400 hover:bg-white hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mission-600 active:scale-[0.998]"
-                      @click="selectClient(c)"
-                    >
-                      {{ c.first_name }} {{ c.last_name }}
-                    </button>
-                  </li>
-                </ul>
-                <button
-                  type="button"
-                  class="w-full text-center text-sm font-semibold uppercase tracking-[0.15em] text-slate-500 hover:text-mission-700 transition-colors duration-200 py-2"
-                  @click="resetFlow"
-                >
-                  Use different number
-                </button>
-              </template>
+          <template v-else-if="step === 'reason'">
+            <label for="reason">Why are you here?</label>
+            <textarea
+              id="reason"
+              v-model="visitReason"
+              rows="3"
+              class="checkin-input checkin-textarea"
+              placeholder="Class, paperwork, or something else"
+            />
+            <button
+              type="button"
+              class="checkin-btn checkin-btn-primary"
+              :disabled="loading || !visitReason.trim()"
+              @click="submitCheckIn"
+            >
+              <span v-if="loading" class="checkin-spinner" aria-hidden="true" />
+              {{ loading ? 'Saving…' : 'Check in' }}
+            </button>
+            <button type="button" class="checkin-btn checkin-btn-ghost" @click="resetFlow">
+              Start over
+            </button>
+          </template>
 
-              <template v-else-if="step === 'reason'">
-                <p class="text-center text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
-                  Welcome back,
-                  <span class="text-mission-700">{{ selectedName }}</span>
-                </p>
-
-                <label
-                  for="reason"
-                  class="block text-center text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase text-slate-500"
-                >
-                  Reason for visit
-                </label>
-                <div
-                  class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2 sm:p-2.5 shadow-[inset_0_1px_2px_rgba(255,255,255,0.9),inset_0_-2px_8px_rgba(15,23,42,0.04)]"
-                >
-                  <textarea
-                    id="reason"
-                    v-model="visitReason"
-                    rows="6"
-                    class="checkin-textarea w-full resize-none bg-white border border-slate-100 rounded-lg px-5 py-5 text-base sm:text-lg text-slate-800 placeholder:text-slate-400 focus:ring-0 focus:outline-none leading-relaxed min-h-[160px]"
-                    placeholder="State the purpose of your visit in clear terms."
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  class="checkin-cta w-full rounded-xl py-4 sm:py-5 px-6 font-bold uppercase tracking-[0.16em] text-sm text-white bg-mission-600 hover:bg-mission-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mission-600 disabled:opacity-45 disabled:pointer-events-none shadow-sm hover:shadow-md transition-[transform,box-shadow,background-color] duration-200 ease-out active:translate-y-px"
-                  :disabled="loading || !visitReason.trim()"
-                  @click="submitCheckIn"
-                >
-                  <span v-if="loading" class="inline-flex items-center justify-center gap-3">
-                    <span
-                      class="checkin-spinner h-5 w-5 rounded-full border-2 border-white/35 border-t-white"
-                      aria-hidden="true"
-                    />
-                    Submitting
-                  </span>
-                  <span v-else>Submit check-in</span>
-                </button>
-                <button
-                  type="button"
-                  class="w-full text-center text-sm font-semibold uppercase tracking-[0.15em] text-slate-500 hover:text-mission-700 transition-colors duration-200 py-2"
-                  @click="resetFlow"
-                >
-                  Start over
-                </button>
-              </template>
-
-              <template v-else-if="step === 'uploadPrompt'">
-                <div class="text-center space-y-4 py-2">
-                  <p class="text-slate-900 font-semibold text-xl tracking-tight">Check-in recorded</p>
-                  <p class="text-base text-slate-600 leading-relaxed max-w-md mx-auto">
-                    Would you like to upload a document now?
-                  </p>
-                  <p class="text-sm text-slate-500">You can skip this and do it later with staff.</p>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    class="w-full rounded-xl py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-white bg-mission-600 hover:bg-mission-700 disabled:opacity-50"
-                    :disabled="loading"
-                    @click="goToUpload"
-                  >
-                    Yes, upload now
-                  </button>
-                  <button
-                    type="button"
-                    class="w-full rounded-xl border-2 border-slate-200 py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                    :disabled="loading"
-                    @click="finishCheckIn"
-                  >
-                    No, finish
-                  </button>
-                </div>
-              </template>
-
-              <template v-else-if="step === 'upload'">
-                <p class="text-center text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
-                  Upload Government Photo ID
-                </p>
-                <div class="space-y-5">
-                  <div class="space-y-2">
-                    <label for="docTitle" class="block text-sm font-semibold text-slate-700">Document title</label>
-                    <div class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2">
-                      <input
-                        id="docTitle"
-                        v-model="uploadTitle"
-                        type="text"
-                        class="checkin-field-input w-full rounded-lg border border-slate-100 bg-white px-4 py-3.5 text-base text-slate-800 placeholder:text-slate-400"
-                        placeholder="Example: Driver License"
-                      />
-                    </div>
-                  </div>
-
-                  <div class="space-y-2">
-                    <label for="docFile" class="block text-sm font-semibold text-slate-700">Choose a photo or PDF</label>
-                    <div class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2">
-                      <input
-                        id="docFile"
-                        ref="docFileInput"
-                        type="file"
-                        accept="image/*,application/pdf"
-                        class="checkin-file-input w-full rounded-lg border border-slate-100 bg-white px-3 py-3 text-slate-800"
-                        @click="onFilePickerOpen"
-                        @change="onFileChange"
-                      />
-                    </div>
-                    <p class="text-sm text-slate-500">Tap the box above. Use Camera, Gallery, or Files — photos and PDFs both work.</p>
-                    <p v-if="filePicking" class="checkin-file-status" role="status">
-                      Opening files on this phone…
-                    </p>
-                    <div
-                      v-if="uploadFile"
-                      class="checkin-file-staged"
-                    >
-                      <div class="min-w-0">
-                        <p class="text-xs font-bold uppercase tracking-wide text-emerald-800">File selected</p>
-                        <p class="text-sm font-semibold text-slate-800 break-words">{{ uploadFile.name }}</p>
-                        <p class="text-xs text-slate-500">{{ formatFileSize(uploadFile.size) }}</p>
-                      </div>
-                      <button
-                        type="button"
-                        class="flex-shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700"
-                        @click="removeUploadFile"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="space-y-2">
-                    <label for="docNotes" class="block text-sm font-semibold text-slate-700">Notes (optional)</label>
-                    <div class="checkin-well rounded-xl border-2 border-slate-200 bg-slate-50 p-2">
-                      <textarea
-                        id="docNotes"
-                        v-model="uploadNotes"
-                        rows="3"
-                        class="checkin-field-input w-full resize-none rounded-lg border border-slate-100 bg-white px-4 py-3.5 text-base text-slate-800 placeholder:text-slate-400"
-                        placeholder="Optional notes about this document."
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    class="checkin-cta w-full rounded-xl py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-white bg-mission-600 hover:bg-mission-700 disabled:opacity-45"
-                    :disabled="loading || !uploadFile"
-                    @click="submitUpload"
-                  >
-                    <span v-if="loading" class="inline-flex items-center justify-center gap-3">
-                      <span
-                        class="checkin-spinner h-5 w-5 rounded-full border-2 border-white/35 border-t-white"
-                        aria-hidden="true"
-                      />
-                      Uploading
-                    </span>
-                    <span v-else>Upload document</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="w-full rounded-xl border-2 border-slate-200 py-4 px-6 font-bold uppercase tracking-[0.14em] text-sm text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                    :disabled="loading"
-                    @click="finishCheckIn"
-                  >
-                    Finish check-in
-                  </button>
-                </div>
-
-                <p v-if="uploadedCount > 0" class="text-center text-sm text-emerald-700 font-medium">
-                  {{ uploadedCount }} document{{ uploadedCount > 1 ? 's' : '' }} uploaded successfully.
-                </p>
-              </template>
-
-              <template v-else-if="step === 'done'">
-                <div class="text-center space-y-4 py-3">
-                  <div
-                    class="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-emerald-200 bg-emerald-50 checkin-success-ring"
-                    aria-hidden="true"
-                  >
-                    <svg class="h-8 w-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <p class="text-slate-900 font-semibold text-xl tracking-tight">All set</p>
-                  <p class="text-base text-slate-600 leading-relaxed max-w-md mx-auto">
-                    Thank you. Your information has been received.
-                  </p>
-                  <p v-if="savedAt" class="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    {{ savedAt }}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  class="w-full rounded-xl border-2 border-slate-200 py-4 text-sm font-bold uppercase tracking-[0.14em] text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-all duration-200"
-                  @click="resetFlow"
-                >
-                  Check in again
-                </button>
-              </template>
+          <template v-else-if="step === 'uploadPrompt'">
+            <p class="checkin-prompt">Upload a photo ID now?</p>
+            <p class="checkin-hint">You can skip this and bring it later.</p>
+            <div class="checkin-actions">
+              <button type="button" class="checkin-btn checkin-btn-primary" :disabled="loading" @click="goToUpload">
+                Yes, upload
+              </button>
+              <button type="button" class="checkin-btn checkin-btn-secondary" :disabled="loading" @click="finishCheckIn">
+                Not now
+              </button>
             </div>
-          </Transition>
+          </template>
+
+          <template v-else-if="step === 'upload'">
+            <div class="checkin-field">
+              <label for="docTitle">Document title</label>
+              <input
+                id="docTitle"
+                v-model="uploadTitle"
+                type="text"
+                class="checkin-input"
+                placeholder="Driver license"
+              />
+            </div>
+
+            <div class="checkin-field">
+              <label for="docFile">Photo or PDF</label>
+              <input
+                id="docFile"
+                ref="docFileInput"
+                type="file"
+                accept="image/*,application/pdf"
+                class="checkin-input checkin-file"
+                @click="onFilePickerOpen"
+                @change="onFileChange"
+              />
+              <p v-if="filePicking" class="checkin-status" role="status">Opening files…</p>
+              <div v-if="uploadFile" class="checkin-staged">
+                <div>
+                  <p class="checkin-staged-name">{{ uploadFile.name }}</p>
+                  <p class="checkin-hint">{{ formatFileSize(uploadFile.size) }}</p>
+                </div>
+                <button type="button" class="checkin-remove" @click="removeUploadFile">Remove</button>
+              </div>
+            </div>
+
+            <div class="checkin-field">
+              <label for="docNotes">Notes (optional)</label>
+              <textarea
+                id="docNotes"
+                v-model="uploadNotes"
+                rows="2"
+                class="checkin-input checkin-textarea"
+                placeholder="Anything staff should know"
+              />
+            </div>
+
+            <div class="checkin-actions">
+              <button
+                type="button"
+                class="checkin-btn checkin-btn-primary"
+                :disabled="loading || !uploadFile"
+                @click="submitUpload"
+              >
+                <span v-if="loading" class="checkin-spinner" aria-hidden="true" />
+                {{ loading ? 'Uploading…' : 'Upload' }}
+              </button>
+              <button type="button" class="checkin-btn checkin-btn-secondary" :disabled="loading" @click="finishCheckIn">
+                Finish
+              </button>
+            </div>
+            <p v-if="uploadedCount > 0" class="checkin-ok">
+              {{ uploadedCount }} document{{ uploadedCount > 1 ? 's' : '' }} uploaded.
+            </p>
+          </template>
+
+          <template v-else-if="step === 'done'">
+            <p class="checkin-prompt">You’re checked in.</p>
+            <p v-if="savedAt" class="checkin-hint">{{ savedAt }}</p>
+            <button type="button" class="checkin-btn checkin-btn-secondary" @click="resetFlow">
+              Check in someone else
+            </button>
+          </template>
         </div>
       </article>
 
-      <p
-        class="checkin-reveal mt-12 text-center text-sm sm:text-base text-slate-600 max-w-lg leading-relaxed font-medium px-2"
-        style="animation-delay: 180ms"
-      >
-        New to services?
-        <RouterLink
-          to="/signup"
-          class="text-mission-700 hover:text-mission-800 font-semibold underline underline-offset-4 decoration-mission-300 hover:decoration-mission-600 transition-colors"
-        >
-          Sign up
-        </RouterLink>
-        — this kiosk is for people who already have a profile.
+      <p class="checkin-foot">
+        <a href="/">Home</a>
+        <span aria-hidden="true">·</span>
+        New here?
+        <a href="/signup">Sign up</a>
       </p>
     </div>
   </div>
@@ -379,20 +192,23 @@ const API_LOOKUP = getApiUrl('/api/kiosk/check-in/lookup/')
 const API_SUBMIT = getApiUrl('/api/kiosk/check-in/submit/')
 const API_UPLOAD_DOC = getApiUrl('/api/kiosk/check-in/upload-document/')
 
-const stepTitle = computed(() => {
-  if (step.value === 'phone') return 'Identity'
-  if (step.value === 'pick') return 'Confirmation'
-  if (step.value === 'reason') return 'Visit log'
-  if (step.value === 'uploadPrompt') return 'Optional documents'
-  if (step.value === 'upload') return 'Document upload'
-  return 'Complete'
+const heading = computed(() => {
+  if (step.value === 'pick') return 'Which name?'
+  if (step.value === 'reason') return selectedName.value ? `Hi, ${selectedName.value}` : 'Check in'
+  if (step.value === 'uploadPrompt') return 'You’re in'
+  if (step.value === 'upload') return 'Photo ID'
+  if (step.value === 'done') return 'All set'
+  return 'Check in'
 })
 
-const messageClass = computed(() =>
-  messageKind.value === 'err'
-    ? 'bg-red-50 text-red-900 border-red-200'
-    : 'bg-emerald-50 text-emerald-900 border-emerald-200',
-)
+const lede = computed(() => {
+  if (step.value === 'phone') return 'Use the phone number we have on file.'
+  if (step.value === 'pick') return 'More than one person uses this number.'
+  if (step.value === 'reason') return 'Tell us why you came in today.'
+  if (step.value === 'uploadPrompt') return 'Your visit is recorded.'
+  if (step.value === 'upload') return 'A photo of your ID is enough.'
+  return 'Staff has your check-in.'
+})
 
 const selectedName = computed(() => {
   if (!selected.value) return ''
@@ -598,115 +414,276 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.checkin-shell {
-  background: linear-gradient(to bottom right, #f0fdfa, #e2f8f4, #ccfbf1);
+.checkin-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1rem 1.75rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  color: #1c1917;
+  background: #f3f4f1;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
-.checkin-shell__grid {
-  background-image:
-    linear-gradient(rgba(15, 118, 110, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 118, 110, 0.06) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 95% 80% at 50% 20%, black 15%, transparent 65%);
-  opacity: 0.5;
+.checkin-page__inner {
+  width: 100%;
+  max-width: 22.5rem;
+  min-width: 0;
 }
 
-.checkin-shell__wash {
-  background: radial-gradient(ellipse 120% 70% at 50% 0%, rgba(255, 255, 255, 0.75), transparent 55%);
+.checkin-header {
+  margin-bottom: 1rem;
+}
+
+.checkin-brand {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.checkin-header h1 {
+  margin: 0;
+  font-size: 1.65rem;
+    font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: #134e4a;
+}
+
+.checkin-lede {
+  margin: 0.3rem 0 0;
+  color: #57534e;
 }
 
 .checkin-card {
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.8) inset,
-    0 20px 50px -12px rgba(15, 118, 110, 0.15);
+  background: #fff;
+  border: 1px solid #e4e4e0;
+  border-radius: 0.85rem;
+  padding: 1.1rem 1rem 1.2rem;
+  overflow: hidden;
 }
 
-.checkin-phone-input::placeholder {
-  letter-spacing: 0.08em;
+.checkin-step,
+.checkin-field,
+.checkin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
 }
 
-.checkin-textarea:focus,
-.checkin-phone-input:focus,
-.checkin-field-input:focus {
-  outline: none;
+.checkin-step label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #292524;
 }
 
-.checkin-field-input,
-.checkin-file-input {
-  font-size: 16px;
-  min-height: 3.15rem;
-}
-
-.checkin-file-input {
+.checkin-input,
+.checkin-btn,
+.checkin-name {
+  box-sizing: border-box;
   display: block;
-  color: #0f172a;
+  width: 100%;
+  max-width: 100%;
+  min-height: 3rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.65rem;
+  font: inherit;
 }
 
-.checkin-file-status {
+.checkin-input {
+  border: 1px solid #d6d3d1;
+  background: #fff;
+  color: #1c1917;
+}
+
+.checkin-input:focus,
+.checkin-textarea:focus {
+  outline: 2px solid #0d9488;
+  outline-offset: 1px;
+  border-color: #0d9488;
+}
+
+.checkin-input-phone {
+  min-height: 3.4rem;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.checkin-textarea {
+  min-height: 5.5rem;
+  resize: none;
+}
+
+.checkin-file {
+  padding: 0.45rem;
+}
+
+.checkin-hint {
   margin: 0;
-  padding: 0.7rem 0.85rem;
-  border-radius: 0.75rem;
-  background: #ecfeff;
-  border: 1px solid #a5f3fc;
+  font-size: 0.85rem;
+  color: #78716c;
+}
+
+.checkin-alert {
+  margin: 0 0 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.6rem;
+  font-size: 0.92rem;
+}
+
+.checkin-alert.is-err {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.checkin-alert.is-ok {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.checkin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.checkin-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkin-btn-primary {
+  background: #0d9488;
+  color: #fff;
+}
+
+.checkin-btn-primary:not(:disabled):active {
+  background: #0f766e;
+}
+
+.checkin-btn-secondary {
+  background: #fff;
+  color: #1c1917;
+  border-color: #d6d3d1;
+}
+
+.checkin-btn-ghost {
+  background: transparent;
+  color: #57534e;
+  min-height: 2.4rem;
+  font-size: 0.92rem;
+}
+
+.checkin-names {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.checkin-name {
+  text-align: left;
+  border: 1px solid #d6d3d1;
+  background: #fff;
+  font-weight: 700;
+  color: #1c1917;
+  cursor: pointer;
+}
+
+.checkin-name:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 1px;
+}
+
+.checkin-prompt {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.checkin-status {
+  margin: 0;
   color: #155e75;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
 }
 
-.checkin-file-staged {
+.checkin-staged {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 0.75rem;
-  border: 2px solid #99f6e4;
+  gap: 0.7rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.65rem;
   background: #ecfdf5;
 }
 
-.checkin-well:focus-within {
-  border-color: rgba(13, 148, 136, 0.45);
-  box-shadow:
-    inset 0 1px 2px rgba(255, 255, 255, 0.95),
-    0 0 0 3px rgba(13, 148, 136, 0.12);
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+.checkin-staged-name {
+  margin: 0;
+  font-weight: 700;
+  word-break: break-word;
 }
 
-.checkin-well {
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+.checkin-remove {
+  flex-shrink: 0;
+  border: 0;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.45rem;
+  cursor: pointer;
+}
+
+.checkin-ok {
+  margin: 0;
+  text-align: center;
+  color: #047857;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.checkin-foot {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #57534e;
+}
+
+.checkin-foot a {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.checkin-foot span {
+  margin: 0 0.35rem;
+  color: #a8a29e;
 }
 
 .checkin-spinner {
-  animation: checkin-spin 0.7s linear infinite;
-}
-
-.checkin-success-ring {
-  animation: checkin-success-pulse 1.35s ease-out 1 both;
-}
-
-.checkin-reveal {
-  animation: checkin-reveal-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.checkin-stagger {
-  animation: checkin-stagger-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.panel-enter-active,
-.panel-leave-active {
-  transition:
-    opacity 0.26s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.panel-enter-from {
-  opacity: 0;
-  transform: translateY(12px);
-}
-
-.panel-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: checkin-spin 0.8s linear infinite;
 }
 
 @keyframes checkin-spin {
@@ -715,63 +692,10 @@ onBeforeUnmount(() => {
   }
 }
 
-@keyframes checkin-reveal-up {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes checkin-stagger-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes checkin-success-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35);
-  }
-  70% {
-    box-shadow: 0 0 0 14px rgba(16, 185, 129, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .checkin-reveal,
-  .checkin-stagger,
-  .checkin-success-ring {
-    animation: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-  }
-
   .checkin-spinner {
     animation: none;
-    border-color: rgba(255, 255, 255, 0.45);
-    border-top-color: white;
-  }
-
-  .panel-enter-active,
-  .panel-leave-active {
-    transition-duration: 0.01ms !important;
-  }
-
-  .checkin-cta,
-  .checkin-name-btn {
-    transition: none !important;
+    border-top-color: #fff;
   }
 }
 </style>

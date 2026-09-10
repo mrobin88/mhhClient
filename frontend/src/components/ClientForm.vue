@@ -19,7 +19,7 @@
           <RouterLink to="/" class="font-semibold underline hover:text-mission-800">Home</RouterLink>
           <span class="mx-2 text-slate-400">·</span>
           Already with us?
-          <RouterLink to="/checkin" class="font-semibold underline hover:text-mission-900">Check in</RouterLink>
+          <a href="/checkin/" class="font-semibold underline hover:text-mission-900">Check in</a>
         </p>
 
         <div class="mt-4 flex justify-center space-x-2">

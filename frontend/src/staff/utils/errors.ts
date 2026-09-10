@@ -1,6 +1,6 @@
 export function friendlyError(
   body: Record<string, unknown> | null,
-  fallback = 'Something went wrong. Please try again.',
+  fallback = 'Whoops, something didn’t go as planned. Want to try that again?',
 ): string {
   if (!body) return fallback
   if (typeof body.error === 'string' && body.error) return body.error
@@ -19,7 +19,7 @@ export function friendlyError(
 
 export function networkErrorMessage(err: unknown): string {
   if (err instanceof TypeError) {
-    return 'No connection. Check your network and try again.'
+    return 'Hmm, can’t seem to reach the server. Double-check your internet and give it another shot.'
   }
-  return 'Something went wrong. Please try again.'
+  return 'Whoops, something didn’t go as planned. Want to try that again?'
 }

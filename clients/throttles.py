@@ -25,6 +25,18 @@ class UploadInviteThrottle(AnonRateThrottle):
     scope = 'upload_invite'
 
 
+class SmsInboundThrottle(AnonRateThrottle):
+    """Inbound ACS Event Grid webhook — keyed by client IP."""
+
+    scope = 'sms_inbound'
+
+
+class InternalJobThrottle(AnonRateThrottle):
+    """Scheduled Azure / GitHub job endpoints — keyed by client IP."""
+
+    scope = 'internal_job'
+
+
 class WorkerPunchThrottle(AnonRateThrottle):
     """
     Per-iPad rate limit on worker clock in/out POSTs.

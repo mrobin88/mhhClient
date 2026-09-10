@@ -20,7 +20,7 @@ from .citybuild_docs import (
     CITYBUILD_PROGRAMS,
     evaluate_citybuild_packet,
 )
-from .models_extensions import WorkerTimePunch
+from .models_extensions import WorkerTimePunch, close_expired_open_punches, worker_max_shift_hours
 
 
 # Accountants read these reports in local time, but the DB stores UTC.
@@ -772,7 +772,7 @@ def _pitstop_punch_hours(punch):
     if not punch.clock_in_at or not punch.clock_out_at:
         return None
     seconds = max((punch.clock_out_at - punch.clock_in_at).total_seconds(), 0)
-    return round(seconds / 3600, 2)
+    return min(round(seconds / 3600, 2), worker_max_shift_hours())
 
 
 def _local_date(value):
@@ -823,9 +823,12 @@ def _format_punch_row(punch):
 
 
 def write_pitstop_hours_csv(stream, punches):
+    close_expired_open_punches()
     writer = csv.writer(stream)
     writer.writerow(PITSTOP_HOURS_CSV_HEADER)
     for punch in punches:
+        if punch.clock_out_at is None and punch.pk:
+            punch.refresh_from_db()
         writer.writerow(_format_punch_row(punch))
     return stream
 
@@ -868,6 +871,7 @@ def _parse_pitstop_hours_report_params(request):
 
 
 def _pitstop_punches_for_hours_report(params):
+    close_expired_open_punches()
     punches = (
         WorkerTimePunch.objects.filter(
             clock_in_at__date__gte=params['start_date'],

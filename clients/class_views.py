@@ -3,17 +3,20 @@ Staff API for Classes & Trainings scheduling — creating classes, generating/ad
 sessions, roster (enroll/unenroll/attendance), and a client's own class history.
 
 This is the staff-friendly surface so day-to-day class management (adding a new
-class, scheduling more sessions, marking who showed up) never requires touching
-Django admin or a code change — only admin is needed for rare edits like deleting
-or renaming something.
+class, scheduling more sessions, marking who showed up, cancelling or deleting a
+date, exporting a sign-in sheet) never requires touching Django admin.
 
 Session-authenticated, staff-only, single-tenant.
 """
 from datetime import timedelta
+import csv
 import logging
+import re
+from io import StringIO
 
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import (
@@ -42,6 +45,16 @@ WEEK_OF_MONTH_VALUES = {value for value, _ in ClassTemplate.WEEK_OF_MONTH_CHOICE
 ENROLLMENT_STATUS_VALUES = {value for value, _ in ClassEnrollment.STATUS_CHOICES}
 SESSION_STATUS_VALUES = {value for value, _ in ClassSession.STATUS_CHOICES}
 
+_ACTIVE_ENROLL = Q(enrollments__status__in=['registered', 'attended'])
+_CONFIRMED_ENROLL = _ACTIVE_ENROLL & Q(enrollments__confirmed_at__isnull=False)
+
+
+def _annotate_session_counts(queryset):
+    return queryset.annotate(
+        _enrolled_count=Count('enrollments', filter=_ACTIVE_ENROLL),
+        _confirmed_count=Count('enrollments', filter=_CONFIRMED_ENROLL),
+    )
+
 
 def _template_summary(template):
     return {
@@ -67,6 +80,15 @@ def _template_summary(template):
 
 
 def _session_summary(session):
+    enrolled = getattr(session, '_enrolled_count', None)
+    if enrolled is None:
+        enrolled = session.enrolled_count
+    confirmed = getattr(session, '_confirmed_count', None)
+    if confirmed is None:
+        confirmed = session.enrollments.filter(
+            status__in=['registered', 'attended'],
+            confirmed_at__isnull=False,
+        ).count()
     return {
         'id': session.id,
         'template_id': session.template_id,
@@ -81,9 +103,30 @@ def _session_summary(session):
         'location': session.location,
         'facilitator': session.facilitator,
         'capacity': session.capacity,
-        'enrolled_count': getattr(session, '_enrolled_count', None) or session.enrolled_count,
-        'spots_remaining': session.capacity - (getattr(session, '_enrolled_count', None) or session.enrolled_count),
+        'enrolled_count': enrolled,
+        'confirmed_count': confirmed,
+        'spots_remaining': session.capacity - enrolled,
         'status': session.status,
+    }
+
+
+def _enrollment_payload(enrollment):
+    client = enrollment.client
+    return {
+        'enrollment_id': enrollment.id,
+        'client_id': client.id,
+        'client_full_name': client.full_name,
+        'first_name': client.first_name or '',
+        'last_name': client.last_name or '',
+        'phone': client.phone or '',
+        'email': client.email or '',
+        'client_phone': client.phone or '',
+        'status': enrollment.status,
+        'status_display': enrollment.get_status_display(),
+        'confirmed': bool(enrollment.confirmed_at),
+        'confirmed_at': enrollment.confirmed_at,
+        'registered_by': enrollment.registered_by,
+        'registered_at': enrollment.registered_at,
     }
 
 
@@ -103,18 +146,11 @@ def staff_upcoming_classes(request):
     today = timezone.localdate()
     horizon = today + timedelta(days=days)
 
-    sessions = (
+    sessions = _annotate_session_counts(
         ClassSession.objects.filter(
             status='scheduled', session_date__gte=today, session_date__lte=horizon
-        )
-        .select_related('template')
-        .annotate(
-            _enrolled_count=Count(
-                'enrollments', filter=Q(enrollments__status__in=['registered', 'attended'])
-            )
-        )
-        .order_by('session_date', 'start_time')
-    )
+        ).select_related('template')
+    ).order_by('session_date', 'start_time')
 
     category = (request.GET.get('category') or '').strip()
     if category:
@@ -147,15 +183,9 @@ def try_enroll_signup_session(client, data):
         return None
 
     try:
-        session = (
+        session = _annotate_session_counts(
             ClassSession.objects.select_related('template')
-            .annotate(
-                _enrolled_count=Count(
-                    'enrollments', filter=Q(enrollments__status__in=['registered', 'attended'])
-                )
-            )
-            .get(pk=session_id)
-        )
+        ).get(pk=session_id)
     except ClassSession.DoesNotExist:
         return None
 
@@ -177,7 +207,8 @@ def try_enroll_signup_session(client, data):
     if existing:
         existing.status = 'registered'
         existing.registered_by = 'Online signup'
-        existing.save(update_fields=['status', 'registered_by'])
+        existing.confirmed_at = None
+        existing.save(update_fields=['status', 'registered_by', 'confirmed_at'])
         enrollment = existing
     else:
         enrollment = ClassEnrollment.objects.create(
@@ -223,22 +254,15 @@ def public_upcoming_classes(request):
         days = 90
     today = timezone.localdate()
     horizon = today + timedelta(days=days)
-    sessions = (
+    sessions = _annotate_session_counts(
         ClassSession.objects.filter(
             status='scheduled',
             session_date__gte=today,
             session_date__lte=horizon,
             template__is_active=True,
             template__program=program,
-        )
-        .select_related('template')
-        .annotate(
-            _enrolled_count=Count(
-                'enrollments', filter=Q(enrollments__status__in=['registered', 'attended'])
-            )
-        )
-        .order_by('session_date', 'start_time')
-    )
+        ).select_related('template')
+    ).order_by('session_date', 'start_time')
     return Response({'results': [_session_summary(s) for s in sessions]})
 
 
@@ -252,15 +276,9 @@ def staff_class_roster(request, session_id):
         return err
 
     try:
-        session = (
+        session = _annotate_session_counts(
             ClassSession.objects.select_related('template')
-            .annotate(
-                _enrolled_count=Count(
-                    'enrollments', filter=Q(enrollments__status__in=['registered', 'attended'])
-                )
-            )
-            .get(pk=session_id)
-        )
+        ).get(pk=session_id)
     except ClassSession.DoesNotExist:
         return Response({'error': 'Class session not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -271,20 +289,60 @@ def staff_class_roster(request, session_id):
     )
     return Response({
         'session': _session_summary(session),
-        'roster': [
-            {
-                'enrollment_id': e.id,
-                'client_id': e.client_id,
-                'client_full_name': e.client.full_name,
-                'client_phone': e.client.phone,
-                'status': e.status,
-                'status_display': e.get_status_display(),
-                'registered_by': e.registered_by,
-                'registered_at': e.registered_at,
-            }
-            for e in enrollments
-        ],
+        'roster': [_enrollment_payload(e) for e in enrollments],
     })
+
+
+def _signin_sheet_filename(session):
+    slug = re.sub(r'[^A-Za-z0-9]+', '_', session.template.name).strip('_') or 'class'
+    return f'{slug}_{session.session_date.isoformat()}_signin.csv'
+
+
+@api_view(['GET'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_class_roster_csv(request, session_id):
+    """Paper sign-in sheet: name, phone, email, plus blank signature / time in / sponsorship."""
+    err = _staff_guard(request)
+    if err:
+        return err
+
+    try:
+        session = ClassSession.objects.select_related('template').get(pk=session_id)
+    except ClassSession.DoesNotExist:
+        return Response({'error': 'Class session not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    enrollments = (
+        session.enrollments.select_related('client')
+        .exclude(status='cancelled')
+        .order_by('client__last_name', 'client__first_name')
+    )
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([
+        'Last name',
+        'First name',
+        'Phone number',
+        'Email',
+        'Signature',
+        'Time in',
+        'Need sponsorship',
+    ])
+    for enrollment in enrollments:
+        client = enrollment.client
+        writer.writerow([
+            client.last_name or '',
+            client.first_name or '',
+            client.phone or '',
+            client.email or '',
+            '',
+            '',
+            '',
+        ])
+    filename = _signin_sheet_filename(session)
+    response = HttpResponse('\ufeff' + buffer.getvalue(), content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 @api_view(['GET'])
@@ -320,6 +378,8 @@ def staff_client_classes(request, pk):
                 'location': e.session.location,
                 'status': e.status,
                 'status_display': e.get_status_display(),
+                'confirmed': bool(e.confirmed_at),
+                'confirmed_at': e.confirmed_at,
             }
             for e in enrollments
         ]
@@ -340,15 +400,9 @@ def staff_class_enroll(request, session_id):
         return Response({'client_id': ['Select a client.']}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        session = (
+        session = _annotate_session_counts(
             ClassSession.objects.select_related('template')
-            .annotate(
-                _enrolled_count=Count(
-                    'enrollments', filter=Q(enrollments__status__in=['registered', 'attended'])
-                )
-            )
-            .get(pk=session_id)
-        )
+        ).get(pk=session_id)
     except ClassSession.DoesNotExist:
         return Response({'error': 'Class session not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -372,7 +426,8 @@ def staff_class_enroll(request, session_id):
     if existing:
         existing.status = 'registered'
         existing.registered_by = staff_display_name(request.user)
-        existing.save(update_fields=['status', 'registered_by'])
+        existing.confirmed_at = None
+        existing.save(update_fields=['status', 'registered_by', 'confirmed_at'])
         enrollment = existing
     else:
         enrollment = ClassEnrollment.objects.create(
@@ -500,11 +555,31 @@ def staff_class_templates(request):
     return Response({'results': [_template_summary(t) for t in templates]})
 
 
-@api_view(['PATCH'])
+def _delete_class_template(template):
+    from .notifications import notify_active_roster
+
+    today = timezone.localdate()
+    upcoming = list(
+        template.sessions.filter(status='scheduled', session_date__gte=today).select_related('template')
+    )
+    notes = []
+    for session in upcoming:
+        note = notify_active_roster(session, 'cancelled')
+        if note:
+            notes.append(note)
+    name = template.name
+    template.delete()
+    message = f'Deleted "{name}".'
+    if notes:
+        message = f'{message} {" ".join(notes)}'
+    return Response({'message': message})
+
+
+@api_view(['PATCH', 'DELETE'])
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_class_template_update(request, template_id):
-    """Edit or deactivate a class/JRT template without deleting its history."""
+    """Edit, deactivate, or delete a class. Delete texts people on upcoming dates, then removes the class."""
     err = _staff_guard(request)
     if err:
         return err
@@ -512,6 +587,9 @@ def staff_class_template_update(request, template_id):
         template = ClassTemplate.objects.get(pk=template_id)
     except ClassTemplate.DoesNotExist:
         return Response({'error': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'DELETE':
+        return _delete_class_template(template)
 
     text_fields = ('name', 'description', 'location', 'facilitator')
     for field in text_fields:
@@ -702,16 +780,9 @@ def staff_class_template_sessions(request, template_id):
         return Response({'error': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     today = timezone.localdate()
-    sessions = (
-        template.sessions.filter(session_date__gte=today)
-        .select_related('template')
-        .annotate(
-            _enrolled_count=Count(
-                'enrollments', filter=Q(enrollments__status__in=['registered', 'attended'])
-            )
-        )
-        .order_by('session_date', 'start_time')
-    )
+    sessions = _annotate_session_counts(
+        template.sessions.filter(session_date__gte=today).select_related('template')
+    ).order_by('session_date', 'start_time')
     return Response({'results': [_session_summary(s) for s in sessions]})
 
 
@@ -780,11 +851,11 @@ def staff_class_session_create(request):
     )
 
 
-@api_view(['PATCH'])
+@api_view(['PATCH', 'DELETE'])
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_class_session_update(request, session_id):
-    """Edit, complete, or cancel a dated class session while preserving its roster."""
+    """Edit, complete, cancel, or delete a dated class session."""
     err = _staff_guard(request)
     if err:
         return err
@@ -792,6 +863,22 @@ def staff_class_session_update(request, session_id):
         session = ClassSession.objects.select_related('template').get(pk=session_id)
     except ClassSession.DoesNotExist:
         return Response({'error': 'Session not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'DELETE':
+        from .notifications import notify_active_roster
+
+        label = f'{session.template.name} on {session.session_date}'
+        text_note = ''
+        if session.status == 'scheduled':
+            try:
+                text_note = notify_active_roster(session, 'cancelled')
+            except Exception:
+                logger.exception('Class delete texts failed for session=%s', session.pk)
+        session.delete()
+        message = f'Deleted {label}.'
+        if text_note:
+            message = f'{message} {text_note}'
+        return Response({'message': message})
 
     previous_status = session.status
     previous_details = (
@@ -848,6 +935,11 @@ def staff_class_session_update(request, session_id):
         session.end_time,
         (session.location or '').strip(),
     )
+    if details_changed and session.status == 'scheduled':
+        session.enrollments.filter(
+            status__in=['registered', 'attended'],
+            confirmed_at__isnull=False,
+        ).update(confirmed_at=None)
     from .notifications import notify_class_session_change
 
     try:

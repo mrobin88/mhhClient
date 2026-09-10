@@ -3,15 +3,13 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">person_search</span>
       <h3>New Pit Stop applications</h3>
-      <StaffTip text="People waiting for their first review. Open a name to see the application summary. Use Admin for the interview decision and review notes." />
-      <a
-        :href="adminUrl"
-        target="_blank"
-        rel="noopener"
+      <StaffTip text="People waiting for their first review. Open a name to read the full application, resume, and program answers." />
+      <RouterLink
+        :to="{ name: 'PitStopApplications' }"
         class="text-xs font-semibold staff-link shrink-0"
       >
         Review all →
-      </a>
+      </RouterLink>
     </div>
 
     <CardSkeleton v-if="loading" variant="list" :count="4" />
@@ -21,12 +19,12 @@
     </p>
     <template v-else>
       <p class="text-xs text-stone-500 mb-2">
-        {{ totalNew }} waiting for review. Resume and date of birth are now required online.
+        {{ totalNew }} waiting for review. Resume, work history, and program answers are required.
       </p>
       <ul class="space-y-2 staff-fade-in">
         <li v-for="app in applications" :key="app.id">
           <RouterLink
-            :to="{ name: 'ClientDetail', params: { id: app.client_id }, query: { focus: 'pitstop' } }"
+            :to="{ name: 'PitStopApplicationDetail', params: { id: app.id } }"
             class="flex items-center justify-between gap-2 border-t border-stone-100 pt-2 first:border-0 first:pt-0"
           >
             <span class="min-w-0">
@@ -51,7 +49,6 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { getApiUrl } from '../../../config/api'
 import { staffFetch } from '../../api'
 import CardSkeleton from './CardSkeleton.vue'
 import StaffTip from '../StaffTip.vue'
@@ -70,8 +67,6 @@ const applications = ref<NewPitStopApplication[]>([])
 const totalNew = ref(0)
 const loading = ref(true)
 const error = ref('')
-const adminUrl = getApiUrl('/admin/clients/pitstopapplication/')
-
 async function load() {
   try {
     const resp = await staffFetch('/api/staff/dashboard/new-pitstop-applications/?limit=5')

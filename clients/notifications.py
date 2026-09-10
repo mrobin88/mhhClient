@@ -171,6 +171,51 @@ def send_pitstop_application_alert(application):
     return {'sent': sent, 'total': len(recipients)}
 
 
+def pitstop_application_received_body(client):
+    first_name = (client.first_name or client.full_name or 'there').strip()
+    return (
+        f'Hi {first_name}, thank you for applying to the Mission Hiring Hall Pit Stop '
+        'workforce program. We received your application and will review it within '
+        '2 to 3 weeks. We will contact you if there are next steps. '
+        'Pit Stop is a training program, not a job offer. Mission Hiring Hall.'
+    )
+
+
+def send_pitstop_application_received_sms(application):
+    """
+    Thank-you text to the applicant. Never raises — a failed text must not
+    roll back the application they just submitted.
+    """
+    from .models_extensions import ClientTextMessage
+
+    client = application.client
+    if not getattr(settings, 'SMS_PITSTOP_APPLICATION_ENABLED', False):
+        return 'disabled', 'Pit Stop application texts are turned off.'
+    if not (client.phone or '').strip():
+        return 'skipped', 'No phone number on file.'
+
+    try:
+        log, attempted = send_text_message(
+            client=client,
+            body=pitstop_application_received_body(client),
+            purpose=ClientTextMessage.PURPOSE_PITSTOP_APPLICATION,
+            dedupe_key=f'pitstop-application:{application.pk}',
+            require_enabled_flag=False,
+        )
+    except Exception as exc:
+        logger.error(
+            'Pit Stop application SMS failed for application %s: %s',
+            application.pk, exc, exc_info=True,
+        )
+        return 'failed', 'Text could not be sent.'
+
+    if log.status == ClientTextMessage.STATUS_SENT:
+        return 'sent', f'Text sent to {client.phone}.'
+    if not attempted:
+        return 'skipped', 'Text already sent for this application.'
+    return 'failed', log.error_message or 'Text could not be sent.'
+
+
 def _sms_client():
     connection_string = getattr(settings, 'AZURE_COMMUNICATION_CONNECTION_STRING', '')
     if not connection_string:
@@ -426,6 +471,8 @@ def class_confirmation_body(client, session):
     """
     Short, plain-language confirmation. Many clients read English as a second
     language, so this stays to one fact per sentence.
+
+    "Reply YES" lives in the body so the STOP footer cannot swallow it.
     """
     parts = [
         f'Hi {_class_first_name(client)}, you are signed up for {session.template.name} on {_class_when(session)}.'
@@ -433,7 +480,7 @@ def class_confirmation_body(client, session):
     location = _class_location(session)
     if location:
         parts.append(f'Where: {location}.')
-    parts.append(f'Call {mission_hall_phone()} to confirm.')
+    parts.append(f'Reply YES to confirm you are coming, or call {mission_hall_phone()}.')
     parts.append('Mission Hiring Hall.')
     return ' '.join(parts)
 
@@ -446,7 +493,7 @@ def class_updated_body(client, session):
     location = _class_location(session)
     if location:
         parts.append(f'Where: {location}.')
-    parts.append(f'Call {mission_hall_phone()} to confirm.')
+    parts.append(f'Reply YES to confirm you are coming, or call {mission_hall_phone()}.')
     parts.append('Mission Hiring Hall.')
     return ' '.join(parts)
 
@@ -454,7 +501,7 @@ def class_updated_body(client, session):
 def class_cancelled_body(client, session):
     return (
         f'Hi {_class_first_name(client)}, {session.template.name} on {_class_when(session)} '
-        f'has been cancelled. Call {mission_hall_phone()} to confirm. Mission Hiring Hall.'
+        f'has been cancelled. Call {mission_hall_phone()} if you have questions. Mission Hiring Hall.'
     )
 
 
@@ -462,8 +509,139 @@ def class_removed_body(client, session):
     return (
         f'Hi {_class_first_name(client)}, you are no longer signed up for '
         f'{session.template.name} on {_class_when(session)}. '
-        f'Call {mission_hall_phone()} if you have questions. Mission Hiring Hall.'
+        f'We are working on a new schedule date. You can call us at {mission_hall_phone()} '
+        f'or come in — or wait to hear from us. Mission Hiring Hall.'
     )
+
+
+def class_yes_confirmed_body(client, session):
+    return (
+        f'Hi {_class_first_name(client)}, you are confirmed for {session.template.name} '
+        f'on {_class_when(session)}. See you then. Mission Hiring Hall.'
+    )
+
+
+_YES_REPLY = re.compile(r'^\s*(yes|y|confirmed|confirm)\s*[.!]*\s*$', re.IGNORECASE)
+
+
+def is_class_yes_reply(body):
+    return bool(_YES_REPLY.match((body or '').strip()))
+
+
+def _pending_class_confirmation(clients):
+    """Soonest upcoming unconfirmed registration across these clients."""
+    from .models_classes import ClassEnrollment
+
+    today = timezone.localdate()
+    return (
+        ClassEnrollment.objects.filter(
+            client__in=clients,
+            status='registered',
+            confirmed_at__isnull=True,
+            session__status='scheduled',
+            session__session_date__gte=today,
+        )
+        .select_related('client', 'session', 'session__template')
+        .order_by('session__session_date', 'session__start_time', 'id')
+        .first()
+    )
+
+
+def process_inbound_sms(
+    from_phone,
+    body,
+    to_phone='',
+    provider_message_id='',
+    provider_payload=None,
+):
+    """
+    Log an inbound text and, if it is YES, confirm the next upcoming class.
+
+    Returns a small dict for the webhook. Never raises.
+    """
+    from .models import Client
+    from .models_extensions import ClientTextMessage
+    from .phone_utils import find_all_by_normalized_phone, find_by_normalized_phone
+
+    from_phone = (from_phone or '').strip()
+    body = (body or '').strip()
+    to_phone = (to_phone or '').strip()
+    provider_message_id = (provider_message_id or '').strip()
+    payload = provider_payload if isinstance(provider_payload, dict) else {}
+
+    if provider_message_id:
+        existing = ClientTextMessage.objects.filter(
+            provider_message_id=provider_message_id,
+            direction=ClientTextMessage.DIRECTION_INBOUND,
+        ).first()
+        if existing:
+            return {'ok': True, 'duplicate': True, 'client_id': existing.client_id}
+
+    matches = list(find_all_by_normalized_phone(Client.objects.all(), from_phone))
+    if not matches:
+        hit = find_by_normalized_phone(Client.objects.all(), from_phone)
+        matches = [hit] if hit else []
+    if not matches:
+        logger.info('Inbound SMS from unknown number %s', from_phone)
+        return {'ok': True, 'matched': False}
+
+    enrollment = None
+    if is_class_yes_reply(body):
+        enrollment = _pending_class_confirmation(matches)
+
+    client = enrollment.client if enrollment else matches[0]
+    ClientTextMessage.objects.create(
+        client=client,
+        direction=ClientTextMessage.DIRECTION_INBOUND,
+        purpose=(
+            ClientTextMessage.PURPOSE_CLASS_CONFIRMATION
+            if is_class_yes_reply(body)
+            else ClientTextMessage.PURPOSE_GENERAL
+        ),
+        to_phone=to_phone,
+        from_phone=from_phone,
+        body=body,
+        status=ClientTextMessage.STATUS_RECEIVED,
+        received_at=timezone.now(),
+        provider_message_id=provider_message_id,
+        provider_response=payload,
+    )
+
+    if not enrollment:
+        return {'ok': True, 'matched': True, 'client_id': client.pk, 'confirmed': False}
+
+    enrollment.confirmed_at = timezone.now()
+    enrollment.save(update_fields=['confirmed_at'])
+
+    ack_outcome = 'skipped'
+    if _class_texts_enabled():
+        try:
+            log, _attempted = send_text_message(
+                client=client,
+                body=class_yes_confirmed_body(client, enrollment.session),
+                purpose=ClientTextMessage.PURPOSE_CLASS_CONFIRMATION,
+                dedupe_key=f'class-yes-ack:{enrollment.pk}',
+                require_enabled_flag=False,
+            )
+            if log.status == ClientTextMessage.STATUS_SENT:
+                ack_outcome = 'sent'
+            elif log.status == ClientTextMessage.STATUS_FAILED:
+                ack_outcome = 'failed'
+        except Exception:
+            logger.exception(
+                'YES confirmation ack failed for enrollment %s', enrollment.pk
+            )
+            ack_outcome = 'failed'
+
+    return {
+        'ok': True,
+        'matched': True,
+        'client_id': client.pk,
+        'confirmed': True,
+        'enrollment_id': enrollment.pk,
+        'session_id': enrollment.session_id,
+        'ack': ack_outcome,
+    }
 
 
 def class_confirmation_preview(client, session, today=None):
@@ -580,21 +758,14 @@ def send_class_roster_notice(enrollment, kind):
     return 'failed', log.error_message or 'Text could not be sent.'
 
 
-def notify_class_session_change(session, *, previous_status, details_changed):
-    """Text everyone still on the roster after a session edit or cancel."""
+def notify_active_roster(session, kind):
+    """Text everyone still registered or marked attended on this session."""
     enrollments = list(
         session.enrollments.filter(status__in=['registered', 'attended']).select_related(
             'client', 'session', 'session__template'
         )
     )
     if not enrollments:
-        return ''
-
-    if session.status == 'cancelled' and previous_status != 'cancelled':
-        kind = 'cancelled'
-    elif details_changed and session.status == 'scheduled':
-        kind = 'updated'
-    else:
         return ''
 
     sent = 0
@@ -612,6 +783,17 @@ def notify_class_session_change(session, *, previous_status, details_changed):
     if failed:
         parts.append(f'{failed} text{"s" if failed != 1 else ""} failed.')
     return ' '.join(parts)
+
+
+def notify_class_session_change(session, *, previous_status, details_changed):
+    """Text everyone still on the roster after a session edit or cancel."""
+    if session.status == 'cancelled' and previous_status != 'cancelled':
+        kind = 'cancelled'
+    elif details_changed and session.status == 'scheduled':
+        kind = 'updated'
+    else:
+        return ''
+    return notify_active_roster(session, kind)
 
 
 def progress_followup_body(client, checkpoint_days):

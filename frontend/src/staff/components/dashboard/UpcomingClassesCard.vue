@@ -3,7 +3,7 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">event</span>
       <h3>Upcoming Classes &amp; Trainings</h3>
-      <StaffTip text="Next Orientation, JRT, and workshops. Tap a class to peek at the roster. Use Manage to create or edit." />
+      <StaffTip text="Grouped by program. Tap a class for the roster, export a sign-in sheet, or cancel/delete the date." />
       <RouterLink
         to="/classes"
         class="text-xs font-semibold staff-link shrink-0"
@@ -19,79 +19,112 @@
       <RouterLink to="/classes" class="staff-link font-semibold">Add your first class →</RouterLink>
     </p>
 
-    <ul v-else class="space-y-1 staff-fade-in">
-      <li v-for="s in sessions" :key="s.id" class="border-t border-stone-100 pt-2 first:border-0 first:pt-0">
-        <button
-          type="button"
-          class="w-full flex items-center justify-between gap-2 text-left"
-          @click="toggleRoster(s.id)"
-        >
-          <span class="min-w-0">
-            <span class="block text-sm font-semibold truncate">{{ s.template_name }}</span>
-            <span class="block text-xs text-stone-500">
-              {{ s.program_display }} · {{ s.category_display }} · {{ formatSessionDate(s.session_date) }} ·
-              {{ formatTimeRange(s.start_time, s.end_time) }}
-            </span>
-          </span>
-          <span
-            class="text-[10px] uppercase font-bold tracking-wide rounded-full px-2 py-0.5 shrink-0"
-            :class="s.spots_remaining > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-200 text-stone-600'"
-          >
-            {{ s.spots_remaining > 0 ? `${s.spots_remaining} open` : 'full' }}
-          </span>
-        </button>
-
-        <div v-if="expandedId === s.id" class="mt-1.5 pl-1 space-y-1">
-          <p v-if="rosterLoading" class="text-xs text-stone-500">Loading roster…</p>
-          <template v-else>
-            <p v-if="roster.length === 0" class="text-xs text-stone-400">No one signed up yet.</p>
-            <RouterLink
-              v-for="r in roster"
-              :key="r.enrollment_id"
-              :to="{ name: 'ClientDetail', params: { id: r.client_id } }"
-              class="block text-xs text-stone-700 staff-hover-accent-text"
+    <div v-else class="staff-upcoming-programs staff-fade-in">
+      <section
+        v-for="group in programGroups"
+        :key="group.value"
+        class="staff-upcoming-program"
+      >
+        <h4 class="staff-upcoming-program-title">
+          {{ group.label }}
+          <span>{{ group.sessions.length }}</span>
+        </h4>
+        <ul class="space-y-1">
+          <li v-for="s in group.sessions" :key="s.id" class="border-t border-stone-100 pt-2 first:border-0 first:pt-0">
+            <button
+              type="button"
+              class="w-full flex items-center justify-between gap-2 text-left"
+              @click="toggleRoster(s.id)"
             >
-              {{ r.client_full_name }} <span class="text-stone-400">· {{ r.status_display }}</span>
-            </RouterLink>
-          </template>
-        </div>
-      </li>
-    </ul>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold truncate">{{ s.template_name }}</span>
+                <span class="block text-xs text-stone-500">
+                  {{ formatSessionDate(s.session_date) }} ·
+                  {{ formatTimeRange(s.start_time, s.end_time) }}
+                </span>
+              </span>
+              <span class="flex flex-col items-end gap-0.5 shrink-0">
+                <span
+                  class="text-[10px] uppercase font-bold tracking-wide rounded-full px-2 py-0.5"
+                  :class="s.spots_remaining > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-200 text-stone-600'"
+                >
+                  {{ s.spots_remaining > 0 ? `${s.spots_remaining} open` : 'full' }}
+                </span>
+                <span v-if="s.enrolled_count" class="text-[10px] text-stone-500">
+                  {{ s.confirmed_count }} confirmed
+                </span>
+              </span>
+            </button>
+
+            <div v-if="expandedId === s.id" class="mt-2">
+              <ClassRosterPanel
+                :session-id="s.id"
+                :session-name="s.template_name"
+                :session-date="s.session_date"
+                session-status="scheduled"
+                @changed="load"
+                @cancelled="onCancelled(s.id)"
+                @deleted="onDeleted(s.id)"
+              />
+            </div>
+          </li>
+        </ul>
+      </section>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { staffFetch } from '../../api'
 import CardSkeleton from './CardSkeleton.vue'
+import ClassRosterPanel from '../ClassRosterPanel.vue'
 import StaffTip from '../StaffTip.vue'
+
+const PROGRAM_COLUMNS = [
+  { value: 'citybuild', label: 'City Build' },
+  { value: 'pit_stop', label: 'Pit Stop' },
+  { value: 'capsa', label: 'CAPSA' },
+  { value: 'guard_card', label: 'Guard Card' },
+  { value: 'general', label: 'General' },
+]
 
 interface UpcomingSession {
   id: number
   template_name: string
+  program: string
   program_display: string
   category_display: string
   session_date: string
   start_time: string
   end_time: string
   spots_remaining: number
-}
-
-interface RosterEntry {
-  enrollment_id: number
-  client_id: number
-  client_full_name: string
-  status_display: string
+  enrolled_count: number
+  confirmed_count: number
 }
 
 const sessions = ref<UpcomingSession[]>([])
 const loading = ref(true)
 const error = ref('')
-
 const expandedId = ref<number | null>(null)
-const roster = ref<RosterEntry[]>([])
-const rosterLoading = ref(false)
+
+const knownPrograms = new Set(PROGRAM_COLUMNS.map((col) => col.value))
+const programGroups = computed(() => {
+  const groups = PROGRAM_COLUMNS.map((col) => ({
+    ...col,
+    sessions: sessions.value.filter((s) => s.program === col.value),
+  })).filter((group) => group.sessions.length > 0)
+  const leftover = sessions.value.filter((s) => !knownPrograms.has(s.program))
+  if (leftover.length) {
+    groups.push({
+      value: leftover[0].program || 'other',
+      label: leftover[0].program_display || 'Other',
+      sessions: leftover,
+    })
+  }
+  return groups
+})
 
 function formatSessionDate(dateStr: string) {
   const d = new Date(`${dateStr}T00:00:00`)
@@ -119,7 +152,7 @@ async function load() {
       return
     }
     const body = await resp.json()
-    sessions.value = (body.results || []).slice(0, 8)
+    sessions.value = body.results || []
   } catch {
     error.value = 'No connection.'
   } finally {
@@ -127,23 +160,19 @@ async function load() {
   }
 }
 
-async function toggleRoster(sessionId: number) {
-  if (expandedId.value === sessionId) {
-    expandedId.value = null
-    return
-  }
-  expandedId.value = sessionId
-  rosterLoading.value = true
-  roster.value = []
-  try {
-    const resp = await staffFetch(`/api/staff/classes/${sessionId}/roster/`)
-    if (resp.ok) {
-      const body = await resp.json()
-      roster.value = body.roster || []
-    }
-  } finally {
-    rosterLoading.value = false
-  }
+function toggleRoster(sessionId: number) {
+  expandedId.value = expandedId.value === sessionId ? null : sessionId
+}
+
+function onCancelled(sessionId: number) {
+  expandedId.value = null
+  sessions.value = sessions.value.filter((s) => s.id !== sessionId)
+  load()
+}
+
+function onDeleted(sessionId: number) {
+  sessions.value = sessions.value.filter((s) => s.id !== sessionId)
+  expandedId.value = null
 }
 
 load()

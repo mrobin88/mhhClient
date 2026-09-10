@@ -1,0 +1,46 @@
+# Applicants with no staff outreach for 3 weeks. Posts to the MHH ALL STAFF
+# Teams team (channel email, or Graph if configured).
+# Manual run: Actions → "Daily applicant outreach Teams alert" → Run workflow.
+
+name: Daily applicant outreach Teams alert
+
+on:
+  schedule:
+    # 8:00am Pacific during PDT (UTC-7). During PST this is 7:00am.
+    - cron: '0 15 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Post stale applicant digest to Teams
+        run: |
+          set -euo pipefail
+          SECRET=$(az webapp config appsettings list \
+            --resource-group mhh-client-rg \
+            --name mhh-client-backend \
+            --query "[?name=='TEAMS_ALERT_JOB_SECRET'].value" -o tsv)
+          HOST=$(az webapp show \
+            --resource-group mhh-client-rg \
+            --name mhh-client-backend \
+            --query defaultHostName -o tsv)
+          if [ -z "$SECRET" ]; then
+            echo "TEAMS_ALERT_JOB_SECRET is not set on the App Service."
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            if curl -fsS -X POST --max-time 120 \
+              "https://${HOST}/api/jobs/stale-applicant-alerts/?token=${SECRET}"; then
+              echo
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed; retrying..."
+            sleep 15
+          done
+          exit 1

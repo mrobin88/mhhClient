@@ -183,6 +183,10 @@ class StaffClientDetailSerializer(serializers.ModelSerializer):
             'can_work_us': app.can_work_us,
             'is_veteran': app.is_veteran,
             'education_history': app.education_history,
+            'what_is_pit_stop': app.what_is_pit_stop,
+            'why_participate': app.why_participate,
+            'goals_after_program': app.goals_after_program,
+            'how_program_supports_goals': app.how_program_supports_goals,
             'created_at': app.created_at,
         }
 

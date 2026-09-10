@@ -5,6 +5,7 @@ from .models_extensions import (
     WorkerDailyFeedback,
     WorkSite,
     WorkerTimePunch,
+    worker_max_shift_hours,
 )
 from .phone_utils import find_by_normalized_phone, phone_digits
 
@@ -121,7 +122,19 @@ class PitStopApplicationSerializer(serializers.ModelSerializer):
             'employment_desired',
             'weekly_schedule',
             'employment_history',
+            'high_school_name',
+            'high_school_city',
+            'high_school_state',
+            'post_secondary_name',
+            'post_secondary_city',
+            'post_secondary_state',
             'education_history',
+            'what_is_pit_stop',
+            'why_participate',
+            'goals_after_program',
+            'how_program_supports_goals',
+            'signature_name',
+            'signed_on',
             'created_at',
             'updated_at',
         ]
@@ -284,6 +297,7 @@ class WorkerTimePunchSerializer(serializers.ModelSerializer):
         if obj.clock_out_at is None:
             return None
         duration_seconds = (obj.clock_out_at - obj.clock_in_at).total_seconds()
-        return int(max(duration_seconds, 0) // 60)
+        max_minutes = int(worker_max_shift_hours() * 60)
+        return min(int(max(duration_seconds, 0) // 60), max_minutes)
 
 

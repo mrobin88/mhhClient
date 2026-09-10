@@ -4,6 +4,7 @@ Extended models for worker dispatch and availability tracking
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from datetime import timedelta
 from .models import Client, CaseNote
 
 
@@ -70,6 +71,34 @@ def worker_punch_map_upload_to(instance, filename):
     safe_name = (filename or 'map.png').split('/')[-1][:120]
     account_id = instance.worker_account_id or 'unknown'
     return f'worker_punches/{account_id}/{safe_name}'
+
+
+def worker_max_shift_hours():
+    try:
+        return max(float(getattr(settings, 'WORKER_MAX_SHIFT_HOURS', 8.0)), 0)
+    except (TypeError, ValueError):
+        return 8.0
+
+
+def worker_max_shift_delta():
+    return timedelta(hours=worker_max_shift_hours())
+
+
+def close_expired_open_punches(account=None, now=None):
+    """Clock out open punches that have already passed the 8-hour cap."""
+    now = now or timezone.now()
+    cutoff = now - worker_max_shift_delta()
+    punches = WorkerTimePunch.objects.filter(
+        clock_out_at__isnull=True,
+        clock_in_at__lt=cutoff,
+    )
+    if account is not None:
+        punches = punches.filter(worker_account=account)
+    closed = 0
+    for punch in punches:
+        if punch.close_if_past_max_shift(now=now):
+            closed += 1
+    return closed
 
 
 class WorkerTimePunch(models.Model):
@@ -203,14 +232,62 @@ class WorkerTimePunch(models.Model):
         seconds = max((self.lunch_end_at - self.lunch_start_at).total_seconds(), 0)
         return int(seconds // 60)
 
+    def max_clock_out_at(self):
+        if not self.clock_in_at:
+            return None
+        return self.clock_in_at + worker_max_shift_delta()
+
+    def _finish_open_lunch(self, clock_out_at):
+        if not self.lunch_start_at or self.lunch_end_at:
+            return []
+        fields = ['lunch_end_at']
+        if self.lunch_start_at > clock_out_at:
+            self.lunch_start_at = clock_out_at
+            fields.append('lunch_start_at')
+        self.lunch_end_at = clock_out_at
+        return fields
+
+    def apply_clock_out(self, proposed_out, *, received_at=None, silent=False):
+        """Set clock-out, never later than 8 hours after clock-in. Returns save fields."""
+        limit = self.max_clock_out_at()
+        out = proposed_out
+        if limit is not None and out > limit:
+            out = limit
+        received_at = received_at or proposed_out
+        self.clock_out_at = out
+        self.clock_out_server_received_at = received_at
+        fields = ['clock_out_at', 'clock_out_server_received_at']
+        fields.extend(self._finish_open_lunch(out))
+        if silent:
+            self.clock_out_geo_status = self.GEO_STATUS_SKIPPED
+            self.clock_out_geo_basic_ok = False
+            self.clock_out_geo_basic_note = ''
+            fields.extend(
+                ['clock_out_geo_status', 'clock_out_geo_basic_ok', 'clock_out_geo_basic_note']
+            )
+        return fields
+
+    def close_if_past_max_shift(self, now=None):
+        """If still open past 8 hours, clock out at the 8-hour mark. Saves the row."""
+        if self.clock_out_at or not self.clock_in_at:
+            return False
+        now = now or timezone.now()
+        limit = self.max_clock_out_at()
+        if not limit or now <= limit:
+            return False
+        fields = self.apply_clock_out(limit, received_at=now, silent=True)
+        self.save(update_fields=fields)
+        return True
+
     @property
     def net_hours(self):
-        """Paid hours = worked time minus the unpaid lunch. None if still open."""
+        """Paid hours = worked time minus the unpaid lunch. None if still open. Never over 8."""
         if not self.clock_in_at or not self.clock_out_at:
             return None
         worked = max((self.clock_out_at - self.clock_in_at).total_seconds(), 0)
         net_seconds = max(worked - self.lunch_minutes * 60, 0)
-        return round(net_seconds / 3600, 2)
+        hours = round(net_seconds / 3600, 2)
+        return min(hours, worker_max_shift_hours())
 
 
 class ClientTextMessage(models.Model):
@@ -228,6 +305,7 @@ class ClientTextMessage(models.Model):
     PURPOSE_CLASS_CONFIRMATION = 'class_confirmation'
     PURPOSE_CLASS_UPDATE = 'class_update'
     PURPOSE_ASSIGNMENT = 'assignment'
+    PURPOSE_PITSTOP_APPLICATION = 'pitstop_application'
     PURPOSE_GENERAL = 'general'
 
     DIRECTION_CHOICES = [
@@ -245,6 +323,7 @@ class ClientTextMessage(models.Model):
         (PURPOSE_CLASS_CONFIRMATION, 'Class confirmation'),
         (PURPOSE_CLASS_UPDATE, 'Class update'),
         (PURPOSE_ASSIGNMENT, 'Assignment'),
+        (PURPOSE_PITSTOP_APPLICATION, 'Pit Stop application'),
         (PURPOSE_GENERAL, 'General'),
     ]
 
@@ -625,4 +704,36 @@ class WorkerDailyFeedback(models.Model):
 
     def __str__(self):
         return f"{self.worker_account} feedback {self.feedback_date}"
+
+
+class ApplicantStaleAlert(models.Model):
+    """One Teams notice per applicant for a 3-week stretch with no staff outreach."""
+
+    CHANNEL_WEBHOOK = 'webhook'
+    CHANNEL_GRAPH = 'graph'
+    CHANNEL_EMAIL = 'email'
+
+    CHANNEL_CHOICES = [
+        (CHANNEL_WEBHOOK, 'Teams webhook'),
+        (CHANNEL_GRAPH, 'Teams Graph'),
+        (CHANNEL_EMAIL, 'Teams channel email'),
+    ]
+
+    client = models.OneToOneField(
+        Client,
+        on_delete=models.CASCADE,
+        related_name='stale_applicant_alert',
+    )
+    applied_for = models.CharField(max_length=200)
+    days_stale = models.PositiveIntegerField()
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, blank=True)
+    notified_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-notified_at']
+        verbose_name = 'Applicant stale alert'
+        verbose_name_plural = 'Applicant stale alerts'
+
+    def __str__(self):
+        return f'{self.client.full_name} ({self.days_stale} days)'
 

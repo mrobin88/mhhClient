@@ -30,14 +30,14 @@
           <h2 class="text-xs sm:text-sm font-bold tracking-[0.18em] uppercase text-slate-500">Get started</h2>
         </div>
         <div class="p-6 sm:p-8 space-y-4">
-          <RouterLink
-            to="/checkin"
+          <a
+            href="/checkin/"
             class="welcome-choice welcome-choice-primary"
           >
             <span class="welcome-choice-kicker">I already have a profile</span>
             <span class="welcome-choice-title">Check In</span>
             <span class="welcome-choice-hint">Tell us you are here for a visit.</span>
-          </RouterLink>
+          </a>
           <RouterLink
             to="/signup"
             class="welcome-choice welcome-choice-secondary"

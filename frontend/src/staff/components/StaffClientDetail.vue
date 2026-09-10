@@ -183,17 +183,13 @@
           <p v-if="pitStopApplication.review_notes" class="text-sm text-stone-700 pt-1">
             Review notes: {{ pitStopApplication.review_notes }}
           </p>
-          <p class="text-xs text-stone-500 pt-1">
-            Interview decisions and review notes are edited in Django admin.
-          </p>
-          <a
-            :href="pitStopAdminUrl"
-            target="_blank"
-            rel="noopener"
+          <RouterLink
+            v-if="pitStopApplication"
+            :to="{ name: 'PitStopApplicationDetail', params: { id: pitStopApplication.id } }"
             class="inline-block text-xs font-semibold staff-link pt-1"
           >
-            Open this application in admin →
-          </a>
+            Open full application →
+          </RouterLink>
         </div>
 
         <div v-if="workerPortal" class="rounded-lg border border-stone-200 bg-stone-50 p-3 space-y-1">
@@ -306,19 +302,41 @@
               <div class="text-sm">
                 <span class="font-medium">{{ ec.template_name }}</span>
                 <span class="text-stone-500"> · {{ ec.category_display }}</span>
+                <span
+                  class="staff-roster-badge ml-1.5"
+                  :class="ec.confirmed ? 'is-yes' : 'is-wait'"
+                >
+                  {{ ec.confirmed ? 'Confirmed' : 'Waiting for YES' }}
+                </span>
                 <div class="text-xs text-stone-500">
                   {{ formatSessionDate(ec.session_date) }} · {{ formatTimeRange(ec.start_time, ec.end_time) }}
                   <span v-if="ec.location"> · {{ ec.location }}</span>
                 </div>
               </div>
-              <button
-                type="button"
-                class="text-xs font-semibold text-red-600 shrink-0"
-                :disabled="classBusy"
-                @click="unenrollFromClass(ec)"
-              >
-                Remove
-              </button>
+              <div class="shrink-0 text-right">
+                <button
+                  v-if="pendingUnenrollId === ec.enrollment_id"
+                  type="button"
+                  class="staff-btn staff-btn-danger-solid staff-btn-sm"
+                  :disabled="classBusy"
+                  @click="unenrollFromClass(ec)"
+                >
+                  Text &amp; remove
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="staff-btn staff-btn-ghost staff-btn-sm staff-roster-remove"
+                  :disabled="classBusy"
+                  @click="pendingUnenrollId = ec.enrollment_id"
+                >
+                  Remove
+                </button>
+                <p v-if="pendingUnenrollId === ec.enrollment_id" class="text-[11px] text-stone-500 mt-1 max-w-[10rem]">
+                  Texts that we are working on a new date.
+                  <button type="button" class="staff-link" @click="pendingUnenrollId = null">Never mind</button>
+                </p>
+              </div>
             </div>
           </div>
           <p v-else class="text-sm text-stone-500 mb-3">Not signed up for any upcoming classes yet.</p>
@@ -373,7 +391,7 @@
           <div v-if="selectedSessionId" class="mt-2 rounded-xl border border-stone-200 bg-stone-50 p-3">
             <p class="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
               Confirmation text
-              <StaffTip text="This is the exact message the client gets when you press Add. Read it back to them if they are on the phone." />
+              <StaffTip text="This is the exact message they get when you press Add. It asks them to reply YES. Read it back if they are on the phone." />
             </p>
             <p v-if="textPreviewLoading" class="text-xs text-stone-400">Loading message…</p>
             <template v-else-if="textPreview">
@@ -453,7 +471,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { getApiUrl } from '../../config/api'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import { useToast } from '../composables/useToast'
@@ -627,6 +644,7 @@ interface ClientClassEnrollment {
   end_time: string
   location: string
   status: string
+  confirmed: boolean
 }
 
 const emptyForm = () => ({
@@ -663,6 +681,7 @@ const upcomingSessions = ref<UpcomingSession[]>([])
 const enrolledClasses = ref<ClientClassEnrollment[]>([])
 const selectedSessionId = ref<number | ''>('')
 const classBusy = ref(false)
+const pendingUnenrollId = ref<number | null>(null)
 const classesLoading = ref(true)
 const categoryFilter = ref('')
 const textPreview = ref<ClassTextPreview | null>(null)
@@ -673,12 +692,6 @@ const formDirty = computed(() => JSON.stringify(form) !== savedSnapshot.value)
 const workerPortal = computed(() => client.value?.worker_portal || null)
 const pitStopApplication = computed(() => client.value?.pit_stop_application || null)
 const citybuildPacket = computed(() => client.value?.citybuild_packet || null)
-const pitStopAdminUrl = computed(() =>
-  pitStopApplication.value
-    ? getApiUrl(`/admin/clients/pitstopapplication/${pitStopApplication.value.id}/change/`)
-    : getApiUrl('/admin/clients/pitstopapplication/'),
-)
-
 function formatDateTime(value: string) {
   const d = new Date(value)
   return Number.isNaN(d.getTime())
@@ -935,7 +948,8 @@ async function unenrollFromClass(enrollment: ClientClassEnrollment) {
       toast.error(friendlyError(body, 'Could not remove client from that class.'))
       return
     }
-    toast.success(body?.message || 'Removed from class.')
+    toast.success(body?.message || 'Removed. They were texted about a new date.')
+    pendingUnenrollId.value = null
     await loadClasses()
   } catch (e) {
     toast.error(networkErrorMessage(e))

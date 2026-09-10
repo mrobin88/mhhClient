@@ -6,6 +6,10 @@
       "/worker/",
       "/worker/*",
       "/worker.html",
+      "/checkin",
+      "/checkin/",
+      "/checkin/*",
+      "/checkin.html",
       "/staff",
       "/staff/",
       "/staff/*",
@@ -31,8 +35,13 @@
       "serve": "/staff/index.html"
     },
     {
+      "route": "/checkin",
+      "redirect": "/checkin/",
+      "statusCode": 302
+    },
+    {
       "route": "/checkin.html",
-      "redirect": "/checkin",
+      "redirect": "/checkin/",
       "statusCode": 302
     }
   ],
