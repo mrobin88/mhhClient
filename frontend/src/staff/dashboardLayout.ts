@@ -1,11 +1,8 @@
 export const DEFAULT_DASHBOARD_ORDER = [
-  'usage',
   'recent-clients',
   'pitstop',
   'citybuild',
   'classes',
-  'programs',
-  'activity',
   'tickets',
   'documents',
 ] as const

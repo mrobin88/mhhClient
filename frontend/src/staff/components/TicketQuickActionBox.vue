@@ -16,7 +16,7 @@
     </div>
 
     <div class="staff-field">
-      <label>Priority</label>
+      <label>Urgency</label>
       <div class="staff-seg">
         <button
           v-for="opt in priorities"
@@ -92,7 +92,7 @@
         :to="{ name: 'TicketDetail', params: { id: ticketId } }"
         class="staff-btn staff-btn-secondary shrink-0"
       >
-        Full ticket
+        Full note
       </RouterLink>
     </div>
   </div>

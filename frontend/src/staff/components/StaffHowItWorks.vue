@@ -146,7 +146,7 @@ const apps = [
   {
     name: 'Staff workspace',
     who: 'You, every day',
-    what: 'Look someone up, fix contact info, sign them up for a class, write a case note, read text replies.',
+    what: 'Search someone at the top of Home, see their info, add them to a class, write a case note, read text replies.',
     here: true,
     links: [{ to: '/dashboard', label: 'Open Home' }],
   },
@@ -188,7 +188,7 @@ const apps = [
 const screens = [
   {
     name: 'Home',
-    body: 'Add a client from an outside referral, review new Pit Stop and City Build signups, search, upload staff-received documents. The Menu bar at the bottom opens every staff screen plus signup, check-in, the worker portal, Django, and reports.',
+    body: 'Search at the top by name or phone, see their info, and add them to a class. Add a client for an outside referral. New Pit Stop and City Build signups and document upload are still on this screen. The Menu bar at the bottom opens every staff screen plus signup, check-in, the worker portal, Django, and reports.',
     links: [{ to: '/dashboard', label: 'Open Home' }],
   },
   {
@@ -220,9 +220,9 @@ const screens = [
     links: [{ to: '/classes', label: 'Open Classes' }],
   },
   {
-    name: 'Tickets',
-    body: 'Report a bug or request a change.',
-    links: [{ to: '/tickets', label: 'Open Tickets' }],
+    name: 'Suggestion box',
+    body: 'Drop an idea, a problem, or a request. Optional screenshot. Notes stay in the box until someone follows up.',
+    links: [{ to: '/suggestions', label: 'Open suggestion box' }],
   },
   {
     name: 'Skill note',

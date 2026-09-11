@@ -3,7 +3,7 @@
     <div class="text-center mb-8">
       <p class="text-5xl mb-3" aria-hidden="true">⛑️</p>
       <h1 class="text-2xl font-bold text-stone-900">Staff sign in</h1>
-      <p class="text-stone-600 mt-2 text-base">Find clients and add notes — simpler than Admin.</p>
+      <p class="text-stone-600 mt-2 text-base">Find someone, see their info, add them to a class.</p>
     </div>
 
     <p

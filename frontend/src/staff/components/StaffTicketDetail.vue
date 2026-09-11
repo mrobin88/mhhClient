@@ -1,10 +1,10 @@
 <template>
   <section class="space-y-3">
     <button type="button" class="text-sm font-semibold staff-link" @click="router.push({ name: 'Tickets' })">
-      ← All tickets
+      ← Suggestion box
     </button>
 
-    <BulldozerLoader v-if="loading" label="Loading ticket…" />
+    <BulldozerLoader v-if="loading" label="Loading suggestion…" />
     <div v-else-if="error" class="staff-card p-4 text-center space-y-3">
       <p class="text-sm">{{ error }}</p>
       <button type="button" class="staff-btn staff-btn-secondary" @click="load">Retry</button>
@@ -22,7 +22,7 @@
           </span>
         </div>
         <p class="text-xs text-stone-500 mb-3">
-          {{ ticket.priority_display }}
+          {{ suggestionKindLabel(ticket.tags) || 'Suggestion' }}
           · Opened by {{ ticket.submitted_by_name || 'Unknown' }}
           · {{ formatWhen(ticket.created_at) }}
           <span v-if="ticket.resolution_display"> · {{ ticket.resolution_display }}</span>
@@ -37,7 +37,7 @@
         <div class="staff-panel-header">
           <span class="material-symbols-outlined" aria-hidden="true">tune</span>
           <h3>Quick actions</h3>
-          <StaffTip text="Change status, priority, assignee, or tags here without leaving the page. Resolution codes appear when you mark Resolved or Closed." />
+          <StaffTip text="Update status if you are following up. Most people can leave this alone after they drop a note in the box." />
         </div>
         <TicketQuickActionBox
           v-if="metaReady"
@@ -56,7 +56,7 @@
         <div class="staff-panel-header">
           <span class="material-symbols-outlined" aria-hidden="true">attach_file</span>
           <h3>Screenshots &amp; files</h3>
-          <StaffTip text="Upload error screenshots or documents so tech can see what you saw." />
+          <StaffTip text="A screenshot of what you saw helps." />
         </div>
 
         <ul v-if="ticket.attachments?.length" class="space-y-2">
@@ -100,6 +100,7 @@ import { useToast } from '../composables/useToast'
 import BulldozerLoader from './BulldozerLoader.vue'
 import StaffTip from './StaffTip.vue'
 import TicketQuickActionBox from './TicketQuickActionBox.vue'
+import { suggestionKindLabel } from '../suggestions'
 
 interface Attachment {
   id: number
@@ -190,7 +191,7 @@ async function load() {
     const resp = await staffFetch(`/api/staff/tickets/${id}/`)
     const body = await resp.json().catch(() => null)
     if (!resp.ok) {
-      error.value = friendlyError(body, 'Ticket not found.')
+      error.value = friendlyError(body, 'Suggestion not found.')
       return
     }
     ticket.value = body

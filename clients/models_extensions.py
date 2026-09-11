@@ -590,6 +590,9 @@ class StaffTicket(models.Model):
     ]
 
     TAG_CHOICES = [
+        ('idea', 'Idea'),
+        ('problem', 'Problem'),
+        ('request', 'Request'),
         ('frontend', 'Frontend'),
         ('backend', 'Backend'),
         ('database', 'Database'),

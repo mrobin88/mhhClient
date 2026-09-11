@@ -17,7 +17,7 @@
     <h1>You do not have access to this page</h1>
     <p>Your account is signed in, but it does not currently have the required permission.</p>
     {% if user.is_authenticated and user.is_staff %}
-      <a class="button" href="{{ ticket_url }}">Create an access-request ticket</a>
+      <a class="button" href="{{ ticket_url }}">Drop an access request in the suggestion box</a>
     {% endif %}
     <p class="muted">
       If you cannot open the staff dashboard, email

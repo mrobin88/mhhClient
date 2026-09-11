@@ -6,7 +6,7 @@
   >
     <p class="text-xs uppercase tracking-wider opacity-80 font-semibold">{{ greetingWord }}</p>
     <p class="text-xl font-bold">{{ user?.display_name || 'Staff' }}</p>
-    <p class="text-sm opacity-90 mt-1">Mission Hiring Hall staff home</p>
+    <p class="text-sm opacity-90 mt-1">Search, check their info, add them to a class</p>
   </RouterLink>
 </template>
 

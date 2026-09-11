@@ -148,7 +148,7 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     items: [
       {
         label: 'Home',
-        hint: 'New signups, classes, and search',
+        hint: 'Search, client info, add to class',
         icon: 'home',
         to: '/dashboard',
         match: ['Dashboard'],
@@ -190,10 +190,10 @@ const navGroups: { title: string; items: NavItem[] }[] = [
         match: ['Classes'],
       },
       {
-        label: 'Tickets',
-        hint: 'Bugs and change requests',
-        icon: 'confirmation_number',
-        to: '/tickets',
+        label: 'Suggestions',
+        hint: 'Ideas, problems, and requests',
+        icon: 'lightbulb',
+        to: '/suggestions',
         match: ['Tickets', 'TicketDetail'],
       },
       {
@@ -285,12 +285,12 @@ const currentSection = computed(() => {
     return name === 'ClientDetail' ? 'Client' : 'Clients'
   }
   if (name === 'PitStopApplications' || name === 'PitStopApplicationDetail') return 'Pit Stop apps'
-  if (name === 'TicketDetail') return 'Tickets'
+  if (name === 'TicketDetail') return 'Suggestions'
   if (name === 'CreateSkill') return 'Skill note'
   if (name === 'HowItWorks') return 'Guide'
   if (name === 'Messages') return 'Messages'
   if (name === 'Classes') return 'Classes'
-  if (name === 'Tickets') return 'Tickets'
+  if (name === 'Tickets') return 'Suggestions'
   return 'Staff'
 })
 
