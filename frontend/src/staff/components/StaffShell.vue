@@ -17,10 +17,15 @@
         </div>
       </RouterLink>
       <div class="flex items-center gap-1 shrink-0">
-        <RouterLink to="/how-it-works" class="staff-btn staff-btn-ghost" title="How everything works">
-          <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">menu_book</span>
-          Guide
-        </RouterLink>
+        <button
+          type="button"
+          class="staff-btn staff-btn-ghost staff-chrome-feedback"
+          title="Send feedback"
+          @click="openFeedback"
+        >
+          <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">lightbulb</span>
+          Feedback
+        </button>
         <button type="button" class="staff-btn staff-btn-ghost" @click="logout">
           <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">logout</span>
           Sign out
@@ -39,23 +44,34 @@
     />
 
     <nav v-if="showChrome" class="staff-nav" :class="{ 'is-open': navOpen }">
-      <button
-        type="button"
-        class="staff-nav-toggle"
-        :aria-expanded="navOpen"
-        aria-controls="staff-nav-panel"
-        @click="navOpen = !navOpen"
-      >
-        <span class="material-symbols-outlined" aria-hidden="true">menu</span>
-        <span class="staff-nav-toggle-copy">
-          <span class="staff-nav-toggle-kicker">Menu</span>
-          <span class="staff-nav-toggle-title">{{ currentSection }}</span>
-        </span>
-        <span v-if="unreadCount > 0" class="staff-nav-badge">{{ unreadCount }}</span>
-        <span class="material-symbols-outlined staff-nav-chevron" aria-hidden="true">
-          {{ navOpen ? 'expand_more' : 'expand_less' }}
-        </span>
-      </button>
+      <div class="staff-nav-dock">
+        <button
+          type="button"
+          class="staff-nav-feedback"
+          title="Send feedback from this screen"
+          @click="openFeedback"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">lightbulb</span>
+          <span>Feedback</span>
+        </button>
+        <button
+          type="button"
+          class="staff-nav-toggle"
+          :aria-expanded="navOpen"
+          aria-controls="staff-nav-panel"
+          @click="navOpen = !navOpen"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+          <span class="staff-nav-toggle-copy">
+            <span class="staff-nav-toggle-kicker">Menu</span>
+            <span class="staff-nav-toggle-title">{{ currentSection }}</span>
+          </span>
+          <span v-if="unreadCount > 0" class="staff-nav-badge">{{ unreadCount }}</span>
+          <span class="material-symbols-outlined staff-nav-chevron" aria-hidden="true">
+            {{ navOpen ? 'expand_more' : 'expand_less' }}
+          </span>
+        </button>
+      </div>
 
       <div v-show="navOpen" id="staff-nav-panel" class="staff-nav-panel">
         <section v-for="group in navGroups" :key="group.title" class="staff-nav-group">
@@ -103,6 +119,12 @@
         </section>
       </div>
     </nav>
+
+    <SuggestionSheet
+      :open="feedbackOpen"
+      :context="feedbackContext"
+      @close="feedbackOpen = false"
+    />
   </div>
 </template>
 
@@ -115,6 +137,7 @@ import { clearStaffSession, staffFetch } from '../api'
 import { readLastAccent } from '../prefs'
 import { accentThemeVars } from '../theme'
 import ToastStack from './ToastStack.vue'
+import SuggestionSheet from './SuggestionSheet.vue'
 
 import type { StaffUser } from '../types'
 
@@ -140,7 +163,14 @@ const route = useRoute()
 const router = useRouter()
 const unreadCount = ref(0)
 const navOpen = ref(false)
+const feedbackOpen = ref(false)
 let pollTimer: ReturnType<typeof setInterval> | null = null
+
+const feedbackContext = computed(() => {
+  const screen = currentSection.value
+  const path = String(route.fullPath || '')
+  return `${screen} (${path})`
+})
 
 const navGroups: { title: string; items: NavItem[] }[] = [
   {
@@ -148,14 +178,14 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     items: [
       {
         label: 'Home',
-        hint: 'Search, client info, add to class',
+        hint: 'Find, class, note',
         icon: 'home',
         to: '/dashboard',
         match: ['Dashboard'],
       },
       {
         label: 'Clients',
-        hint: 'Find someone and open their page',
+        hint: 'Roster, search, open a person',
         icon: 'group',
         to: '/clients',
         match: ['Clients', 'ClientDetail'],
@@ -275,6 +305,11 @@ const navGroups: { title: string; items: NavItem[] }[] = [
   },
 ]
 
+function openFeedback() {
+  navOpen.value = false
+  feedbackOpen.value = true
+}
+
 const currentSection = computed(() => {
   const name = String(route.name || '')
   if (name === 'Dashboard') return 'Home'
@@ -321,6 +356,7 @@ const mainClass = computed(() => {
   const widthClass = [
     'Dashboard',
     'Classes',
+    'Clients',
     'ClientDetail',
     'Tickets',
     'TicketDetail',
@@ -361,6 +397,7 @@ watch(
   () => route.fullPath,
   () => {
     navOpen.value = false
+    feedbackOpen.value = false
   },
 )
 

@@ -1,7 +1,7 @@
 <template>
-  <section class="space-y-3">
-    <button type="button" class="text-sm font-semibold staff-link" @click="router.push({ name: 'Dashboard' })">
-      ← Home
+  <section :class="['space-y-3', formDirty ? 'staff-client-page-dirty' : '']">
+    <button type="button" class="text-sm font-semibold staff-link" @click="goBack">
+      ← Back
     </button>
 
     <BulldozerLoader v-if="loading" label="Loading client…" />
@@ -11,128 +11,124 @@
     </div>
 
     <template v-else-if="client">
-      <ClientHopBar
-        :client-id="client.id"
-        :client-name="displayName"
-        :active="hopActive"
-      />
-
-      <!-- Contact & status (editable) -->
-      <div id="client-info" class="staff-card p-4 relative">
-        <div
-          v-if="saveBusy"
-          class="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center z-10"
-        >
-          <BulldozerLoader label="Saving…" />
-        </div>
-        <div class="staff-panel-header">
-          <span class="material-symbols-outlined" aria-hidden="true">badge</span>
-          <h3>Client info</h3>
-          <StaffTip text="Fix the person’s name, phone, email, program, or status here. Tap Save when done — changes apply right away." />
+      <header id="client-info" class="staff-card p-4 staff-client-hero">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h1 class="text-xl font-bold leading-tight">{{ displayName }}</h1>
+            <p class="mt-1">
+              <a v-if="phoneHref" :href="phoneHref" class="staff-activity-link">{{ form.phone }}</a>
+              <span v-else class="text-stone-500 text-sm">No phone</span>
+              <span v-if="form.email" class="text-stone-500"> · </span>
+              <a v-if="form.email" :href="`mailto:${form.email}`" class="staff-activity-link">{{ form.email }}</a>
+            </p>
+          </div>
+          <span class="staff-client-row-status shrink-0">{{ form.status }}</span>
         </div>
 
-        <div class="staff-field-grid staff-field-grid-2 mb-3">
-          <div class="staff-field">
-            <label for="cd-first">First name</label>
-            <input id="cd-first" v-model="form.first_name" type="text" class="staff-input" autocomplete="given-name" />
-          </div>
-          <div class="staff-field">
-            <label for="cd-last">Last name</label>
-            <input id="cd-last" v-model="form.last_name" type="text" class="staff-input" autocomplete="family-name" />
-          </div>
-          <div class="staff-field">
-            <label for="cd-phone">
-              Phone
-              <StaffTip text="Main number we call or text. Digits only is fine — we store what you type." />
-            </label>
-            <input id="cd-phone" v-model="form.phone" type="tel" class="staff-input" autocomplete="tel" />
-          </div>
-          <div class="staff-field">
-            <label for="cd-email">Email</label>
-            <input id="cd-email" v-model="form.email" type="email" class="staff-input" autocomplete="email" />
-          </div>
-          <div class="staff-field">
-            <label for="cd-status">
-              Status
-              <StaffTip text="Active = currently working with us. Completed = finished a program. Inactive = not coming in right now." />
-            </label>
-            <select id="cd-status" v-model="form.status" class="staff-input">
-              <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-          </div>
-          <div class="staff-field">
-            <label for="cd-program">
-              Program
-              <StaffTip text="Which MHH program this person signed up for. Use General if they are not in CAPSA, City Build, or Pit Stop." />
-            </label>
-            <select id="cd-program" v-model="form.training_interest" class="staff-input">
-              <option v-for="opt in PROGRAM_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-          </div>
-          <div class="staff-field">
-            <label for="cd-employment">Employment status</label>
-            <select id="cd-employment" v-model="form.employment_status" class="staff-input">
-              <option v-for="opt in EMPLOYMENT_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-          </div>
-          <div class="staff-field">
-            <label for="cd-language">Preferred language</label>
-            <select id="cd-language" v-model="form.language" class="staff-input">
-              <option v-for="opt in LANGUAGE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-          </div>
-          <div class="staff-field">
-            <label for="cd-start">
-              Program start date
-              <StaffTip text="When they began with us. Optional — leave blank if you do not know yet." />
-            </label>
-            <input id="cd-start" v-model="form.program_start_date" type="date" class="staff-input" />
-          </div>
-          <div class="staff-field">
-            <label for="cd-done">Program completed date</label>
-            <input id="cd-done" v-model="form.program_completed_date" type="date" class="staff-input" />
-          </div>
+        <div class="staff-client-hero-chips">
+          <span>{{ programLabel }}</span>
+          <span v-if="stageLabel">{{ stageLabel }}</span>
+          <span>Staff: {{ client.staff_name || 'Unassigned' }}</span>
         </div>
 
-        <details class="mb-3">
-          <summary class="text-sm font-semibold text-stone-600 cursor-pointer select-none">
-            Address (optional)
-          </summary>
-          <div class="staff-field-grid staff-field-grid-2 mt-2">
-            <div class="staff-field" style="grid-column: 1 / -1;">
-              <label for="cd-address">Street</label>
-              <input id="cd-address" v-model="form.address" type="text" class="staff-input" />
-            </div>
-            <div class="staff-field">
-              <label for="cd-city">City</label>
-              <input id="cd-city" v-model="form.city" type="text" class="staff-input" />
-            </div>
-            <div class="staff-field">
-              <label for="cd-state">State</label>
-              <input id="cd-state" v-model="form.state" type="text" class="staff-input" />
-            </div>
-            <div class="staff-field">
-              <label for="cd-zip">ZIP</label>
-              <input id="cd-zip" v-model="form.zip_code" type="text" class="staff-input" />
-            </div>
-          </div>
-        </details>
+        <div class="staff-client-actions">
+          <a v-if="phoneHref" :href="phoneHref" class="staff-btn staff-btn-secondary">
+            <span class="material-symbols-outlined" aria-hidden="true">call</span>
+            Call
+          </a>
+          <RouterLink
+            :to="{ name: 'Messages', query: { client: String(client.id) } }"
+            class="staff-btn staff-btn-secondary"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">chat</span>
+            Message
+          </RouterLink>
+          <button type="button" class="staff-btn staff-btn-secondary" @click="jumpTo('client-classes')">
+            <span class="material-symbols-outlined" aria-hidden="true">event</span>
+            Class
+          </button>
+          <button type="button" class="staff-btn staff-btn-secondary" @click="jumpTo('client-notes')">
+            <span class="material-symbols-outlined" aria-hidden="true">edit_note</span>
+            Note
+          </button>
+        </div>
+      </header>
 
-        <p class="text-xs text-stone-500 mb-3">
-          Assigned staff: <span class="font-semibold text-stone-700">{{ client.staff_name || 'Unassigned' }}</span>
-        </p>
-
-        <button
-          type="button"
-          class="staff-btn staff-btn-primary w-full"
-          :disabled="saveBusy || !formDirty"
-          @click="saveClient"
-        >
-          {{ saveBusy ? 'Saving…' : formDirty ? 'Save changes' : 'No changes' }}
+      <nav class="staff-client-jump" aria-label="On this page">
+        <button type="button" :class="{ 'is-active': hopActive === 'classes' }" @click="jumpTo('client-classes')">
+          Classes
         </button>
+        <button type="button" :class="{ 'is-active': hopActive === 'notes' }" @click="jumpTo('client-notes')">
+          Notes
+        </button>
+        <button
+          v-if="form.training_interest === 'pit_stop'"
+          type="button"
+          @click="jumpTo('client-pitstop')"
+        >
+          Pit Stop
+        </button>
+        <button
+          v-if="form.training_interest === 'citybuild'"
+          type="button"
+          @click="jumpTo('client-citybuild')"
+        >
+          City Build
+        </button>
+        <button type="button" :class="{ 'is-active': editingDetails }" @click="toggleDetails">
+          Details
+        </button>
+        <RouterLink :to="{ name: 'CreateSkill', query: { client: String(client.id) } }">
+          Skill note
+        </RouterLink>
+      </nav>
+
+      <div id="client-classes" class="staff-card p-4">
+        <div class="staff-panel-header">
+          <span class="material-symbols-outlined" aria-hidden="true">event</span>
+          <h3>Classes</h3>
+          <StaffTip text="Add them to Orientation, JRT, or another class. They get an informational text with the date and time." />
+        </div>
+        <ClientQuickEnroll :client-id="client.id" allow-remove />
       </div>
 
-      <!-- Pit Stop lifecycle (only for Pit Stop clients) -->
+      <div id="client-notes" class="staff-card p-4 relative">
+        <div
+          v-if="noteBusy"
+          class="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center z-10"
+        >
+          <BulldozerLoader label="Saving note…" />
+        </div>
+        <div class="staff-panel-header">
+          <span class="material-symbols-outlined" aria-hidden="true">edit_note</span>
+          <h3>Notes</h3>
+          <StaffTip text="Write what happened when they came in. Newest notes are at the top." />
+        </div>
+        <textarea
+          v-model="noteContent"
+          rows="3"
+          class="staff-input mb-3"
+          placeholder="What happened today?"
+        />
+        <button
+          type="button"
+          class="staff-btn staff-btn-primary w-full mb-4"
+          :disabled="noteBusy || !noteContent.trim()"
+          @click="saveNote"
+        >
+          Save note
+        </button>
+        <p v-if="notes.length === 0" class="text-sm text-stone-500">No notes yet.</p>
+        <article
+          v-for="note in notes"
+          :key="note.id"
+          class="border-t border-stone-100 pt-2 first:border-0 first:pt-0"
+        >
+          <p class="text-xs text-stone-500">{{ note.note_date }} · {{ note.staff_member }}</p>
+          <p class="text-sm whitespace-pre-wrap">{{ note.content }}</p>
+        </article>
+      </div>
+
       <div v-if="form.training_interest === 'pit_stop'" id="client-pitstop" class="staff-card p-4 relative">
         <div
           v-if="promoteBusy"
@@ -143,14 +139,11 @@
         <div class="staff-panel-header">
           <span class="material-symbols-outlined" aria-hidden="true">badge</span>
           <h3>Pit Stop</h3>
-          <StaffTip text="Where this person is in the Pit Stop process. Applicant means they signed up but have not been accepted yet. Worker means they can clock in on the worker portal." />
+          <StaffTip text="Applicant means they signed up but have not been accepted yet. Worker means they can clock in." />
         </div>
 
         <div class="staff-field mb-3">
-          <label for="cd-stage">
-            Stage
-            <StaffTip text="Change this as they move through the process, then tap Save changes above." />
-          </label>
+          <label for="cd-stage">Stage</label>
           <select id="cd-stage" v-model="form.pit_stop_stage" class="staff-input">
             <option v-for="opt in PIT_STOP_STAGE_OPTIONS" :key="opt.value" :value="opt.value">
               {{ opt.label }}
@@ -184,7 +177,6 @@
             Review notes: {{ pitStopApplication.review_notes }}
           </p>
           <RouterLink
-            v-if="pitStopApplication"
             :to="{ name: 'PitStopApplicationDetail', params: { id: pitStopApplication.id } }"
             class="inline-block text-xs font-semibold staff-link pt-1"
           >
@@ -208,8 +200,7 @@
 
         <div v-else class="space-y-2">
           <p class="text-sm text-stone-600">
-            This person does not have worker portal access yet. Giving access creates their login so
-            they can clock in and out. Their PIN is the last 4 digits of their phone.
+            No worker portal yet. Giving access creates a login so they can clock in. PIN is the last 4 digits of their phone.
           </p>
           <button
             type="button"
@@ -222,19 +213,15 @@
         </div>
       </div>
 
-      <!-- City Build / CBA pipeline -->
       <div v-if="form.training_interest === 'citybuild'" id="client-citybuild" class="staff-card p-4">
         <div class="staff-panel-header">
           <span class="material-symbols-outlined" aria-hidden="true">apartment</span>
           <h3>City Build</h3>
-          <StaffTip text="Pre-registration is everything before the CBA 12-week program, including interviews, drug test, file submission, accepted, dropped, and waitlisted. Enrolled and Arrived mean they are in the 12-week program." />
+          <StaffTip text="Pre-registration is everything before the CBA 12-week program. Enrolled and Arrived mean they are in the 12-week program." />
         </div>
 
         <div class="staff-field mb-3">
-          <label for="cd-citybuild-stage">
-            Stage
-            <StaffTip text="Change this as they move through City Build, then tap Save changes above. Drug-test result is not stored — only that they are at that step." />
-          </label>
+          <label for="cd-citybuild-stage">Stage</label>
           <select id="cd-citybuild-stage" v-model="form.citybuild_stage" class="staff-input">
             <optgroup
               v-for="group in CITYBUILD_STAGE_GROUPS"
@@ -261,10 +248,7 @@
           </template>
           Use the document upload link below so they can send files.
         </p>
-        <p
-          v-else-if="form.citybuild_stage === 'drug_test'"
-          class="text-sm text-stone-600"
-        >
+        <p v-else-if="form.citybuild_stage === 'drug_test'" class="text-sm text-stone-600">
           They are at the drug-test step. Do not record a positive or negative result here.
         </p>
         <p
@@ -275,194 +259,115 @@
         </p>
       </div>
 
-      <!-- Classes & Orientation -->
-      <div id="client-classes" class="staff-card p-4 relative">
-        <div
-          v-if="classBusy"
-          class="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center z-10"
-        >
-          <BulldozerLoader label="Updating classes…" />
-        </div>
-        <div class="staff-panel-header">
-          <span class="material-symbols-outlined" aria-hidden="true">event</span>
-          <h3>Classes &amp; Orientation</h3>
-          <StaffTip text="Sign this person up for Orientation, Job Readiness Training (JRT), resume workshops, or other classes. Pick a filter, choose a date, then tap Add." />
-        </div>
-
-        <CardSkeleton v-if="classesLoading" variant="list" :count="2" />
-
-        <template v-else>
-          <div v-if="enrolledClasses.length" class="space-y-1.5 mb-3 staff-fade-in">
-            <p class="text-xs font-semibold text-stone-500 uppercase tracking-wide">Already signed up</p>
-            <div
-              v-for="ec in enrolledClasses"
-              :key="ec.enrollment_id"
-              class="flex items-center justify-between gap-2 border-t border-stone-100 pt-1.5 first:border-0 first:pt-0"
-            >
-              <div class="text-sm">
-                <span class="font-medium">{{ ec.template_name }}</span>
-                <span class="text-stone-500"> · {{ ec.category_display }}</span>
-                <span
-                  class="staff-roster-badge ml-1.5"
-                  :class="ec.confirmed ? 'is-yes' : 'is-wait'"
-                >
-                  {{ ec.confirmed ? 'Confirmed' : 'Waiting for YES' }}
-                </span>
-                <div class="text-xs text-stone-500">
-                  {{ formatSessionDate(ec.session_date) }} · {{ formatTimeRange(ec.start_time, ec.end_time) }}
-                  <span v-if="ec.location"> · {{ ec.location }}</span>
-                </div>
-              </div>
-              <div class="shrink-0 text-right">
-                <button
-                  v-if="pendingUnenrollId === ec.enrollment_id"
-                  type="button"
-                  class="staff-btn staff-btn-danger-solid staff-btn-sm"
-                  :disabled="classBusy"
-                  @click="unenrollFromClass(ec)"
-                >
-                  Text &amp; remove
-                </button>
-                <button
-                  v-else
-                  type="button"
-                  class="staff-btn staff-btn-ghost staff-btn-sm staff-roster-remove"
-                  :disabled="classBusy"
-                  @click="pendingUnenrollId = ec.enrollment_id"
-                >
-                  Remove
-                </button>
-                <p v-if="pendingUnenrollId === ec.enrollment_id" class="text-[11px] text-stone-500 mt-1 max-w-[10rem]">
-                  Texts that we are working on a new date.
-                  <button type="button" class="staff-link" @click="pendingUnenrollId = null">Never mind</button>
-                </p>
-              </div>
-            </div>
-          </div>
-          <p v-else class="text-sm text-stone-500 mb-3">Not signed up for any upcoming classes yet.</p>
-
-          <p class="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
-            Add to a class
-            <StaffTip text="Filter by type (JRT = Job Readiness Training), then pick the exact date/time from the list." />
-          </p>
-          <div class="staff-chip-row">
-            <button
-              v-for="chip in CATEGORY_CHIPS"
-              :key="chip.value"
-              type="button"
-              class="staff-chip"
-              :class="{ 'staff-chip-active': categoryFilter === chip.value }"
-              @click="categoryFilter = chip.value"
-            >
-              {{ chip.label }}
-            </button>
-          </div>
-
-          <div class="flex gap-2">
-            <select v-model="selectedSessionId" class="staff-input flex-1">
-              <option value="">
-                {{ filteredSessions.length ? 'Choose a class date…' : 'No matching classes' }}
-              </option>
-              <optgroup
-                v-for="(sessions, category) in groupedFilteredSessions"
-                :key="category"
-                :label="category"
-              >
-                <option
-                  v-for="s in sessions"
-                  :key="s.id"
-                  :value="s.id"
-                  :disabled="s.spots_remaining <= 0 || isAlreadyEnrolled(s.id)"
-                >
-                  {{ s.template_name }} — {{ formatSessionDate(s.session_date) }}, {{ formatTimeRange(s.start_time, s.end_time) }}
-                  {{ isAlreadyEnrolled(s.id) ? '(already added)' : s.spots_remaining > 0 ? `(${s.spots_remaining} spots)` : '(full)' }}
-                </option>
-              </optgroup>
-            </select>
-            <button
-              type="button"
-              class="staff-btn staff-btn-primary shrink-0"
-              :disabled="!selectedSessionId || classBusy"
-              @click="enrollInClass"
-            >
-              Add
-            </button>
-          </div>
-          <div v-if="selectedSessionId" class="mt-2 rounded-xl border border-stone-200 bg-stone-50 p-3">
-            <p class="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
-              Confirmation text
-              <StaffTip text="This is the exact message they get when you press Add. It asks them to reply YES. Read it back if they are on the phone." />
-            </p>
-            <p v-if="textPreviewLoading" class="text-xs text-stone-400">Loading message…</p>
-            <template v-else-if="textPreview">
-              <p class="text-sm text-stone-700 whitespace-pre-line">{{ textPreview.body }}</p>
-              <p v-if="textPreview.will_send" class="text-xs text-emerald-700 font-semibold mt-1.5">
-                Sends to {{ textPreview.to_phone }} when you press Add.
-              </p>
-              <p v-else class="text-xs text-amber-700 font-semibold mt-1.5">
-                No text will be sent — {{ textPreview.reason }} Tell them the date and time before
-                they leave.
-              </p>
-            </template>
-          </div>
-
-          <p v-if="upcomingSessions.length === 0" class="text-xs text-stone-400 mt-1.5">
-            No upcoming classes scheduled yet —
-            <RouterLink to="/classes" class="staff-link font-semibold">create one on the Classes page</RouterLink>.
-          </p>
-          <p v-else-if="filteredSessions.length === 0" class="text-xs text-stone-400 mt-1.5">
-            Nothing in this filter. Try “All” or add a class on the
-            <RouterLink to="/classes" class="staff-link font-semibold">Classes</RouterLink> page.
-          </p>
-        </template>
-      </div>
-
       <ClientUploadInvites :client-id="client.id" />
 
-      <!-- Quick case note -->
-      <div id="client-notes" class="staff-card p-4 relative">
+      <div id="client-details" class="staff-card p-4 relative">
         <div
-          v-if="noteBusy"
+          v-if="saveBusy"
           class="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center z-10"
         >
-          <BulldozerLoader label="Saving note…" />
+          <BulldozerLoader label="Saving…" />
         </div>
         <div class="staff-panel-header">
-          <span class="material-symbols-outlined" aria-hidden="true">edit_note</span>
-          <h3>Quick case note</h3>
-          <StaffTip text="Write what happened when they came in — orientation, interview, paperwork, etc. This is the main place staff should leave a record." />
+          <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+          <h3>Contact &amp; program</h3>
+          <StaffTip text="Fix name, phone, program, or status. Tap Save when the bar appears at the bottom." />
+          <button type="button" class="staff-link text-xs font-semibold shrink-0" @click="editingDetails = !editingDetails">
+            {{ editingDetails ? 'Hide' : 'Edit' }}
+          </button>
         </div>
-        <textarea
-          v-model="noteContent"
-          rows="4"
-          class="staff-input mb-3"
-          placeholder="What happened today?"
-        />
-        <button
-          type="button"
-          class="staff-btn staff-btn-primary w-full"
-          :disabled="noteBusy || !noteContent.trim()"
-          @click="saveNote"
-        >
-          Save note
-        </button>
+
+        <template v-if="editingDetails">
+          <div class="staff-field-grid staff-field-grid-2 mb-3">
+            <div class="staff-field">
+              <label for="cd-first">First name</label>
+              <input id="cd-first" v-model="form.first_name" type="text" class="staff-input" autocomplete="given-name" />
+            </div>
+            <div class="staff-field">
+              <label for="cd-last">Last name</label>
+              <input id="cd-last" v-model="form.last_name" type="text" class="staff-input" autocomplete="family-name" />
+            </div>
+            <div class="staff-field">
+              <label for="cd-phone">Phone</label>
+              <input id="cd-phone" v-model="form.phone" type="tel" class="staff-input" autocomplete="tel" />
+            </div>
+            <div class="staff-field">
+              <label for="cd-email">Email</label>
+              <input id="cd-email" v-model="form.email" type="email" class="staff-input" autocomplete="email" />
+            </div>
+            <div class="staff-field">
+              <label for="cd-status">Status</label>
+              <select id="cd-status" v-model="form.status" class="staff-input">
+                <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div class="staff-field">
+              <label for="cd-program">Program</label>
+              <select id="cd-program" v-model="form.training_interest" class="staff-input">
+                <option v-for="opt in PROGRAM_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div class="staff-field">
+              <label for="cd-employment">Employment status</label>
+              <select id="cd-employment" v-model="form.employment_status" class="staff-input">
+                <option v-for="opt in EMPLOYMENT_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div class="staff-field">
+              <label for="cd-language">Preferred language</label>
+              <select id="cd-language" v-model="form.language" class="staff-input">
+                <option v-for="opt in LANGUAGE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div class="staff-field">
+              <label for="cd-start">Program start date</label>
+              <input id="cd-start" v-model="form.program_start_date" type="date" class="staff-input" />
+            </div>
+            <div class="staff-field">
+              <label for="cd-done">Program completed date</label>
+              <input id="cd-done" v-model="form.program_completed_date" type="date" class="staff-input" />
+            </div>
+          </div>
+
+          <details class="mb-1">
+            <summary class="text-sm font-semibold text-stone-600 cursor-pointer select-none">
+              Address (optional)
+            </summary>
+            <div class="staff-field-grid staff-field-grid-2 mt-2">
+              <div class="staff-field" style="grid-column: 1 / -1;">
+                <label for="cd-address">Street</label>
+                <input id="cd-address" v-model="form.address" type="text" class="staff-input" />
+              </div>
+              <div class="staff-field">
+                <label for="cd-city">City</label>
+                <input id="cd-city" v-model="form.city" type="text" class="staff-input" />
+              </div>
+              <div class="staff-field">
+                <label for="cd-state">State</label>
+                <input id="cd-state" v-model="form.state" type="text" class="staff-input" />
+              </div>
+              <div class="staff-field">
+                <label for="cd-zip">ZIP</label>
+                <input id="cd-zip" v-model="form.zip_code" type="text" class="staff-input" />
+              </div>
+            </div>
+          </details>
+        </template>
+        <p v-else class="text-sm text-stone-500">
+          Name, phone, program, and address stay here so the top of the page stays clear.
+        </p>
       </div>
 
-      <div class="staff-card p-4">
-        <div class="staff-panel-header">
-          <span class="material-symbols-outlined" aria-hidden="true">history_edu</span>
-          <h3>Recent notes</h3>
-          <StaffTip text="Past notes from any staff member. Newest first." />
-        </div>
-        <p v-if="notes.length === 0" class="text-sm text-stone-500">No notes yet.</p>
-        <article
-          v-for="note in notes"
-          :key="note.id"
-          class="border-t border-stone-100 pt-2 first:border-0 first:pt-0"
+      <div v-if="formDirty" class="staff-save-bar">
+        <p class="text-sm font-semibold">Unsaved changes</p>
+        <button
+          type="button"
+          class="staff-btn staff-btn-primary"
+          :disabled="saveBusy"
+          @click="saveClient"
         >
-          <p class="text-xs text-stone-500">{{ note.note_date }} · {{ note.staff_member }}</p>
-          <p class="text-sm whitespace-pre-wrap">{{ note.content }}</p>
-        </article>
+          {{ saveBusy ? 'Saving…' : 'Save' }}
+        </button>
       </div>
     </template>
   </section>
@@ -475,10 +380,9 @@ import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import { useToast } from '../composables/useToast'
 import BulldozerLoader from './BulldozerLoader.vue'
-import CardSkeleton from './dashboard/CardSkeleton.vue'
 import StaffTip from './StaffTip.vue'
-import ClientHopBar from './ClientHopBar.vue'
 import ClientUploadInvites from './ClientUploadInvites.vue'
+import ClientQuickEnroll from './ClientQuickEnroll.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -549,15 +453,6 @@ const LANGUAGE_OPTIONS = [
   { value: 'other', label: 'Other' },
 ]
 
-const CATEGORY_CHIPS = [
-  { value: '', label: 'All' },
-  { value: 'orientation', label: 'Orientation' },
-  { value: 'job_readiness', label: 'JRT' },
-  { value: 'resume_workshop', label: 'Resume' },
-  { value: 'training', label: 'Skills' },
-  { value: 'other', label: 'Other' },
-]
-
 interface WorkerPortal {
   has_account: boolean
   login_phone: string
@@ -615,38 +510,6 @@ interface CaseNote {
   staff_member: string
 }
 
-interface UpcomingSession {
-  id: number
-  template_name: string
-  category: string
-  category_display: string
-  session_date: string
-  start_time: string
-  end_time: string
-  location: string
-  spots_remaining: number
-}
-
-interface ClassTextPreview {
-  will_send: boolean
-  reason: string
-  to_phone: string
-  body: string
-}
-
-interface ClientClassEnrollment {
-  enrollment_id: number
-  session_id: number
-  template_name: string
-  category_display: string
-  session_date: string
-  start_time: string
-  end_time: string
-  location: string
-  status: string
-  confirmed: boolean
-}
-
 const emptyForm = () => ({
   first_name: '',
   last_name: '',
@@ -676,22 +539,49 @@ const noteContent = ref('')
 const noteBusy = ref(false)
 const saveBusy = ref(false)
 const promoteBusy = ref(false)
+const editingDetails = ref(false)
 
-const upcomingSessions = ref<UpcomingSession[]>([])
-const enrolledClasses = ref<ClientClassEnrollment[]>([])
-const selectedSessionId = ref<number | ''>('')
-const classBusy = ref(false)
-const pendingUnenrollId = ref<number | null>(null)
-const classesLoading = ref(true)
-const categoryFilter = ref('')
-const textPreview = ref<ClassTextPreview | null>(null)
-const textPreviewLoading = ref(false)
-
-const formDirty = computed(() => JSON.stringify(form) !== savedSnapshot.value)
-
+const formDirty = computed(() => Boolean(client.value) && JSON.stringify(form) !== savedSnapshot.value)
 const workerPortal = computed(() => client.value?.worker_portal || null)
 const pitStopApplication = computed(() => client.value?.pit_stop_application || null)
 const citybuildPacket = computed(() => client.value?.citybuild_packet || null)
+
+const displayName = computed(() => {
+  if (!client.value) return ''
+  const fromForm = `${form.first_name} ${form.last_name}`.trim()
+  return fromForm || client.value.full_name
+})
+
+const programLabel = computed(
+  () => PROGRAM_OPTIONS.find((opt) => opt.value === form.training_interest)?.label || form.training_interest,
+)
+
+const stageLabel = computed(() => {
+  if (form.training_interest === 'pit_stop') {
+    return PIT_STOP_STAGE_OPTIONS.find((opt) => opt.value === form.pit_stop_stage)?.label || ''
+  }
+  if (form.training_interest === 'citybuild') {
+    for (const group of CITYBUILD_STAGE_GROUPS) {
+      const hit = group.options.find((opt) => opt.value === form.citybuild_stage)
+      if (hit) return hit.label
+    }
+  }
+  return ''
+})
+
+const phoneHref = computed(() => {
+  const digits = form.phone.replace(/\D/g, '')
+  if (digits.length < 10) return ''
+  return `tel:+${digits.length === 10 ? `1${digits}` : digits}`
+})
+
+const hopActive = computed(() => {
+  const focus = String(route.query.focus || '')
+  if (focus === 'notes') return 'notes' as const
+  if (focus === 'classes') return 'classes' as const
+  return 'profile' as const
+})
+
 function formatDateTime(value: string) {
   const d = new Date(value)
   return Number.isNaN(d.getTime())
@@ -705,22 +595,51 @@ function formatDateTime(value: string) {
       })
 }
 
-const filteredSessions = computed(() => {
-  if (!categoryFilter.value) return upcomingSessions.value
-  return upcomingSessions.value.filter((s) => s.category === categoryFilter.value)
-})
+function clientId() {
+  return Number(route.params.id)
+}
 
-const groupedFilteredSessions = computed(() => {
-  const groups: Record<string, UpcomingSession[]> = {}
-  for (const s of filteredSessions.value) {
-    if (!groups[s.category_display]) groups[s.category_display] = []
-    groups[s.category_display].push(s)
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.push({ name: 'Clients' })
+}
+
+function jumpTo(id: string) {
+  if (id === 'client-details') editingDetails.value = true
+  router.replace({ name: 'ClientDetail', params: { id: clientId() }, query: focusQuery(id) })
+  requestAnimationFrame(() => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function focusQuery(id: string) {
+  if (id === 'client-notes') return { focus: 'notes' }
+  if (id === 'client-classes') return { focus: 'classes' }
+  if (id === 'client-pitstop') return { focus: 'pitstop' }
+  if (id === 'client-citybuild') return { focus: 'citybuild' }
+  return {}
+}
+
+function toggleDetails() {
+  editingDetails.value = !editingDetails.value
+  if (editingDetails.value) jumpTo('client-details')
+}
+
+function scrollToFocus() {
+  const focus = String(route.query.focus || '')
+  const ids: Record<string, string> = {
+    notes: 'client-notes',
+    classes: 'client-classes',
+    pitstop: 'client-pitstop',
+    citybuild: 'client-citybuild',
+    details: 'client-details',
   }
-  return groups
-})
-
-function isAlreadyEnrolled(sessionId: number) {
-  return enrolledClasses.value.some((e) => e.session_id === sessionId)
+  const id = ids[focus] || ''
+  if (!id) return
+  if (focus === 'details') editingDetails.value = true
+  requestAnimationFrame(() => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 }
 
 function syncForm(c: ClientDetail) {
@@ -743,77 +662,15 @@ function syncForm(c: ClientDetail) {
   savedSnapshot.value = JSON.stringify(form)
 }
 
-function formatSessionDate(dateStr: string) {
-  const d = new Date(`${dateStr}T00:00:00`)
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function formatTimeRange(start: string, end: string) {
-  const fmt = (t: string) => {
-    const [h, m] = t.split(':').map(Number)
-    const period = h >= 12 ? 'PM' : 'AM'
-    const hour12 = h % 12 === 0 ? 12 : h % 12
-    return `${hour12}:${String(m).padStart(2, '0')} ${period}`
-  }
-  return `${fmt(start)}–${fmt(end)}`
-}
-
-const clientId = () => Number(route.params.id)
-
-const displayName = computed(() => {
-  if (!client.value) return ''
-  const fromForm = `${form.first_name} ${form.last_name}`.trim()
-  return fromForm || client.value.full_name
-})
-
-const hopActive = computed(() => {
-  const focus = String(route.query.focus || '')
-  if (focus === 'notes') return 'notes' as const
-  if (focus === 'classes') return 'classes' as const
-  return 'profile' as const
-})
-
-function scrollToFocus() {
-  const focus = String(route.query.focus || '')
-  const ids: Record<string, string> = {
-    notes: 'client-notes',
-    classes: 'client-classes',
-    pitstop: 'client-pitstop',
-    citybuild: 'client-citybuild',
-  }
-  const id = ids[focus] || ''
-  if (!id) return
-  requestAnimationFrame(() => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
-}
-
-async function loadClasses() {
-  classesLoading.value = true
-  try {
-    const id = clientId()
-    const [upcomingResp, clientClassesResp] = await Promise.all([
-      staffFetch('/api/staff/classes/upcoming/'),
-      staffFetch(`/api/staff/clients/${id}/classes/`),
-    ])
-    const upcomingBody = upcomingResp.ok ? await upcomingResp.json() : { results: [] }
-    upcomingSessions.value = upcomingBody.results || []
-    const clientClassesBody = clientClassesResp.ok ? await clientClassesResp.json() : { results: [] }
-    enrolledClasses.value = clientClassesBody.results || []
-  } catch {
-    /* Classes card degrades gracefully if this fails; client info still loads. */
-  } finally {
-    classesLoading.value = false
-  }
-}
-
 async function saveClient() {
   if (!form.first_name.trim() || !form.last_name.trim()) {
     toast.error('First and last name are required.')
+    editingDetails.value = true
     return
   }
   if (!form.phone.trim()) {
     toast.error('Phone number is required.')
+    editingDetails.value = true
     return
   }
   saveBusy.value = true
@@ -886,78 +743,6 @@ async function promoteToWorker() {
   }
 }
 
-async function loadTextPreview(sessionId: number) {
-  textPreviewLoading.value = true
-  textPreview.value = null
-  try {
-    const resp = await staffFetch(
-      `/api/staff/classes/${sessionId}/text-preview/?client_id=${clientId()}`,
-    )
-    if (!resp.ok) return
-    textPreview.value = await resp.json()
-  } catch {
-    // The preview is a convenience; enrolling still works without it.
-  } finally {
-    textPreviewLoading.value = false
-  }
-}
-
-watch(selectedSessionId, (sessionId) => {
-  if (!sessionId) {
-    textPreview.value = null
-    return
-  }
-  loadTextPreview(Number(sessionId))
-})
-
-async function enrollInClass() {
-  if (!selectedSessionId.value) return
-  classBusy.value = true
-  try {
-    const resp = await staffFetch(`/api/staff/classes/${selectedSessionId.value}/enroll/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: clientId() }),
-    })
-    const body = await resp.json().catch(() => null)
-    if (!resp.ok) {
-      toast.error(friendlyError(body, 'Could not add client to that class.'))
-      return
-    }
-    toast.success(body?.message || 'Added to class.')
-    if (body?.text_warning) toast.error(body.text_warning)
-    selectedSessionId.value = ''
-    await loadClasses()
-  } catch (e) {
-    toast.error(networkErrorMessage(e))
-  } finally {
-    classBusy.value = false
-  }
-}
-
-async function unenrollFromClass(enrollment: ClientClassEnrollment) {
-  classBusy.value = true
-  try {
-    const resp = await staffFetch(`/api/staff/classes/${enrollment.session_id}/unenroll/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: clientId() }),
-    })
-    const body = await resp.json().catch(() => null)
-    if (!resp.ok) {
-      toast.error(friendlyError(body, 'Could not remove client from that class.'))
-      return
-    }
-    toast.success(body?.message || 'Removed. They were texted about a new date.')
-    pendingUnenrollId.value = null
-    await loadClasses()
-  } catch (e) {
-    toast.error(networkErrorMessage(e))
-  } finally {
-    classBusy.value = false
-  }
-}
-
 async function load() {
   loading.value = true
   error.value = ''
@@ -975,7 +760,6 @@ async function load() {
     client.value = body
     syncForm(body)
     notes.value = notesResp.ok ? await notesResp.json() : []
-    await loadClasses()
     scrollToFocus()
   } catch (e) {
     error.value = networkErrorMessage(e)

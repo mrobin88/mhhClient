@@ -3,7 +3,7 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">event</span>
       <h3>Upcoming Classes &amp; Trainings</h3>
-      <StaffTip text="Grouped by program. Tap a class for the roster, export a sign-in sheet, or cancel/delete the date." />
+      <StaffTip text="Tap a class for the name list, mark who is here, or print a roster for notes." />
       <RouterLink
         to="/classes"
         class="text-xs font-semibold staff-link shrink-0"
@@ -51,7 +51,7 @@
                   {{ s.spots_remaining > 0 ? `${s.spots_remaining} open` : 'full' }}
                 </span>
                 <span v-if="s.enrolled_count" class="text-[10px] text-stone-500">
-                  {{ s.confirmed_count }} confirmed
+                  {{ s.enrolled_count }} signed up
                 </span>
               </span>
             </button>
@@ -61,6 +61,9 @@
                 :session-id="s.id"
                 :session-name="s.template_name"
                 :session-date="s.session_date"
+                :start-time="s.start_time"
+                :end-time="s.end_time"
+                :program-label="s.program_display"
                 session-status="scheduled"
                 @changed="load"
                 @cancelled="onCancelled(s.id)"

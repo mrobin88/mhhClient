@@ -7,7 +7,7 @@
     >
       <span class="material-symbols-outlined" aria-hidden="true">person</span>
       <span class="truncate">{{ clientName }}</span>
-      <span class="staff-client-hop-main-label">Main page</span>
+      <span class="staff-client-hop-main-label">Their page</span>
     </RouterLink>
 
     <div class="staff-client-hop-links" aria-label="Other places for this client">

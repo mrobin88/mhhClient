@@ -3,7 +3,6 @@
     <div class="staff-panel-header">
       <span class="material-symbols-outlined" aria-hidden="true">search</span>
       <h3>Find someone</h3>
-      <StaffTip text="Type a name or phone. Open their info here, add them to a class, or go to their full page." />
     </div>
     <input
       ref="searchInput"
@@ -84,6 +83,23 @@
         </div>
       </dl>
       <ClientQuickEnroll :client-id="selected.id" />
+      <div class="space-y-2 pt-1">
+        <p class="text-xs font-semibold text-stone-500 uppercase tracking-wide">Leave a note</p>
+        <textarea
+          v-model="noteContent"
+          rows="2"
+          class="staff-input"
+          placeholder="What happened today?"
+        />
+        <button
+          type="button"
+          class="staff-btn staff-btn-primary w-full"
+          :disabled="noteBusy || !noteContent.trim()"
+          @click="saveNote"
+        >
+          {{ noteBusy ? 'Saving…' : 'Save note' }}
+        </button>
+      </div>
     </div>
 
     <RouterLink to="/clients" class="block text-center text-xs font-semibold staff-link pt-1">
@@ -93,10 +109,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { staffFetch } from '../../api'
+import { friendlyError, networkErrorMessage } from '../../utils/errors'
+import { useToast } from '../../composables/useToast'
 import CardSkeleton from './CardSkeleton.vue'
-import StaffTip from '../StaffTip.vue'
 import ClientQuickEnroll from '../ClientQuickEnroll.vue'
 
 interface ClientResult {
@@ -121,6 +138,9 @@ const selected = ref<ClientResult | null>(null)
 const loading = ref(false)
 const error = ref('')
 const searchInput = ref<HTMLInputElement | null>(null)
+const noteContent = ref('')
+const noteBusy = ref(false)
+const toast = useToast()
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const stageLine = computed(() => {
@@ -133,6 +153,40 @@ const stageLine = computed(() => {
 
 function selectClient(c: ClientResult) {
   selected.value = selected.value?.id === c.id ? null : c
+}
+
+watch(
+  () => selected.value?.id,
+  () => {
+    noteContent.value = ''
+  },
+)
+
+async function saveNote() {
+  if (!selected.value || !noteContent.value.trim() || noteBusy.value) return
+  noteBusy.value = true
+  try {
+    const resp = await staffFetch(`/api/staff/clients/${selected.value.id}/notes/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        note_date: new Date().toISOString().slice(0, 10),
+        note_type: 'general',
+        content: noteContent.value.trim(),
+      }),
+    })
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok) {
+      toast.error(friendlyError(body, 'Could not save your note.'))
+      return
+    }
+    noteContent.value = ''
+    toast.success('Note saved.')
+  } catch (e) {
+    toast.error(networkErrorMessage(e))
+  } finally {
+    noteBusy.value = false
+  }
 }
 
 function debouncedSearch() {

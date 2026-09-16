@@ -146,7 +146,7 @@ const apps = [
   {
     name: 'Staff workspace',
     who: 'You, every day',
-    what: 'Search someone at the top of Home, see their info, add them to a class, write a case note, read text replies.',
+    what: 'Search someone at the top of Home, see their info, add them to a class, leave a note. Feedback is always on the bottom bar.',
     here: true,
     links: [{ to: '/dashboard', label: 'Open Home' }],
   },
@@ -188,12 +188,12 @@ const apps = [
 const screens = [
   {
     name: 'Home',
-    body: 'Search at the top by name or phone, see their info, and add them to a class. Add a client for an outside referral. New Pit Stop and City Build signups and document upload are still on this screen. The Menu bar at the bottom opens every staff screen plus signup, check-in, the worker portal, Django, and reports.',
+    body: 'Search at the top by name or phone, see their info, add them to a class, and leave a note. Feedback is always on the bar at the bottom. The Menu opens the rest of the screens.',
     links: [{ to: '/dashboard', label: 'Open Home' }],
   },
   {
     name: 'Clients',
-    body: 'Search by name or phone. Filter by program or Pit Stop stage.',
+    body: 'The roster. Search, filter by program or stage, then open someone.',
     links: [{ to: '/clients', label: 'Open Clients' }],
   },
   {
@@ -203,7 +203,7 @@ const screens = [
   },
   {
     name: 'Client page',
-    body: 'Edit contact info, program, status, and dates. Sign up for classes, add case notes, send document-upload links.',
+    body: 'See who they are, call or text, add them to a class, and leave a note. Contact and program details are further down if something needs fixing.',
     links: [
       { to: '/clients', label: 'Open Clients' },
       { href: getApiUrl('/admin/clients/client/'), label: 'Django: client records' },
@@ -211,17 +211,17 @@ const screens = [
   },
   {
     name: 'Messages',
-    body: 'Text threads with clients. Unread replies show as a badge. Automated texts are class signup (reply YES), class changes, removals, cancellations, and a thank-you after a Pit Stop application.',
+    body: 'Text threads with clients. Unread replies show as a badge. Automated texts are informational class signup notices, class changes, removals, cancellations, and a thank-you after a Pit Stop application. YES or STOP replies are not acted on in this system.',
     links: [{ to: '/messages', label: 'Open Messages' }],
   },
   {
     name: 'Classes',
-    body: 'Classes are grouped by program (City Build, Pit Stop, CAPSA, Guard Card, General). Set Program so a class lands in the right column. Signup texts ask people to reply YES. Removing someone texts that we are working on a new date. Cancel keeps the date; delete removes it. Export CSV for a paper sign-in sheet.',
+    body: 'The calendar shows class dates as boxes. Click a box for the name list, mark who is here, and print a roster with space for notes. Classes are grouped by program (City Build, Pit Stop, CAPSA, Guard Card, General). Removing someone texts that we are working on a new date. Cancel keeps the date; delete removes it.',
     links: [{ to: '/classes', label: 'Open Classes' }],
   },
   {
     name: 'Suggestion box',
-    body: 'Drop an idea, a problem, or a request. Optional screenshot. Notes stay in the box until someone follows up.',
+    body: 'Feedback is on every screen: the lightbulb next to Menu, and Feedback at the top. It records which page you were on. Open the box to see everyone’s notes or add a screenshot.',
     links: [{ to: '/suggestions', label: 'Open suggestion box' }],
   },
   {
@@ -235,7 +235,7 @@ const clientPath = [
   { title: 'They sign up.', body: 'Public form, or Add a client on Home for an outside referral.' },
   { title: 'They become a record.', body: 'Notes, documents, classes, texts, Pit Stop stage, and City Build stage hang off that one page.' },
   { title: 'You meet with them.', body: 'One case note per meaningful visit. If nobody has reached out for 3 weeks, Teams (MHH ALL STAFF) gets a message with their name and what they applied for.' },
-  { title: 'Classes and documents.', body: 'Sign up from their page — they get a text to reply YES. Mark attendance and export a sign-in sheet on Classes. Send an upload link for missing paperwork.' },
+  { title: 'Classes and documents.', body: 'Sign up from their page. Mark attendance and print a roster on Classes. Send an upload link for missing paperwork.' },
   { title: 'Pit Stop workers.', body: 'Move stages, then grant portal access when they are ready for shifts.' },
 ]
 

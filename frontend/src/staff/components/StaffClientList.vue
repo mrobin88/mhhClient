@@ -1,24 +1,29 @@
 <template>
   <section class="space-y-3">
-    <div class="staff-card p-4">
+    <div class="staff-card p-4 space-y-3">
       <div class="staff-panel-header">
         <span class="material-symbols-outlined" aria-hidden="true">group</span>
-        <h3>Find a client</h3>
-        <StaffTip text="Search by name or phone, then tap the person. On their page you can fix contact info and sign them up for Orientation or JRT." />
+        <h3>Clients</h3>
+        <StaffTip text="This is the roster. Search, filter by program, then open someone to add them to a class or leave a note." />
       </div>
       <input
-        v-model="query"
+        ref="searchInput"
+        v-model="searchQuery"
         type="search"
         placeholder="Name or phone"
-        class="staff-input"
+        class="staff-input staff-search-hero-input"
+        autocomplete="off"
         @input="debouncedSearch"
       />
+      <div class="staff-home-actions">
+        <RouterLink :to="{ name: 'ClientCreate' }" class="staff-btn staff-btn-primary">
+          <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
+          Add a client
+        </RouterLink>
+      </div>
 
-      <div class="mt-3">
-        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
-          Program
-          <StaffTip text="Show only people signed up for one program. Tap the same chip again to clear it." />
-        </p>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">Program</p>
         <div class="staff-chip-row">
           <button
             v-for="chip in PROGRAM_CHIPS"
@@ -33,11 +38,8 @@
         </div>
       </div>
 
-      <div v-if="program === 'pit_stop'" class="mt-3">
-        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
-          Pit Stop stage
-          <StaffTip text="Applicants signed up but are not accepted yet. Workers have a portal login and can clock in." />
-        </p>
+      <div v-if="program === 'pit_stop'">
+        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">Pit Stop stage</p>
         <div class="staff-chip-row">
           <button
             v-for="chip in STAGE_CHIPS"
@@ -52,11 +54,8 @@
         </div>
       </div>
 
-      <div v-if="program === 'citybuild'" class="mt-3">
-        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
-          City Build stage
-          <StaffTip text="Accepted and Dropped are still pre-registration. Enrolled and Arrived are the CBA 12-week program. In the running means file submission." />
-        </p>
+      <div v-if="program === 'citybuild'">
+        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">City Build stage</p>
         <div class="staff-chip-row">
           <button
             v-for="chip in CITYBUILD_STAGE_CHIPS"
@@ -72,32 +71,41 @@
       </div>
     </div>
 
+    <p v-if="!loading && !error" class="text-xs font-semibold text-stone-500 px-1">
+      {{ clients.length }} {{ clients.length === 1 ? 'person' : 'people' }}
+    </p>
+
     <SkeletonClientList v-if="loading" />
     <div v-else-if="error" class="staff-card p-4 text-center space-y-3">
       <p class="text-sm text-stone-600">{{ error }}</p>
       <button type="button" class="staff-btn staff-btn-secondary" @click="search">Try again</button>
     </div>
-    <p v-else-if="clients.length === 0" class="text-sm text-stone-500 text-center py-8">No clients found.</p>
+    <div v-else-if="clients.length === 0" class="staff-card p-4 text-center space-y-2">
+      <p class="text-sm text-stone-500">No clients match that search.</p>
+      <RouterLink :to="{ name: 'ClientCreate' }" class="staff-link font-semibold">Add a client →</RouterLink>
+    </div>
 
     <ul v-else class="space-y-2">
       <li v-for="client in clients" :key="client.id">
-        <button
-          type="button"
-          class="staff-card w-full text-left px-4 py-3 staff-hover-accent transition-colors"
-          @click="router.push({ name: 'ClientDetail', params: { id: client.id } })"
+        <RouterLink
+          :to="{ name: 'ClientDetail', params: { id: client.id } }"
+          class="staff-card staff-client-row"
         >
-          <p class="font-semibold">{{ client.full_name }}</p>
-          <p class="text-sm text-stone-600">{{ client.phone }} · {{ client.status }}</p>
-          <p class="text-xs text-stone-500 mt-0.5">
-            {{ client.training_interest_display }}
-            <template v-if="client.training_interest === 'pit_stop'">
-              · {{ client.pit_stop_stage_display }}
-            </template>
-            <template v-else-if="client.training_interest === 'citybuild'">
-              · {{ client.citybuild_stage_display }}
-            </template>
-          </p>
-        </button>
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold truncate">{{ client.full_name }}</p>
+            <p class="text-sm text-stone-600 truncate">
+              {{ client.phone }}
+              <span v-if="client.email"> · {{ client.email }}</span>
+            </p>
+            <p class="text-xs text-stone-500 mt-0.5 truncate">
+              {{ client.training_interest_display }}
+              <template v-if="stageFor(client)"> · {{ stageFor(client) }}</template>
+              <template v-if="client.staff_name"> · {{ client.staff_name }}</template>
+            </p>
+          </div>
+          <span class="staff-client-row-status">{{ client.status }}</span>
+          <span class="material-symbols-outlined staff-client-row-chevron" aria-hidden="true">chevron_right</span>
+        </RouterLink>
       </li>
     </ul>
   </section>
@@ -105,7 +113,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import SkeletonClientList from './SkeletonClientList.vue'
@@ -115,7 +123,9 @@ interface ClientRow {
   id: number
   full_name: string
   phone: string
+  email?: string | null
   status: string
+  staff_name?: string | null
   training_interest: string
   training_interest_display: string
   pit_stop_stage: string
@@ -159,23 +169,44 @@ const CITYBUILD_STAGE_CHIPS = [
 
 const route = useRoute()
 const router = useRouter()
-const query = ref('')
+const searchQuery = ref('')
 const program = ref('')
 const stage = ref('')
 const clients = ref<ClientRow[]>([])
 const loading = ref(false)
 const error = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+function stageFor(client: ClientRow) {
+  if (client.training_interest === 'pit_stop') return client.pit_stop_stage_display
+  if (client.training_interest === 'citybuild') return client.citybuild_stage_display
+  return ''
+}
+
+function currentQuery() {
+  const next: Record<string, string> = {}
+  if (program.value) next.program = program.value
+  if ((program.value === 'pit_stop' || program.value === 'citybuild') && stage.value) {
+    next.stage = stage.value
+  }
+  if (searchQuery.value.trim()) next.q = searchQuery.value.trim()
+  return next
+}
+
+function writeFilters() {
+  router.replace({ name: 'Clients', query: currentQuery() })
+}
 
 function setProgram(value: string) {
   program.value = program.value === value ? '' : value
   if (program.value !== 'pit_stop' && program.value !== 'citybuild') stage.value = ''
-  search()
+  writeFilters()
 }
 
 function setStage(value: string) {
   stage.value = stage.value === value ? '' : value
-  search()
+  writeFilters()
 }
 
 async function search() {
@@ -183,7 +214,7 @@ async function search() {
   error.value = ''
   try {
     const params = new URLSearchParams()
-    if (query.value.trim()) params.set('q', query.value.trim())
+    if (searchQuery.value.trim()) params.set('q', searchQuery.value.trim())
     if (program.value) params.set('program', program.value)
     if (stage.value) params.set('stage', stage.value)
     const resp = await staffFetch(`/api/staff/clients/?${params.toString()}`)
@@ -202,26 +233,29 @@ async function search() {
 
 function debouncedSearch() {
   if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(search, 250)
+  debounceTimer = setTimeout(() => {
+    writeFilters()
+  }, 250)
 }
-
-onMounted(() => {
-  applyRouteFilters()
-  search()
-})
-
-watch(
-  () => [route.query.program, route.query.stage],
-  () => {
-    applyRouteFilters()
-    search()
-  },
-)
 
 function applyRouteFilters() {
   const qProgram = String(route.query.program || '')
   program.value = qProgram
   const qStage = String(route.query.stage || '')
   stage.value = qProgram === 'pit_stop' || qProgram === 'citybuild' ? qStage : ''
+  searchQuery.value = String(route.query.q || '')
 }
+
+onMounted(() => {
+  searchInput.value?.focus()
+})
+
+watch(
+  () => [route.query.program, route.query.stage, route.query.q],
+  () => {
+    applyRouteFilters()
+    search()
+  },
+  { immediate: true },
+)
 </script>

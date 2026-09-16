@@ -8,7 +8,7 @@ date, exporting a sign-in sheet) never requires touching Django admin.
 
 Session-authenticated, staff-only, single-tenant.
 """
-from datetime import timedelta
+from datetime import date, timedelta
 import csv
 import logging
 import re
@@ -142,15 +142,32 @@ def staff_upcoming_classes(request):
     if err:
         return err
 
-    days = min(int(request.GET.get('days') or 60), 180)
-    today = timezone.localdate()
-    horizon = today + timedelta(days=days)
-
-    sessions = _annotate_session_counts(
-        ClassSession.objects.filter(
-            status='scheduled', session_date__gte=today, session_date__lte=horizon
-        ).select_related('template')
-    ).order_by('session_date', 'start_time')
+    month = (request.GET.get('month') or '').strip()
+    if month:
+        try:
+            year_s, month_s = month.split('-', 1)
+            year, mon = int(year_s), int(month_s)
+            start = date(year, mon, 1)
+            if mon == 12:
+                end = date(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end = date(year, mon + 1, 1) - timedelta(days=1)
+        except (TypeError, ValueError):
+            return Response({'error': 'Use month=YYYY-MM.'}, status=status.HTTP_400_BAD_REQUEST)
+        sessions = _annotate_session_counts(
+            ClassSession.objects.filter(
+                session_date__gte=start, session_date__lte=end
+            ).select_related('template')
+        ).order_by('session_date', 'start_time')
+    else:
+        days = min(int(request.GET.get('days') or 60), 180)
+        today = timezone.localdate()
+        horizon = today + timedelta(days=days)
+        sessions = _annotate_session_counts(
+            ClassSession.objects.filter(
+                status='scheduled', session_date__gte=today, session_date__lte=horizon
+            ).select_related('template')
+        ).order_by('session_date', 'start_time')
 
     category = (request.GET.get('category') or '').strip()
     if category:
@@ -302,7 +319,7 @@ def _signin_sheet_filename(session):
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_class_roster_csv(request, session_id):
-    """Paper sign-in sheet: name, phone, email, plus blank signature / time in / sponsorship."""
+    """Printable roster CSV: names plus a blank notes column. No time-in or sponsorship."""
     err = _staff_guard(request)
     if err:
         return err
@@ -319,23 +336,12 @@ def staff_class_roster_csv(request, session_id):
     )
     buffer = StringIO()
     writer = csv.writer(buffer)
-    writer.writerow([
-        'Last name',
-        'First name',
-        'Phone number',
-        'Email',
-        'Signature',
-        'Time in',
-        'Need sponsorship',
-    ])
+    writer.writerow(['Last name', 'First name', 'Here', 'Notes'])
     for enrollment in enrollments:
         client = enrollment.client
         writer.writerow([
             client.last_name or '',
             client.first_name or '',
-            client.phone or '',
-            client.email or '',
-            '',
             '',
             '',
         ])

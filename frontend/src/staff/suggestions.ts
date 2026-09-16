@@ -38,3 +38,10 @@ export function suggestionKindLabel(tags: string[] | undefined | null) {
   const kind = suggestionKindFromTags(tags)
   return SUGGESTION_KINDS.find((k) => k.value === kind)?.label || ''
 }
+
+export function suggestionBodyWithContext(body: string, context: string) {
+  const text = body.trim()
+  const where = context.trim()
+  if (!where) return text
+  return `${text}\n\n— Sent from ${where}`
+}

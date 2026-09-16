@@ -283,14 +283,13 @@ PITSTOP_APPLICATION_ALERT_EMAILS = os.getenv(
 AZURE_COMMUNICATION_CONNECTION_STRING = os.getenv('AZURE_COMMUNICATION_CONNECTION_STRING', '')
 AZURE_COMMUNICATION_SMS_FROM = os.getenv('AZURE_COMMUNICATION_SMS_FROM', '')
 SMS_FOLLOWUP_ENABLED = os.getenv('SMS_FOLLOWUP_ENABLED', 'false').lower() == 'true'
-# Separate switch on purpose: class confirmations can be proven in production
-# without also turning on the 30/60/90/120-day follow-up blasts.
+# Informational class signup and class-change texts (date, time, location).
 SMS_CLASS_CONFIRMATION_ENABLED = os.getenv('SMS_CLASS_CONFIRMATION_ENABLED', 'false').lower() == 'true'
 # Thank-you text after someone submits a Pit Stop application (2–3 week review window).
 SMS_PITSTOP_APPLICATION_ENABLED = os.getenv('SMS_PITSTOP_APPLICATION_ENABLED', 'true').lower() == 'true'
 # Shared secret on the ACS Event Grid webhook URL (?token=). Required in production.
 SMS_INBOUND_WEBHOOK_SECRET = os.getenv('SMS_INBOUND_WEBHOOK_SECRET', '')
-# Front-desk number included on class signup and class-change texts.
+# Front-desk number included on informational class texts.
 MHH_PUBLIC_PHONE = os.getenv('MHH_PUBLIC_PHONE', '(415) 626-1919')
 SMS_INTERNAL_ONLY = os.getenv('SMS_INTERNAL_ONLY', 'false').lower() == 'true'
 SMS_APPEND_COMPLIANCE_FOOTER = os.getenv('SMS_APPEND_COMPLIANCE_FOOTER', 'true').lower() == 'true'

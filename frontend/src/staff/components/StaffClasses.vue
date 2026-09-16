@@ -4,7 +4,7 @@
       <div class="staff-panel-header">
         <span class="material-symbols-outlined" aria-hidden="true">event</span>
         <h3>Classes &amp; Trainings</h3>
-        <StaffTip text="Classes are grouped by program. Set Program so a Guard Card class lands in Guard Card, not General. City Build info sessions must be City Build to show on public signup." />
+        <StaffTip text="Boxes on the calendar are class dates. Click one for the name list. Print the roster for notes during class. Set Program so a Guard Card class lands in Guard Card, not General." />
         <button
           type="button"
           class="staff-btn staff-btn-secondary shrink-0"
@@ -14,11 +14,49 @@
         </button>
       </div>
       <p class="text-xs text-stone-500 mb-3">
-        Add classes, schedule recurring sessions, and track who attends — all from here.
-        Classes sit in a column for their program (City Build, Pit Stop, CAPSA, Guard Card, General).
-        Use the program menu on a class to move it. Cancel a date to keep a record, or delete it.
-        Export CSV for a paper sign-in sheet (signature, time in, and sponsorship columns are blank).
+        Use the calendar to see when classes are set. Click a box for the sign-up list,
+        mark who is here, and print a roster with space for notes. New classes and
+        recurring dates are set up in the program columns below.
       </p>
+
+      <ClassMonthCalendar
+        ref="calendarRef"
+        :selected-id="selectedSession?.id"
+        @select="onCalendarSelect"
+      />
+
+      <div v-if="selectedSession" id="class-roster-panel" class="staff-cal-roster">
+        <div class="staff-cal-roster-head">
+          <div>
+            <h4>{{ selectedSession.template_name }}</h4>
+            <p>
+              {{ formatSessionDate(selectedSession.session_date) }}
+              · {{ formatTimeRange(selectedSession.start_time, selectedSession.end_time) }}
+              <span v-if="selectedSession.location"> · {{ selectedSession.location }}</span>
+              <span v-if="selectedSession.facilitator"> · {{ selectedSession.facilitator }}</span>
+              · {{ selectedSession.enrolled_count }}/{{ selectedSession.capacity }} signed up
+            </p>
+          </div>
+          <button type="button" class="staff-btn staff-btn-ghost staff-btn-sm" @click="selectedSession = null">
+            Close
+          </button>
+        </div>
+        <ClassRosterPanel
+          :session-id="selectedSession.id"
+          :session-name="selectedSession.template_name"
+          :session-date="selectedSession.session_date"
+          :session-status="selectedSession.status"
+          :facilitator="selectedSession.facilitator"
+          :location="selectedSession.location"
+          :start-time="selectedSession.start_time"
+          :end-time="selectedSession.end_time"
+          :program-label="selectedSession.program_display"
+          @changed="onSelectedRosterChanged"
+          @cancelled="onSelectedCancelled"
+          @deleted="onSelectedDeleted"
+        />
+      </div>
+      <p v-else class="staff-cal-hint">Click a class on the calendar to open the name list.</p>
 
       <form v-if="showCreateForm || editingTemplateId" class="space-y-3 border border-stone-200 rounded-xl p-3 mb-3" @submit.prevent="submitTemplate">
         <p class="text-sm font-semibold text-stone-700">
@@ -114,6 +152,11 @@
         </button>
       </form>
 
+      <h4 class="staff-cal-setup-title">Set up classes</h4>
+      <p class="text-xs text-stone-500 mb-3">
+        Classes sit in a column for their program (City Build, Pit Stop, CAPSA, Guard Card, General).
+        Use the program menu to move a class. Click a date to open the name list above.
+      </p>
       <CardSkeleton v-if="templatesLoading" variant="list" :count="3" />
       <p v-else-if="templatesError" class="text-sm text-stone-500">{{ templatesError }}</p>
 
@@ -239,7 +282,7 @@
                 class="staff-stat-tile"
               >
                 <div class="flex items-center gap-2">
-                  <button type="button" class="min-w-0 flex-1 flex items-center justify-between gap-2 text-left" @click="toggleSessionRoster(s.id)">
+                  <button type="button" class="min-w-0 flex-1 flex items-center justify-between gap-2 text-left" @click="selectFromList(t, s)">
                     <span class="text-sm">
                       {{ formatSessionDate(s.session_date) }} · {{ formatTimeRange(s.start_time, s.end_time) }}
                       <span v-if="s.location" class="text-stone-500"> · {{ s.location }}</span>
@@ -253,9 +296,6 @@
                   </button>
                   <button type="button" class="text-xs font-semibold staff-link" @click="startEditSession(s)">Edit</button>
                 </div>
-                <p v-if="s.status !== 'cancelled' && s.enrolled_count" class="text-[11px] text-stone-500 pl-0.5">
-                  {{ s.confirmed_count }} confirmed · {{ Math.max(s.enrolled_count - s.confirmed_count, 0) }} waiting for YES
-                </p>
 
                 <form
                   v-if="editingSessionId === s.id"
@@ -279,17 +319,6 @@
                   </div>
                 </form>
 
-                <div v-if="expandedSessionId === s.id" class="mt-2">
-                  <ClassRosterPanel
-                    :session-id="s.id"
-                    :session-name="t.name"
-                    :session-date="s.session_date"
-                    :session-status="s.status"
-                    @changed="onRosterChanged(t.id)"
-                    @cancelled="onRosterChanged(t.id)"
-                    @deleted="onSessionDeleted(t.id, s.id)"
-                  />
-                </div>
               </div>
             </div>
           </div>
@@ -302,11 +331,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import { useToast } from '../composables/useToast'
 import CardSkeleton from './dashboard/CardSkeleton.vue'
+import ClassMonthCalendar, { type CalendarSession } from './ClassMonthCalendar.vue'
 import ClassRosterPanel from './ClassRosterPanel.vue'
 import StaffTip from './StaffTip.vue'
 
@@ -433,7 +463,8 @@ const addDateTemplateId = ref<number | null>(null)
 const addDateValue = ref('')
 const addingDate = ref(false)
 
-const expandedSessionId = ref<number | null>(null)
+const calendarRef = ref<{ reload: () => Promise<void> } | null>(null)
+const selectedSession = ref<CalendarSession | null>(null)
 const editingSessionId = ref<number | null>(null)
 const savingSession = ref(false)
 const pendingDeleteTemplateId = ref<number | null>(null)
@@ -578,6 +609,7 @@ async function submitTemplate() {
     showCreateForm.value = false
     editingTemplateId.value = null
     await loadTemplates()
+    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {
@@ -619,6 +651,7 @@ async function generateSessions(t: ClassTemplate) {
     }
     toast.success(body?.message || 'Sessions added.')
     await Promise.all([loadSessions(t.id), loadTemplates()])
+    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {
@@ -649,6 +682,7 @@ async function submitAddDate(t: ClassTemplate) {
     addDateTemplateId.value = null
     addDateValue.value = ''
     await Promise.all([loadSessions(t.id), loadTemplates()])
+    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {
@@ -656,19 +690,60 @@ async function submitAddDate(t: ClassTemplate) {
   }
 }
 
-async function toggleSessionRoster(sessionId: number) {
-  expandedSessionId.value = expandedSessionId.value === sessionId ? null : sessionId
+function onCalendarSelect(session: CalendarSession) {
+  selectedSession.value = session
+  nextTick(() => {
+    document.getElementById('class-roster-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function selectFromList(t: ClassTemplate, s: ClassSessionSummary) {
+  onCalendarSelect({
+    id: s.id,
+    template_id: t.id,
+    template_name: t.name,
+    program: t.program,
+    program_display: t.program_display,
+    session_date: s.session_date,
+    start_time: s.start_time,
+    end_time: s.end_time,
+    location: s.location,
+    facilitator: s.facilitator,
+    capacity: s.capacity,
+    enrolled_count: s.enrolled_count,
+    spots_remaining: s.spots_remaining,
+    status: s.status,
+  })
 }
 
 function onRosterChanged(templateId: number) {
   loadSessions(templateId)
   loadTemplates()
+  calendarRef.value?.reload()
 }
 
-function onSessionDeleted(templateId: number, sessionId: number) {
-  sessionsByTemplate[templateId] = (sessionsByTemplate[templateId] || []).filter((s) => s.id !== sessionId)
-  if (expandedSessionId.value === sessionId) expandedSessionId.value = null
+function onSelectedRosterChanged() {
+  if (selectedSession.value?.template_id) onRosterChanged(selectedSession.value.template_id)
+  else {
+    loadTemplates()
+    calendarRef.value?.reload()
+  }
+}
+
+function onSelectedCancelled() {
+  if (selectedSession.value) selectedSession.value = { ...selectedSession.value, status: 'cancelled' }
+  onSelectedRosterChanged()
+}
+
+function onSelectedDeleted() {
+  const templateId = selectedSession.value?.template_id
+  const sessionId = selectedSession.value?.id
+  selectedSession.value = null
+  if (templateId && sessionId) {
+    sessionsByTemplate[templateId] = (sessionsByTemplate[templateId] || []).filter((s) => s.id !== sessionId)
+  }
   loadTemplates()
+  calendarRef.value?.reload()
 }
 
 function askDeleteTemplate(templateId: number) {
@@ -687,7 +762,9 @@ async function deleteTemplate(t: ClassTemplate) {
     toast.success(body?.message || 'Class deleted.')
     pendingDeleteTemplateId.value = null
     if (expandedTemplateId.value === t.id) expandedTemplateId.value = null
+    if (selectedSession.value?.template_id === t.id) selectedSession.value = null
     await loadTemplates()
+    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {
@@ -723,6 +800,7 @@ async function submitSessionEdit(templateId: number) {
     toast.success(body?.message || 'Session updated.')
     editingSessionId.value = null
     await Promise.all([loadSessions(templateId), loadTemplates()])
+    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {

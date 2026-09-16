@@ -15,17 +15,44 @@
         <div
           v-for="ec in enrolled"
           :key="ec.enrollment_id"
-          class="text-sm border-t border-stone-100 pt-1.5 first:border-0 first:pt-0"
+          class="flex items-start justify-between gap-2 text-sm border-t border-stone-100 pt-1.5 first:border-0 first:pt-0"
         >
-          <span class="font-medium">{{ ec.template_name }}</span>
-          <span
-            class="staff-roster-badge ml-1.5"
-            :class="ec.confirmed ? 'is-yes' : 'is-wait'"
-          >
-            {{ ec.confirmed ? 'Confirmed' : 'Waiting for YES' }}
-          </span>
-          <div class="text-xs text-stone-500">
-            {{ formatSessionDate(ec.session_date) }} · {{ formatTimeRange(ec.start_time, ec.end_time) }}
+          <div>
+            <span class="font-medium">{{ ec.template_name }}</span>
+            <span
+              class="staff-roster-badge ml-1.5"
+              :class="enrollBadgeClass(ec)"
+            >
+              {{ enrollStatusLabel(ec) }}
+            </span>
+            <div class="text-xs text-stone-500">
+              {{ formatSessionDate(ec.session_date) }} · {{ formatTimeRange(ec.start_time, ec.end_time) }}
+              <span v-if="ec.location"> · {{ ec.location }}</span>
+            </div>
+            <p v-if="allowRemove && pendingUnenrollId === ec.enrollment_id" class="text-[11px] text-stone-500 mt-1 max-w-[12rem]">
+              Texts that we are working on a new date.
+              <button type="button" class="staff-link" @click="pendingUnenrollId = null">Never mind</button>
+            </p>
+          </div>
+          <div v-if="allowRemove" class="shrink-0 text-right">
+            <button
+              v-if="pendingUnenrollId === ec.enrollment_id"
+              type="button"
+              class="staff-btn staff-btn-danger-solid staff-btn-sm"
+              :disabled="classBusy"
+              @click="unenroll(ec)"
+            >
+              Text &amp; remove
+            </button>
+            <button
+              v-else
+              type="button"
+              class="staff-btn staff-btn-ghost staff-btn-sm staff-roster-remove"
+              :disabled="classBusy"
+              @click="pendingUnenrollId = ec.enrollment_id"
+            >
+              Remove
+            </button>
           </div>
         </div>
       </div>
@@ -140,10 +167,16 @@ interface ClientClassEnrollment {
   session_date: string
   start_time: string
   end_time: string
+  location?: string
+  status?: string
+  status_display?: string
   confirmed: boolean
 }
 
-const props = defineProps<{ clientId: number }>()
+const props = defineProps<{
+  clientId: number
+  allowRemove?: boolean
+}>()
 
 const toast = useToast()
 const upcoming = ref<UpcomingSession[]>([])
@@ -154,6 +187,7 @@ const loading = ref(true)
 const categoryFilter = ref('')
 const textPreview = ref<ClassTextPreview | null>(null)
 const textPreviewLoading = ref(false)
+const pendingUnenrollId = ref<number | null>(null)
 
 const filteredSessions = computed(() => {
   if (!categoryFilter.value) return upcoming.value
@@ -171,6 +205,18 @@ const groupedFilteredSessions = computed(() => {
 
 function isAlreadyEnrolled(sessionId: number) {
   return enrolled.value.some((e) => e.session_id === sessionId)
+}
+
+function enrollStatusLabel(ec: ClientClassEnrollment) {
+  if (ec.status === 'attended') return 'Here'
+  if (ec.status === 'no_show') return 'No show'
+  return 'Signed up'
+}
+
+function enrollBadgeClass(ec: ClientClassEnrollment) {
+  if (ec.status === 'attended') return 'is-yes'
+  if (ec.status === 'no_show') return 'is-wait'
+  return 'is-yes'
 }
 
 function formatSessionDate(dateStr: string) {
@@ -228,6 +274,7 @@ watch(
     selectedSessionId.value = ''
     textPreview.value = null
     categoryFilter.value = ''
+    pendingUnenrollId.value = null
     loadClasses()
   },
   { immediate: true },
@@ -258,6 +305,29 @@ async function enroll() {
     toast.success(body?.message || 'Added to class.')
     if (body?.text_warning) toast.error(body.text_warning)
     selectedSessionId.value = ''
+    await loadClasses()
+  } catch (e) {
+    toast.error(networkErrorMessage(e))
+  } finally {
+    classBusy.value = false
+  }
+}
+
+async function unenroll(enrollment: ClientClassEnrollment) {
+  classBusy.value = true
+  try {
+    const resp = await staffFetch(`/api/staff/classes/${enrollment.session_id}/unenroll/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: props.clientId }),
+    })
+    const body = await resp.json().catch(() => null)
+    if (!resp.ok) {
+      toast.error(friendlyError(body, 'Could not remove client from that class.'))
+      return
+    }
+    toast.success(body?.message || 'Removed. They were texted about a new date.')
+    pendingUnenrollId.value = null
     await loadClasses()
   } catch (e) {
     toast.error(networkErrorMessage(e))

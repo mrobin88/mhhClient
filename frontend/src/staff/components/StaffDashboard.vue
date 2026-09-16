@@ -21,7 +21,6 @@
       <NewPitStopApplicationsCard />
       <NewCityBuildInterestCard />
       <DocumentUploadCard />
-      <FeedbackCard />
     </div>
 
     <ColorThemePicker />
@@ -38,7 +37,6 @@ import RecentClientsCard from './dashboard/RecentClientsCard.vue'
 import NewPitStopApplicationsCard from './dashboard/NewPitStopApplicationsCard.vue'
 import NewCityBuildInterestCard from './dashboard/NewCityBuildInterestCard.vue'
 import UpcomingClassesCard from './dashboard/UpcomingClassesCard.vue'
-import FeedbackCard from './dashboard/FeedbackCard.vue'
 import DocumentUploadCard from './dashboard/DocumentUploadCard.vue'
 import ClientSearchPanel from './dashboard/ClientSearchPanel.vue'
 import ColorThemePicker from './dashboard/ColorThemePicker.vue'
