@@ -178,10 +178,10 @@ const apps = [
     links: [{ href: getApiUrl('/admin/'), label: 'Open Django admin' }],
   },
   {
-    name: 'Reports hub',
+    name: 'Program impact report',
     who: 'Managers',
-    what: 'Downloadable spreadsheets. Sign into Django admin in the same browser first or the download is refused.',
-    links: [{ href: getApiUrl('/api/reports/'), label: 'Open reports hub' }],
+    what: 'Aggregate counts for a date range, prepared for SF OEWD. No client names. Sign into Django admin in the same browser first.',
+    links: [{ href: getApiUrl('/api/reports/'), label: 'Open impact report' }],
   },
 ]
 

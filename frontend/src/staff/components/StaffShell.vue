@@ -295,8 +295,8 @@ const navGroups: { title: string; items: NavItem[] }[] = [
         external: true,
       },
       {
-        label: 'Reports hub',
-        hint: 'Downloadable spreadsheets',
+        label: 'Impact report',
+        hint: 'Aggregate funder report',
         icon: 'table_chart',
         href: getApiUrl('/api/reports/'),
         external: true,

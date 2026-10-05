@@ -19,6 +19,7 @@ from .reports import (
     PitStopHoursPrintableView,
     PitStopHoursPackageView,
     CityBuildMissingDocsReportCSVView,
+    ImpactReportCSVView,
 )
 from .worker_views import (
     worker_login,
@@ -110,6 +111,7 @@ urlpatterns = [
     
     # CSV Export Reports
     path('reports/', ReportsHubView.as_view(), name='reports-hub'),
+    path('reports/impact.csv', ImpactReportCSVView.as_view(), name='impact-report-csv'),
     path('reports/client-outcomes/', ClientOutcomesReportCSVView.as_view(), name='client-outcomes-report-csv'),
     path('reports/client-outcomes-package/', ClientOutcomesPackageView.as_view(), name='client-outcomes-package'),
     path('reports/manager-operations-package/', ManagerOperationsPackageView.as_view(), name='manager-operations-package'),

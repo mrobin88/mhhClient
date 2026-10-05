@@ -21,6 +21,13 @@ from .citybuild_docs import (
     evaluate_citybuild_packet,
 )
 from .models_extensions import WorkerTimePunch, close_expired_open_punches, worker_max_shift_hours
+from .aggregate_report import (
+    ReportPeriodError,
+    build_report_page_context,
+    get_aggregate_report,
+    render_aggregate_csv,
+    resolve_report_period,
+)
 
 
 # Accountants read these reports in local time, but the DB stores UTC.
@@ -114,8 +121,8 @@ def _build_client_case_narrative(client, notes):
 
 class ReportsHubView(LoginRequiredMixin, View):
     """
-    Single entry point for managers/auditors to pull reports.
-    Keeps links discoverable and avoids manual URL editing.
+    Aggregate program impact report. Client-level export views stay in this
+    module so existing bookmarks keep working; they are not linked here.
     """
 
     def get(self, request):
@@ -125,17 +132,27 @@ class ReportsHubView(LoginRequiredMixin, View):
                 'clients/reports_login_required.html',
                 status=403,
             )
-
-        today = date.today().isoformat()
-        start_of_month = date.today().replace(day=1).isoformat()
         return render(
             request,
-            'clients/reports_hub.html',
-            {
-                'today': today,
-                'start_of_month': start_of_month,
-            },
+            'clients/program_impact_report.html',
+            build_report_page_context(request.GET),
         )
+
+
+class ImpactReportCSVView(LoginRequiredMixin, View):
+    """Aggregate tables only. No client names, ids, or row-level fields."""
+
+    def get(self, request):
+        try:
+            start_date, end_date, _preset, program_id = resolve_report_period(request.GET)
+        except ReportPeriodError as exc:
+            return HttpResponse(str(exc), status=400)
+        report = get_aggregate_report(start_date, end_date, program_id or None)
+        response = HttpResponse(render_aggregate_csv(report), content_type='text/csv')
+        response['Content-Disposition'] = (
+            f'attachment; filename="program_impact_{start_date.isoformat()}_{end_date.isoformat()}.csv"'
+        )
+        return response
 
 
 class WorkforceInventoryPackageView(LoginRequiredMixin, View):

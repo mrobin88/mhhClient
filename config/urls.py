@@ -20,7 +20,7 @@ def api_info(request):
                         {'name': 'Staff Admin', 'path': '/admin/', 'description': 'Manage clients, workers, staffing, and documents.'},
                         {'name': 'Staff SPA', 'path': settings.STAFF_APP_BASE_URL, 'description': 'Mobile-friendly staff workspace (same login as admin).'},
                         {'name': 'How everything works', 'path': f'{settings.STAFF_APP_BASE_URL}/#/how-it-works', 'description': 'Single guide to every app, the client path, and what runs automatically.'},
-                        {'name': 'Reports Hub', 'path': '/api/reports/', 'description': 'Download filtered CSV and ZIP exports.'},
+                        {'name': 'Program Impact Report', 'path': '/api/reports/', 'description': 'Aggregate counts for SF OEWD. No client names.'},
                         {'name': 'Health Check', 'path': '/health', 'description': 'Service heartbeat for platform monitoring.'},
                     ],
                 },

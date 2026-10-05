@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ report_title }} — {{ org_name }}</title>
+  <style>
+    body {
+      margin: 0;
+      color: #111;
+      background: #fff;
+      font: 14px/1.4 Arial, Helvetica, sans-serif;
+    }
+
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 28px 20px 48px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    h2 {
+      margin: 22px 0 6px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    p { margin: 0 0 8px; }
+
+    .meta { color: #333; }
+
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: end;
+      margin: 16px 0;
+      padding: 10px 0;
+      border-top: 1px solid #ccc;
+      border-bottom: 1px solid #ccc;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 12px;
+    }
+
+    input, select, button, .linkish {
+      font: inherit;
+    }
+
+    input, select {
+      min-height: 28px;
+      padding: 2px 6px;
+    }
+
+    button, .linkish {
+      background: #fff;
+      border: 1px solid #666;
+      padding: 4px 10px;
+      text-decoration: none;
+      color: #111;
+      cursor: pointer;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 8px;
+    }
+
+    th, td {
+      border-bottom: 1px solid #ddd;
+      padding: 4px 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th:last-child, td:last-child,
+    .num { text-align: right; white-space: nowrap; }
+
+    th { font-weight: 700; border-bottom-color: #111; }
+
+    .note { margin-top: 18px; color: #333; font-size: 13px; }
+
+    .error { margin: 8px 0; }
+
+    @media print {
+      form, .no-print { display: none; }
+      main { max-width: none; padding: 0; }
+      @page { size: letter; margin: 0.6in; }
+      h2, table { break-inside: avoid; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p>{{ org_name }}</p>
+    <h1>{{ report_title }}</h1>
+    {% if report %}
+      <p class="meta">{{ report.range_label }}</p>
+      <p class="meta">Prepared for {{ prepared_for }}. {{ report.program_label }}.</p>
+    {% else %}
+      <p class="meta">Prepared for {{ prepared_for }}.</p>
+    {% endif %}
+
+    <form method="get">
+      <label>From <input type="date" name="start_date" value="{{ start_value }}" required></label>
+      <label>To <input type="date" name="end_date" value="{{ end_value }}" required></label>
+      <label>Program
+        <select name="program">
+          <option value="" {% if not selected_program %}selected{% endif %}>All programs</option>
+          {% for program in programs %}
+            <option value="{{ program.id }}" {% if selected_program == program.id %}selected{% endif %}>{{ program.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Show</button>
+      {% if report %}
+        <button type="button" class="no-print" onclick="window.print()">Export PDF</button>
+        <a class="linkish no-print" href="{% url 'impact-report-csv' %}?{{ querystring }}">Export CSV</a>
+      {% endif %}
+    </form>
+
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+
+    {% if report %}
+      {% if report.empty_message %}
+        <p>{{ report.empty_message }}</p>
+      {% else %}
+        <table>
+          <thead>
+            <tr><th>Summary</th><th class="num">Count</th><th class="num">Change</th></tr>
+          </thead>
+          <tbody>
+            {% for kpi in report.kpis %}
+              <tr>
+                <td>{{ kpi.label }}</td>
+                <td class="num">{{ kpi.count }}</td>
+                <td class="num">{{ kpi.change_display|default:"" }}</td>
+              </tr>
+            {% endfor %}
+            <tr>
+              <td>Finished</td>
+              <td class="num">{{ report.exits_recorded }}</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>Got a job</td>
+              <td class="num">{{ report.job_placements }}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        {% for section in report.sections %}
+          <h2>{{ section.title }}</h2>
+          {% if section.empty_message and not section.rows %}
+            <p>{{ section.empty_message }}</p>
+          {% else %}
+            <table>
+              <thead>
+                <tr><th></th><th class="num">Count</th><th class="num">Percent</th></tr>
+              </thead>
+              <tbody>
+                {% for row in section.rows %}
+                  <tr>
+                    <td>{{ row.label }}</td>
+                    <td class="num">{{ row.count_display }}</td>
+                    <td class="num">{{ row.percent_display }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+
+      <p class="note">{{ report.completeness.text }}</p>
+      <p class="note">Counts under 5 are shown as &lt;5.</p>
+      <p class="note">Generated {{ report.generated_label }}. Data as of {{ report.data_as_of_label }}.</p>
+    {% endif %}
+  </main>
+</body>
+</html>
