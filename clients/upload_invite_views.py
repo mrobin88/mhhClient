@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 
 from .document_upload_service import save_client_document, validate_self_upload
 from .citybuild_docs import CITYBUILD_UPLOAD_DOC_TYPES, is_citybuild_client, present_doc_types_for_client
+from .document_checklist import staff_document_checklist_for_client
 from .models import Client, Document, DocumentUploadInvite
 from .notifications import send_text_message
 from .staff_auth import StaffSessionAuthentication
@@ -94,7 +95,9 @@ def staff_client_upload_invites(request, pk):
             else Document.DOC_TYPE_CHOICES
         )
         present = present_doc_types_for_client(client)
+        status_payload = staff_document_checklist_for_client(client)
         return Response({
+            **status_payload,
             'document_options': [
                 {'value': value, 'label': label}
                 for value, label in options

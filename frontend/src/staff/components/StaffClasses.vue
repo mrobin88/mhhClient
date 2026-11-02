@@ -4,7 +4,7 @@
       <div class="staff-panel-header">
         <span class="material-symbols-outlined" aria-hidden="true">event</span>
         <h3>Classes &amp; Trainings</h3>
-        <StaffTip text="Boxes on the calendar are class dates. Click one for the name list. Print the roster for notes during class. Set Program so a Guard Card class lands in Guard Card, not General." />
+        <StaffTip text="Classes are grouped by program. Set Program so a Guard Card class lands in Guard Card, not General. City Build info sessions must be City Build to show on public signup. A Guard Card class on the calendar is either Guard Card Orientation or Guard Card Required Training." />
         <button
           type="button"
           class="staff-btn staff-btn-secondary shrink-0"
@@ -14,66 +14,34 @@
         </button>
       </div>
       <p class="text-xs text-stone-500 mb-3">
-        Use the calendar to see when classes are set. Click a box for the sign-up list,
-        mark who is here, and print a roster with space for notes. New classes and
-        recurring dates are set up in the program columns below.
+        Add classes, schedule recurring sessions, and track who attends — all from here.
+        Classes sit in a column for their program (City Build, Pit Stop, CAPSA, Guard Card, General).
+        Use the program menu on a class to move it. Cancel a date to keep a record, or delete it.
+        Print roster opens the paper sign-in sheet (logo, class and date, then name, phone, email, signature, time in, and sponsorship). Export CSV is the same columns in a spreadsheet.
       </p>
-
-      <ClassMonthCalendar
-        ref="calendarRef"
-        :selected-id="selectedSession?.id"
-        @select="onCalendarSelect"
-      />
-
-      <div v-if="selectedSession" id="class-roster-panel" class="staff-cal-roster">
-        <div class="staff-cal-roster-head">
-          <div>
-            <h4>{{ selectedSession.template_name }}</h4>
-            <p>
-              {{ formatSessionDate(selectedSession.session_date) }}
-              · {{ formatTimeRange(selectedSession.start_time, selectedSession.end_time) }}
-              <span v-if="selectedSession.location"> · {{ selectedSession.location }}</span>
-              <span v-if="selectedSession.facilitator"> · {{ selectedSession.facilitator }}</span>
-              · {{ selectedSession.enrolled_count }}/{{ selectedSession.capacity }} signed up
-            </p>
-          </div>
-          <button type="button" class="staff-btn staff-btn-ghost staff-btn-sm" @click="selectedSession = null">
-            Close
-          </button>
-        </div>
-        <ClassRosterPanel
-          :session-id="selectedSession.id"
-          :session-name="selectedSession.template_name"
-          :session-date="selectedSession.session_date"
-          :session-status="selectedSession.status"
-          :facilitator="selectedSession.facilitator"
-          :location="selectedSession.location"
-          :start-time="selectedSession.start_time"
-          :end-time="selectedSession.end_time"
-          :program-label="selectedSession.program_display"
-          @changed="onSelectedRosterChanged"
-          @cancelled="onSelectedCancelled"
-          @deleted="onSelectedDeleted"
-        />
-      </div>
-      <p v-else class="staff-cal-hint">Click a class on the calendar to open the name list.</p>
 
       <form v-if="showCreateForm || editingTemplateId" class="space-y-3 border border-stone-200 rounded-xl p-3 mb-3" @submit.prevent="submitTemplate">
         <p class="text-sm font-semibold text-stone-700">
           {{ editingTemplateId ? 'Edit class or JRT' : 'Create a class or JRT' }}
         </p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div class="space-y-1">
+          <div v-if="form.program !== 'guard_card'" class="space-y-1">
             <label class="text-xs font-semibold text-stone-600">Class name</label>
             <input v-model="form.name" type="text" class="staff-input" placeholder="e.g. Resume Workshop" />
           </div>
           <div class="space-y-1">
             <label class="text-xs font-semibold text-stone-600">Program</label>
-            <select v-model="form.program" class="staff-input">
+            <select v-model="form.program" class="staff-input" @change="onProgramChange">
               <option v-for="opt in PROGRAM_COLUMNS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
           </div>
-          <div class="space-y-1">
+          <div v-if="form.program === 'guard_card'" class="space-y-1 sm:col-span-2">
+            <label class="text-xs font-semibold text-stone-600">Class</label>
+            <select v-model="form.category" class="staff-input" @change="onGuardClassChange">
+              <option v-for="opt in GUARD_CARD_CLASS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+          </div>
+          <div v-else class="space-y-1">
             <label class="text-xs font-semibold text-stone-600">Category</label>
             <select v-model="form.category" class="staff-input">
               <option v-for="opt in CATEGORY_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -152,11 +120,6 @@
         </button>
       </form>
 
-      <h4 class="staff-cal-setup-title">Set up classes</h4>
-      <p class="text-xs text-stone-500 mb-3">
-        Classes sit in a column for their program (City Build, Pit Stop, CAPSA, Guard Card, General).
-        Use the program menu to move a class. Click a date to open the name list above.
-      </p>
       <CardSkeleton v-if="templatesLoading" variant="list" :count="3" />
       <p v-else-if="templatesError" class="text-sm text-stone-500">{{ templatesError }}</p>
 
@@ -282,7 +245,7 @@
                 class="staff-stat-tile"
               >
                 <div class="flex items-center gap-2">
-                  <button type="button" class="min-w-0 flex-1 flex items-center justify-between gap-2 text-left" @click="selectFromList(t, s)">
+                  <button type="button" class="min-w-0 flex-1 flex items-center justify-between gap-2 text-left" @click="toggleSessionRoster(s.id)">
                     <span class="text-sm">
                       {{ formatSessionDate(s.session_date) }} · {{ formatTimeRange(s.start_time, s.end_time) }}
                       <span v-if="s.location" class="text-stone-500"> · {{ s.location }}</span>
@@ -296,6 +259,9 @@
                   </button>
                   <button type="button" class="text-xs font-semibold staff-link" @click="startEditSession(s)">Edit</button>
                 </div>
+                <p v-if="s.status !== 'cancelled' && s.enrolled_count" class="text-[11px] text-stone-500 pl-0.5">
+                  {{ s.confirmed_count }} confirmed · {{ Math.max(s.enrolled_count - s.confirmed_count, 0) }} waiting for YES
+                </p>
 
                 <form
                   v-if="editingSessionId === s.id"
@@ -319,6 +285,17 @@
                   </div>
                 </form>
 
+                <div v-if="expandedSessionId === s.id" class="mt-2">
+                  <ClassRosterPanel
+                    :session-id="s.id"
+                    :session-name="t.name"
+                    :session-date="s.session_date"
+                    :session-status="s.status"
+                    @changed="onRosterChanged(t.id)"
+                    @cancelled="onRosterChanged(t.id)"
+                    @deleted="onSessionDeleted(t.id, s.id)"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -331,12 +308,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { staffFetch } from '../api'
 import { friendlyError, networkErrorMessage } from '../utils/errors'
 import { useToast } from '../composables/useToast'
 import CardSkeleton from './dashboard/CardSkeleton.vue'
-import ClassMonthCalendar, { type CalendarSession } from './ClassMonthCalendar.vue'
 import ClassRosterPanel from './ClassRosterPanel.vue'
 import StaffTip from './StaffTip.vue'
 
@@ -355,6 +331,10 @@ const CATEGORY_OPTIONS = [
   { value: 'resume_workshop', label: 'Resume & Application Workshop' },
   { value: 'training', label: 'Skills Training' },
   { value: 'other', label: 'Other' },
+]
+const GUARD_CARD_CLASS_OPTIONS = [
+  { value: 'guard_orientation', label: 'Guard Card Orientation' },
+  { value: 'guard_required', label: 'Guard Card Required Training' },
 ]
 const RECURRENCE_OPTIONS = [
   { value: 'none', label: 'Does not repeat (one-time)' },
@@ -463,8 +443,7 @@ const addDateTemplateId = ref<number | null>(null)
 const addDateValue = ref('')
 const addingDate = ref(false)
 
-const calendarRef = ref<{ reload: () => Promise<void> } | null>(null)
-const selectedSession = ref<CalendarSession | null>(null)
+const expandedSessionId = ref<number | null>(null)
 const editingSessionId = ref<number | null>(null)
 const savingSession = ref(false)
 const pendingDeleteTemplateId = ref<number | null>(null)
@@ -549,6 +528,28 @@ function toggleCreateForm() {
   showCreateForm.value = true
 }
 
+function guardCardLabel(category: string) {
+  return GUARD_CARD_CLASS_OPTIONS.find((opt) => opt.value === category)?.label || ''
+}
+
+function onGuardClassChange() {
+  const label = guardCardLabel(form.category)
+  if (label) form.name = label
+}
+
+function onProgramChange() {
+  if (form.program === 'guard_card') {
+    if (!guardCardLabel(form.category)) form.category = 'guard_orientation'
+    onGuardClassChange()
+    return
+  }
+  if (form.category === 'guard_orientation' || form.category === 'guard_required') {
+    const wasGuardName = GUARD_CARD_CLASS_OPTIONS.some((opt) => opt.label === form.name)
+    form.category = 'training'
+    if (wasGuardName) form.name = ''
+  }
+}
+
 function resetForm() {
   form.name = ''
   form.program = 'general'
@@ -572,6 +573,14 @@ function startEditTemplate(template: ClassTemplate) {
   form.name = template.name
   form.program = template.program
   form.category = template.category
+  if (template.program === 'guard_card') {
+    if (template.category !== 'guard_orientation' && template.category !== 'guard_required') {
+      const looksLikeOrientation = template.category === 'orientation'
+        || template.name.toLowerCase().includes('orientation')
+      form.category = looksLikeOrientation ? 'guard_orientation' : 'guard_required'
+    }
+    onGuardClassChange()
+  }
   form.recurrence = template.recurrence
   form.recurrence_weekday = template.recurrence_weekday ?? ''
   form.recurrence_week_of_month = template.recurrence_week_of_month ?? ''
@@ -590,6 +599,7 @@ async function submitTemplate() {
   if (creating.value) return
   creating.value = true
   try {
+    if (form.program === 'guard_card') onGuardClassChange()
     const editing = editingTemplateId.value
     const endpoint = editing
       ? `/api/staff/classes/templates/${editing}/`
@@ -609,7 +619,6 @@ async function submitTemplate() {
     showCreateForm.value = false
     editingTemplateId.value = null
     await loadTemplates()
-    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {
@@ -651,7 +660,6 @@ async function generateSessions(t: ClassTemplate) {
     }
     toast.success(body?.message || 'Sessions added.')
     await Promise.all([loadSessions(t.id), loadTemplates()])
-    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {
@@ -682,7 +690,6 @@ async function submitAddDate(t: ClassTemplate) {
     addDateTemplateId.value = null
     addDateValue.value = ''
     await Promise.all([loadSessions(t.id), loadTemplates()])
-    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {
@@ -690,60 +697,19 @@ async function submitAddDate(t: ClassTemplate) {
   }
 }
 
-function onCalendarSelect(session: CalendarSession) {
-  selectedSession.value = session
-  nextTick(() => {
-    document.getElementById('class-roster-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
-}
-
-function selectFromList(t: ClassTemplate, s: ClassSessionSummary) {
-  onCalendarSelect({
-    id: s.id,
-    template_id: t.id,
-    template_name: t.name,
-    program: t.program,
-    program_display: t.program_display,
-    session_date: s.session_date,
-    start_time: s.start_time,
-    end_time: s.end_time,
-    location: s.location,
-    facilitator: s.facilitator,
-    capacity: s.capacity,
-    enrolled_count: s.enrolled_count,
-    spots_remaining: s.spots_remaining,
-    status: s.status,
-  })
+async function toggleSessionRoster(sessionId: number) {
+  expandedSessionId.value = expandedSessionId.value === sessionId ? null : sessionId
 }
 
 function onRosterChanged(templateId: number) {
   loadSessions(templateId)
   loadTemplates()
-  calendarRef.value?.reload()
 }
 
-function onSelectedRosterChanged() {
-  if (selectedSession.value?.template_id) onRosterChanged(selectedSession.value.template_id)
-  else {
-    loadTemplates()
-    calendarRef.value?.reload()
-  }
-}
-
-function onSelectedCancelled() {
-  if (selectedSession.value) selectedSession.value = { ...selectedSession.value, status: 'cancelled' }
-  onSelectedRosterChanged()
-}
-
-function onSelectedDeleted() {
-  const templateId = selectedSession.value?.template_id
-  const sessionId = selectedSession.value?.id
-  selectedSession.value = null
-  if (templateId && sessionId) {
-    sessionsByTemplate[templateId] = (sessionsByTemplate[templateId] || []).filter((s) => s.id !== sessionId)
-  }
+function onSessionDeleted(templateId: number, sessionId: number) {
+  sessionsByTemplate[templateId] = (sessionsByTemplate[templateId] || []).filter((s) => s.id !== sessionId)
+  if (expandedSessionId.value === sessionId) expandedSessionId.value = null
   loadTemplates()
-  calendarRef.value?.reload()
 }
 
 function askDeleteTemplate(templateId: number) {
@@ -762,9 +728,7 @@ async function deleteTemplate(t: ClassTemplate) {
     toast.success(body?.message || 'Class deleted.')
     pendingDeleteTemplateId.value = null
     if (expandedTemplateId.value === t.id) expandedTemplateId.value = null
-    if (selectedSession.value?.template_id === t.id) selectedSession.value = null
     await loadTemplates()
-    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {
@@ -800,7 +764,6 @@ async function submitSessionEdit(templateId: number) {
     toast.success(body?.message || 'Session updated.')
     editingSessionId.value = null
     await Promise.all([loadSessions(templateId), loadTemplates()])
-    calendarRef.value?.reload()
   } catch (e) {
     toast.error(networkErrorMessage(e))
   } finally {

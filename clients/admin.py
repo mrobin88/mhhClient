@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.db import connection
 from django.utils.html import format_html, format_html_join
@@ -45,19 +46,10 @@ from .citybuild_docs import (
     citybuild_packet_for_client,
     is_citybuild_client,
 )
+from .document_checklist import CLIENT_DOC_CHECKLIST
 
 # Document checklist on client profile (no blob calls until download).
 CASE_NOTE_INLINE_LIMIT = 40
-
-CLIENT_DOC_CHECKLIST = (
-    ('resume', 'Resume'),
-    ('id', 'Government ID'),
-    ('consent', 'Consent Form'),
-    ('intake', 'Intake Form'),
-    ('sf_residency', 'Proof of SF Residency'),
-    ('hs_diploma', 'HS Diploma / GED'),
-    ('photo_release', 'Photo Release'),
-)
 
 
 def _staff_display_name(user):
@@ -2483,8 +2475,34 @@ class ClassEnrollmentInline(admin.TabularInline):
     autocomplete_fields = ['client']
 
 
+class ClassTemplateAdminForm(forms.ModelForm):
+    """Guard Card calendar classes are the two fixed class types, not a typed name."""
+
+    class Meta:
+        model = ClassTemplate
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['name'].required = False
+        self.fields['category'].help_text = (
+            'For Guard Card, choose Guard Card Orientation or Guard Card Required Training. '
+            'That choice is the class name on the calendar and on signup.'
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        program = cleaned.get('program')
+        category = cleaned.get('category')
+        labels = dict(ClassTemplate.GUARD_CARD_CATEGORIES)
+        if program == 'guard_card' and category in labels:
+            cleaned['name'] = labels[category]
+        return cleaned
+
+
 @admin.register(ClassTemplate)
 class ClassTemplateAdmin(admin.ModelAdmin):
+    form = ClassTemplateAdminForm
     list_display = [
         'name',
         'program',
@@ -2565,7 +2583,15 @@ class ClassSessionAdmin(admin.ModelAdmin):
     autocomplete_fields = ['template']
     readonly_fields = ['created_at', 'updated_at']
     inlines = [ClassEnrollmentInline]
-    actions = ['mark_completed_action', 'mark_cancelled_action', 'export_roster_csv_action']
+    actions = [
+        'print_signin_sheet_action',
+        'export_signin_sheet_csv_action',
+        'export_roster_csv_action',
+        'mark_roster_attended_action',
+        'mark_roster_no_show_action',
+        'mark_completed_action',
+        'mark_cancelled_action',
+    ]
 
     def get_queryset(self, request):
         return (
@@ -2594,6 +2620,43 @@ class ClassSessionAdmin(admin.ModelAdmin):
         updated = queryset.update(status='cancelled')
         self.message_user(request, f'{updated} session(s) marked cancelled.')
 
+    @admin.action(description='Print sign-in sheet')
+    def print_signin_sheet_action(self, request, queryset):
+        from .signin_sheet import render_signin_sheets
+
+        sessions = queryset.select_related('template').order_by('session_date', 'start_time', 'pk')
+        html = render_signin_sheets(sessions)
+        response = HttpResponse(html, content_type='text/html; charset=utf-8')
+        response['Content-Disposition'] = 'inline; filename="signin_sheet.html"'
+        return response
+
+    @admin.action(description='Export sign-in sheet CSV')
+    def export_signin_sheet_csv_action(self, request, queryset):
+        from .signin_sheet import signin_sheet_csv
+
+        sessions = queryset.select_related('template').order_by('session_date', 'start_time', 'pk')
+        response = HttpResponse('\ufeff' + signin_sheet_csv(sessions), content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = (
+            f'attachment; filename="signin_sheet_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        )
+        return response
+
+    @admin.action(description='Mark roster attended')
+    def mark_roster_attended_action(self, request, queryset):
+        updated = ClassEnrollment.objects.filter(
+            session__in=queryset,
+            status='registered',
+        ).update(status='attended')
+        self.message_user(request, f'{updated} registered roster row(s) marked attended.')
+
+    @admin.action(description='Mark registered people no-show')
+    def mark_roster_no_show_action(self, request, queryset):
+        updated = ClassEnrollment.objects.filter(
+            session__in=queryset,
+            status='registered',
+        ).update(status='no_show')
+        self.message_user(request, f'{updated} registered roster row(s) marked no-show.')
+
     @admin.action(description='Export roster to CSV')
     def export_roster_csv_action(self, request, queryset):
         response = HttpResponse(content_type='text/csv')
@@ -2619,10 +2682,30 @@ class ClassSessionAdmin(admin.ModelAdmin):
 @admin.register(ClassEnrollment)
 class ClassEnrollmentAdmin(admin.ModelAdmin):
     list_display = ['client_link', 'session_display', 'status', 'confirmed_at', 'registered_by', 'registered_at']
-    list_filter = ['status', 'session__template__category']
+    list_filter = ['status', 'session__template__category', 'session__template__program']
     search_fields = ['client__first_name', 'client__last_name', 'client__phone', 'session__template__name']
     autocomplete_fields = ['client', 'session']
     readonly_fields = ['registered_at', 'confirmed_at']
+    actions = [
+        'mark_attended_action',
+        'mark_no_show_action',
+        'mark_registered_action',
+    ]
+
+    @admin.action(description='Mark selected attended')
+    def mark_attended_action(self, request, queryset):
+        updated = queryset.exclude(status='cancelled').update(status='attended')
+        self.message_user(request, f'{updated} roster row(s) marked attended.')
+
+    @admin.action(description='Mark selected no-show')
+    def mark_no_show_action(self, request, queryset):
+        updated = queryset.exclude(status='cancelled').update(status='no_show')
+        self.message_user(request, f'{updated} roster row(s) marked no-show.')
+
+    @admin.action(description='Mark selected registered')
+    def mark_registered_action(self, request, queryset):
+        updated = queryset.exclude(status='cancelled').update(status='registered')
+        self.message_user(request, f'{updated} roster row(s) marked registered.')
 
     def client_link(self, obj):
         url = reverse('admin:clients_client_change', args=[obj.client_id])

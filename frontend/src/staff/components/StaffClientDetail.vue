@@ -61,6 +61,9 @@
         <button type="button" :class="{ 'is-active': hopActive === 'notes' }" @click="jumpTo('client-notes')">
           Notes
         </button>
+        <button type="button" :class="{ 'is-active': hopActive === 'documents' }" @click="jumpTo('client-documents')">
+          Documents
+        </button>
         <button
           v-if="form.training_interest === 'pit_stop'"
           type="button"
@@ -87,7 +90,7 @@
         <div class="staff-panel-header">
           <span class="material-symbols-outlined" aria-hidden="true">event</span>
           <h3>Classes</h3>
-          <StaffTip text="Add them to Orientation, JRT, or another class. They get an informational text with the date and time." />
+          <StaffTip text="Add them to Orientation, JRT, or another class. They get a text asking them to reply YES." />
         </div>
         <ClientQuickEnroll :client-id="client.id" allow-remove />
       </div>
@@ -246,7 +249,7 @@
               ({{ citybuildPacket.missing_count }} still needed).
             </template>
           </template>
-          Use the document upload link below so they can send files.
+          Use Documents below so they can send the missing files.
         </p>
         <p v-else-if="form.citybuild_stage === 'drug_test'" class="text-sm text-stone-600">
           They are at the drug-test step. Do not record a positive or negative result here.
@@ -579,6 +582,7 @@ const hopActive = computed(() => {
   const focus = String(route.query.focus || '')
   if (focus === 'notes') return 'notes' as const
   if (focus === 'classes') return 'classes' as const
+  if (focus === 'documents') return 'documents' as const
   return 'profile' as const
 })
 
@@ -615,6 +619,7 @@ function jumpTo(id: string) {
 function focusQuery(id: string) {
   if (id === 'client-notes') return { focus: 'notes' }
   if (id === 'client-classes') return { focus: 'classes' }
+  if (id === 'client-documents') return { focus: 'documents' }
   if (id === 'client-pitstop') return { focus: 'pitstop' }
   if (id === 'client-citybuild') return { focus: 'citybuild' }
   return {}
@@ -630,6 +635,7 @@ function scrollToFocus() {
   const ids: Record<string, string> = {
     notes: 'client-notes',
     classes: 'client-classes',
+    documents: 'client-documents',
     pitstop: 'client-pitstop',
     citybuild: 'client-citybuild',
     details: 'client-details',

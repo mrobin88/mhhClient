@@ -18,12 +18,18 @@ from .models import Client
 class ClassTemplate(models.Model):
     """A class/training offering — one-time or recurring (weekly or monthly)."""
 
+    GUARD_CARD_CATEGORIES = (
+        ('guard_orientation', 'Guard Card Orientation'),
+        ('guard_required', 'Guard Card Required Training'),
+    )
+
     CATEGORY_CHOICES = [
         ('orientation', 'Orientation'),
         ('job_readiness', 'Job Readiness Training'),
         ('resume_workshop', 'Resume & Application Workshop'),
         ('training', 'Skills Training'),
         ('other', 'Other'),
+        *GUARD_CARD_CATEGORIES,
     ]
 
     # Same programs as Client.training_interest so a class can be shown on
@@ -61,7 +67,15 @@ class ClassTemplate(models.Model):
         db_index=True,
         help_text='Which client program this class belongs to. City Build info sessions must be City Build.',
     )
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='training')
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default='training',
+        help_text=(
+            'Guard Card classes on the calendar must be Guard Card Orientation '
+            'or Guard Card Required Training.'
+        ),
+    )
     description = models.TextField(blank=True)
     location = models.CharField(max_length=200, blank=True, help_text='Room or address; can be overridden per session.')
     facilitator = models.CharField(max_length=100, blank=True, help_text='Staff member or presenter running this class.')
@@ -99,6 +113,18 @@ class ClassTemplate(models.Model):
 
     def clean(self):
         errors = {}
+        guard_labels = dict(self.GUARD_CARD_CATEGORIES)
+        if self.program == 'guard_card':
+            if self.category not in guard_labels:
+                errors['category'] = (
+                    'Choose Guard Card Orientation or Guard Card Required Training.'
+                )
+            else:
+                self.name = guard_labels[self.category]
+        elif self.category in guard_labels:
+            self.category = 'training'
+        if self.program != 'guard_card' and not (self.name or '').strip():
+            errors['name'] = 'Enter a class name.'
         if self.recurrence in ('weekly', 'monthly') and self.recurrence_weekday is None:
             errors['recurrence_weekday'] = 'Required for weekly or monthly recurrence.'
         if self.recurrence == 'monthly' and self.recurrence_week_of_month is None:

@@ -8,7 +8,7 @@ date, exporting a sign-in sheet) never requires touching Django admin.
 
 Session-authenticated, staff-only, single-tenant.
 """
-from datetime import date, timedelta
+from datetime import timedelta
 import csv
 import logging
 import re
@@ -79,6 +79,24 @@ def _template_summary(template):
     }
 
 
+def signup_group_for_template(template):
+    """
+    Guard Card signup shows two lists. The calendar class type is the enum:
+    Guard Card Orientation or Guard Card Required Training.
+    Older rows that only say "orientation" in the name still land on orientation.
+    """
+    if not template or template.program != 'guard_card':
+        return ''
+    if template.category == 'guard_orientation':
+        return 'orientation'
+    if template.category == 'guard_required':
+        return 'required_training'
+    name = (template.name or '').lower()
+    if template.category == 'orientation' or 'orientation' in name:
+        return 'orientation'
+    return 'required_training'
+
+
 def _session_summary(session):
     enrolled = getattr(session, '_enrolled_count', None)
     if enrolled is None:
@@ -107,6 +125,7 @@ def _session_summary(session):
         'confirmed_count': confirmed,
         'spots_remaining': session.capacity - enrolled,
         'status': session.status,
+        'signup_group': signup_group_for_template(session.template),
     }
 
 
@@ -142,32 +161,15 @@ def staff_upcoming_classes(request):
     if err:
         return err
 
-    month = (request.GET.get('month') or '').strip()
-    if month:
-        try:
-            year_s, month_s = month.split('-', 1)
-            year, mon = int(year_s), int(month_s)
-            start = date(year, mon, 1)
-            if mon == 12:
-                end = date(year + 1, 1, 1) - timedelta(days=1)
-            else:
-                end = date(year, mon + 1, 1) - timedelta(days=1)
-        except (TypeError, ValueError):
-            return Response({'error': 'Use month=YYYY-MM.'}, status=status.HTTP_400_BAD_REQUEST)
-        sessions = _annotate_session_counts(
-            ClassSession.objects.filter(
-                session_date__gte=start, session_date__lte=end
-            ).select_related('template')
-        ).order_by('session_date', 'start_time')
-    else:
-        days = min(int(request.GET.get('days') or 60), 180)
-        today = timezone.localdate()
-        horizon = today + timedelta(days=days)
-        sessions = _annotate_session_counts(
-            ClassSession.objects.filter(
-                status='scheduled', session_date__gte=today, session_date__lte=horizon
-            ).select_related('template')
-        ).order_by('session_date', 'start_time')
+    days = min(int(request.GET.get('days') or 60), 180)
+    today = timezone.localdate()
+    horizon = today + timedelta(days=days)
+
+    sessions = _annotate_session_counts(
+        ClassSession.objects.filter(
+            status='scheduled', session_date__gte=today, session_date__lte=horizon
+        ).select_related('template')
+    ).order_by('session_date', 'start_time')
 
     category = (request.GET.get('category') or '').strip()
     if category:
@@ -190,15 +192,30 @@ def _parse_class_session_id(raw):
         return None
 
 
-def try_enroll_signup_session(client, data):
-    """
-    Best-effort enroll on public signup. Invalid or full sessions are skipped so
-    the application still saves. Never raises.
-    """
-    session_id = _parse_class_session_id(data.get('class_session_id') if data is not None else None)
-    if not session_id or client is None:
-        return None
+def _signup_session_ids(data):
+    """One City Build date, or both Guard Card dates, without duplicates."""
+    if not data:
+        return []
+    raw_ids = []
+    listed = data.get('class_session_ids')
+    if isinstance(listed, (list, tuple)):
+        raw_ids.extend(listed)
+    elif isinstance(listed, str) and listed.strip():
+        raw_ids.extend(part.strip() for part in listed.split(','))
+    single = data.get('class_session_id')
+    if single not in (None, ''):
+        raw_ids.append(single)
+    ordered = []
+    seen = set()
+    for raw in raw_ids:
+        session_id = _parse_class_session_id(raw)
+        if session_id and session_id not in seen:
+            seen.add(session_id)
+            ordered.append(session_id)
+    return ordered
 
+
+def _enroll_signup_session(client, session_id):
     try:
         session = _annotate_session_counts(
             ClassSession.objects.select_related('template')
@@ -245,6 +262,24 @@ def try_enroll_signup_session(client, data):
             session.pk,
         )
     return enrollment
+
+
+def try_enroll_signup_session(client, data):
+    """
+    Best-effort enroll on public signup. Invalid or full sessions are skipped so
+    the application still saves. Never raises.
+
+    City Build sends one class_session_id. Guard Card can send orientation and
+    required training together as class_session_ids.
+    """
+    if client is None:
+        return None
+    enrolled = None
+    for session_id in _signup_session_ids(data):
+        enrollment = _enroll_signup_session(client, session_id)
+        if enrollment is not None:
+            enrolled = enrollment
+    return enrolled
 
 
 @api_view(['GET'])
@@ -319,7 +354,7 @@ def _signin_sheet_filename(session):
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_class_roster_csv(request, session_id):
-    """Printable roster CSV: names plus a blank notes column. No time-in or sponsorship."""
+    """Paper sign-in sheet: name, phone, email, plus blank signature / time in / sponsorship."""
     err = _staff_guard(request)
     if err:
         return err
@@ -336,12 +371,23 @@ def staff_class_roster_csv(request, session_id):
     )
     buffer = StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(['Last name', 'First name', 'Here', 'Notes'])
+    writer.writerow([
+        'Last name',
+        'First name',
+        'Phone number',
+        'Email',
+        'Signature',
+        'Time in',
+        'Need sponsorship',
+    ])
     for enrollment in enrollments:
         client = enrollment.client
         writer.writerow([
             client.last_name or '',
             client.first_name or '',
+            client.phone or '',
+            client.email or '',
+            '',
             '',
             '',
         ])
@@ -349,6 +395,26 @@ def staff_class_roster_csv(request, session_id):
     response = HttpResponse('\ufeff' + buffer.getvalue(), content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
+
+
+@api_view(['GET'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_class_roster_print(request, session_id):
+    """Printable sign-in sheet in the paper roster layout."""
+    err = _staff_guard(request)
+    if err:
+        return err
+
+    try:
+        session = ClassSession.objects.select_related('template').get(pk=session_id)
+    except ClassSession.DoesNotExist:
+        return Response({'error': 'Class session not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    from .signin_sheet import render_signin_sheets
+
+    html = render_signin_sheets([session])
+    return HttpResponse(html, content_type='text/html; charset=utf-8')
 
 
 @api_view(['GET'])

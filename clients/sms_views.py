@@ -1,8 +1,8 @@
 """
 Inbound SMS webhook for Azure Communication Services (via Event Grid).
 
-Replies are stored for staff Messages. YES and STOP do not change backend
-records (class confirmation, opt-out, etc.).
+Clients reply YES to confirm a class. Every matched reply is also stored so it
+shows up in staff Messages.
 """
 import logging
 import secrets

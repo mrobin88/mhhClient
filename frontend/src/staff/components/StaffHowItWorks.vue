@@ -63,7 +63,9 @@
       </ol>
       <p class="staff-guide-note">
         Programs at signup: CAPSA, City Build, Pit Stop, Security Guard Card Training, and General
-        Employment Assistance. Change program later from the client page.
+        Employment Assistance. Guard Card classes on the calendar are Guard Card Orientation or
+        Guard Card Required Training. Signup asks for one date of each before the resume step.
+        Change program later from the client page.
       </p>
     </article>
 
@@ -216,7 +218,7 @@ const screens = [
   },
   {
     name: 'Classes',
-    body: 'The calendar shows class dates as boxes. Click a box for the name list, mark who is here, and print a roster with space for notes. Classes are grouped by program (City Build, Pit Stop, CAPSA, Guard Card, General). Removing someone texts that we are working on a new date. Cancel keeps the date; delete removes it.',
+    body: 'The calendar shows class dates as boxes. Click a box for the name list, mark who is here, and print a sign-in sheet with signature, time in, and sponsorship lines. Classes are grouped by program (City Build, Pit Stop, CAPSA, Guard Card, General). Guard Card signup offers orientation and required training. Removing someone texts that we are working on a new date. Cancel keeps the date; delete removes it.',
     links: [{ to: '/classes', label: 'Open Classes' }],
   },
   {

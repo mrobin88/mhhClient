@@ -21,9 +21,9 @@
             <span class="font-medium">{{ ec.template_name }}</span>
             <span
               class="staff-roster-badge ml-1.5"
-              :class="enrollBadgeClass(ec)"
+              :class="ec.confirmed ? 'is-yes' : 'is-wait'"
             >
-              {{ enrollStatusLabel(ec) }}
+              {{ ec.confirmed ? 'Confirmed' : 'Waiting for YES' }}
             </span>
             <div class="text-xs text-stone-500">
               {{ formatSessionDate(ec.session_date) }} · {{ formatTimeRange(ec.start_time, ec.end_time) }}
@@ -168,8 +168,6 @@ interface ClientClassEnrollment {
   start_time: string
   end_time: string
   location?: string
-  status?: string
-  status_display?: string
   confirmed: boolean
 }
 
@@ -205,18 +203,6 @@ const groupedFilteredSessions = computed(() => {
 
 function isAlreadyEnrolled(sessionId: number) {
   return enrolled.value.some((e) => e.session_id === sessionId)
-}
-
-function enrollStatusLabel(ec: ClientClassEnrollment) {
-  if (ec.status === 'attended') return 'Here'
-  if (ec.status === 'no_show') return 'No show'
-  return 'Signed up'
-}
-
-function enrollBadgeClass(ec: ClientClassEnrollment) {
-  if (ec.status === 'attended') return 'is-yes'
-  if (ec.status === 'no_show') return 'is-wait'
-  return 'is-yes'
 }
 
 function formatSessionDate(dateStr: string) {

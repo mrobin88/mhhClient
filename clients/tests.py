@@ -817,6 +817,44 @@ class StaffClassManagementTests(TestCase):
         self.assertEqual(self.template.capacity, 18)
         self.assertFalse(self.template.is_active)
 
+    def test_guard_card_calendar_class_must_be_orientation_or_required_training(self):
+        session_date = (timezone.localdate() + timedelta(days=4)).isoformat()
+        rejected = self.http.post(
+            '/api/staff/classes/templates/create/',
+            data=json.dumps({
+                'name': 'Tuesday guards',
+                'program': 'guard_card',
+                'category': 'training',
+                'recurrence': 'none',
+                'session_date': session_date,
+                'start_time': '09:00',
+                'end_time': '12:00',
+                'capacity': 20,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(rejected.status_code, 400)
+        self.assertIn('category', rejected.json())
+
+        created = self.http.post(
+            '/api/staff/classes/templates/create/',
+            data=json.dumps({
+                'name': 'Tuesday guards',
+                'program': 'guard_card',
+                'category': 'guard_required',
+                'recurrence': 'none',
+                'session_date': session_date,
+                'start_time': '09:00',
+                'end_time': '12:00',
+                'capacity': 20,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        template = ClassTemplate.objects.get(pk=created.json()['template']['id'])
+        self.assertEqual(template.category, 'guard_required')
+        self.assertEqual(template.name, 'Guard Card Required Training')
+
     def test_staff_can_set_class_program(self):
         response = self.http.patch(
             f'/api/staff/classes/templates/{self.template.pk}/',
@@ -849,25 +887,6 @@ class StaffClassManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         names = [row['template_name'] for row in response.json()['results']]
         self.assertEqual(names, ['City Build Info'])
-
-    def test_staff_upcoming_month_includes_past_sessions(self):
-        past = timezone.localdate().replace(day=1)
-        ClassSession.objects.create(
-            template=self.template,
-            session_date=past,
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-            capacity=15,
-            status='cancelled',
-        )
-        month = past.strftime('%Y-%m')
-        response = self.http.get(f'/api/staff/classes/upcoming/?month={month}')
-        self.assertEqual(response.status_code, 200)
-        dates = [row['session_date'] for row in response.json()['results']]
-        self.assertIn(past.isoformat(), dates)
-
-        bad = self.http.get('/api/staff/classes/upcoming/?month=nope')
-        self.assertEqual(bad.status_code, 400)
 
     def test_staff_can_edit_and_cancel_session(self):
         response = self.http.patch(
@@ -1012,6 +1031,23 @@ class DocumentUploadInviteTests(TestCase):
         invite = DocumentUploadInvite.objects.get()
         invite.refresh_from_db()
         self.assertEqual(invite.upload_count, 1)
+
+    def test_staff_document_list_marks_missing_and_on_file(self):
+        Document.objects.create(
+            client=self.client_record,
+            title='Driver license',
+            doc_type='id',
+            file=SimpleUploadedFile('id.pdf', b'%PDF-fake', content_type='application/pdf'),
+            uploaded_by='staff',
+        )
+        response = self.http.get(f'/api/staff/clients/{self.client_record.pk}/upload-invites/')
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        by_value = {item['value']: item for item in body['checklist']}
+        self.assertTrue(by_value['id']['present'])
+        self.assertFalse(by_value['cb_application']['present'])
+        self.assertEqual(body['files'][0]['doc_type'], 'id')
+        self.assertGreater(body['missing_count'], 0)
 
     def test_link_rejects_unrequested_type_and_revocation(self):
         invite, token = DocumentUploadInvite.issue(
@@ -2015,8 +2051,6 @@ class ClassConfirmationSmsTests(TestCase):
         self.assertIn('9:00 AM', log.body)
         self.assertIn('3120 Mission St', log.body)
         self.assertIn('Marco', log.body)
-        self.assertIn('informational', log.body)
-        self.assertNotIn('Reply YES', log.body)
 
     @patch('clients.notifications._sms_client')
     def test_no_text_when_feature_is_off(self, sms_client_mock):
@@ -2149,11 +2183,10 @@ class ClassConfirmationSmsTests(TestCase):
         )
         self.assertIn(response.status_code, (401, 403))
 
-    def test_signup_text_is_informational(self):
+    def test_signup_text_includes_the_mission_hall_phone(self):
         body = self._preview().json()['body']
         self.assertIn('(415) 626-1919', body)
-        self.assertIn('informational', body)
-        self.assertNotIn('Reply YES', body)
+        self.assertIn('Reply YES', body)
 
     def _enroll(self, sms_client_mock):
         sms_client_mock.return_value.send.return_value = self._sent_result()
@@ -2316,14 +2349,57 @@ class ClassRosterControlTests(TestCase):
         self.assertEqual(row['email'], 'marco@example.com')
         self.assertFalse(row['confirmed'])
 
-    def test_signin_csv_has_blank_notes_columns(self):
+    def test_signin_csv_has_blank_signature_columns(self):
         ClassEnrollment.objects.create(session=self.session, client=self.client_record)
         response = self.http.get(f'/api/staff/classes/{self.session.pk}/roster.csv')
         self.assertEqual(response.status_code, 200)
         self.assertIn('text/csv', response['Content-Type'])
         body = response.content.decode('utf-8-sig')
-        self.assertIn('Last name,First name,Here,Notes', body)
-        self.assertIn('Reyes,Marco,,', body)
+        self.assertIn('Last name,First name,Phone number,Email,Signature,Time in,Need sponsorship', body)
+        self.assertIn('Reyes,Marco,4155557788,marco@example.com,,,', body)
+
+    def test_print_roster_is_the_paper_sign_in_sheet(self):
+        ClassEnrollment.objects.create(session=self.session, client=self.client_record)
+        response = self.http.get(f'/api/staff/classes/{self.session.pk}/roster/print/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('text/html', response['Content-Type'])
+        body = response.content.decode()
+        self.assertIn('Sign in Sheet', body)
+        self.assertIn('Client Name', body)
+        self.assertIn('Need Sponsorship', body)
+        self.assertIn('>LN<', body)
+        self.assertIn('>FN<', body)
+        self.assertIn('Reyes', body)
+        self.assertIn('Marco', body)
+        self.assertIn('415-555-7788', body)
+        self.assertIn('marco@example.com', body)
+        self.assertGreaterEqual(body.count('<tr>'), 28)
+
+    def test_admin_can_print_sheet_and_mark_roster_attended(self):
+        from django.contrib.admin.sites import AdminSite
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.test import RequestFactory
+
+        from clients.admin import ClassSessionAdmin
+
+        enrollment = ClassEnrollment.objects.create(session=self.session, client=self.client_record)
+        admin = ClassSessionAdmin(ClassSession, AdminSite())
+        request = RequestFactory().get('/admin/clients/classsession/')
+        request.user = self.staff
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        printed = admin.print_signin_sheet_action(
+            request,
+            ClassSession.objects.filter(pk=self.session.pk),
+        )
+        self.assertEqual(printed.status_code, 200)
+        self.assertIn(b'Sign in Sheet', printed.content)
+        admin.mark_roster_attended_action(
+            request,
+            ClassSession.objects.filter(pk=self.session.pk),
+        )
+        enrollment.refresh_from_db()
+        self.assertEqual(enrollment.status, 'attended')
 
     @patch('clients.notifications._sms_client')
     def test_rescheduling_clears_yes_confirmations(self, sms_client_mock):
@@ -2364,12 +2440,9 @@ class ClassRosterControlTests(TestCase):
         self.assertIn('cancelled', update.body)
 
     @patch('clients.notifications._sms_client')
-    def test_yes_reply_is_logged_and_does_not_confirm_the_class(self, sms_client_mock):
+    def test_yes_reply_confirms_the_next_upcoming_class(self, sms_client_mock):
         enrollment = self._enroll(sms_client_mock)
         self.assertIsNone(enrollment.confirmed_at)
-        outbound_before = ClientTextMessage.objects.filter(
-            direction=ClientTextMessage.DIRECTION_OUTBOUND,
-        ).count()
 
         inbound = DjangoTestClient()
         response = inbound.post(
@@ -2387,46 +2460,20 @@ class ClassRosterControlTests(TestCase):
             content_type='application/json',
         )
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.json()['results'][0]['confirmed'])
+        self.assertTrue(response.json()['results'][0]['confirmed'])
 
         enrollment.refresh_from_db()
-        self.assertIsNone(enrollment.confirmed_at)
+        self.assertIsNotNone(enrollment.confirmed_at)
         inbound_log = ClientTextMessage.objects.get(
             direction=ClientTextMessage.DIRECTION_INBOUND,
             provider_message_id='acs-msg-1',
         )
         self.assertEqual(inbound_log.body, 'YES')
-        self.assertEqual(
-            ClientTextMessage.objects.filter(direction=ClientTextMessage.DIRECTION_OUTBOUND).count(),
-            outbound_before,
-        )
-
-    @patch('clients.notifications._sms_client')
-    def test_stop_reply_is_logged_and_does_not_change_the_class(self, sms_client_mock):
-        enrollment = self._enroll(sms_client_mock)
-        inbound = DjangoTestClient()
-        response = inbound.post(
-            '/api/sms/inbound/?token=inbound-secret',
-            data=json.dumps({
-                'eventType': 'Microsoft.Communication.SMSReceived',
-                'id': 'acs-msg-stop',
-                'data': {
-                    'messageId': 'acs-msg-stop',
-                    'from': '+14155557788',
-                    'to': '+15555550123',
-                    'message': 'STOP',
-                },
-            }),
-            content_type='application/json',
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.json()['results'][0]['confirmed'])
-        enrollment.refresh_from_db()
-        self.assertIsNone(enrollment.confirmed_at)
-        self.assertEqual(
-            ClientTextMessage.objects.get(provider_message_id='acs-msg-stop').body,
-            'STOP',
-        )
+        ack = ClientTextMessage.objects.filter(
+            purpose=ClientTextMessage.PURPOSE_CLASS_CONFIRMATION,
+            direction=ClientTextMessage.DIRECTION_OUTBOUND,
+        ).exclude(dedupe_key=f'class-confirmation:{enrollment.pk}').get()
+        self.assertIn('you are confirmed', ack.body)
 
     def test_event_grid_subscription_validation(self):
         inbound = DjangoTestClient()
@@ -2592,6 +2639,56 @@ class PublicClientRegistrationTests(TestCase):
                 client=client, session=session, status='registered'
             ).exists()
         )
+
+    def test_guard_card_signup_enrolls_orientation_and_required_training(self):
+        orientation = ClassTemplate.objects.create(
+            name='Guard Card Orientation',
+            program='guard_card',
+            category='orientation',
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+        )
+        required = ClassTemplate.objects.create(
+            name='Guard Card Required Training',
+            program='guard_card',
+            category='training',
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+        )
+        orientation_session = ClassSession.objects.create(
+            template=orientation,
+            session_date=timezone.localdate() + timedelta(days=3),
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+            capacity=20,
+        )
+        training_session = ClassSession.objects.create(
+            template=required,
+            session_date=timezone.localdate() + timedelta(days=10),
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+            capacity=20,
+        )
+        listed = self.api.get('/api/classes/upcoming/?program=guard_card')
+        self.assertEqual(listed.status_code, 200)
+        groups = {row['template_name']: row['signup_group'] for row in listed.json()['results']}
+        self.assertEqual(groups['Guard Card Orientation'], 'orientation')
+        self.assertEqual(groups['Guard Card Required Training'], 'required_training')
+
+        payload = {
+            **self._registration_payload(),
+            'training_interest': 'guard_card',
+            'class_session_ids': [orientation_session.pk, training_session.pk],
+        }
+        response = self.api.post('/api/clients/', payload, format='json')
+        self.assertEqual(response.status_code, 201)
+        client = Client.objects.get(pk=response.json()['id'])
+        enrolled = set(
+            ClassEnrollment.objects.filter(client=client, status='registered').values_list(
+                'session_id', flat=True
+            )
+        )
+        self.assertEqual(enrolled, {orientation_session.pk, training_session.pk})
 
     def test_citybuild_signup_still_saves_if_class_session_is_invalid(self):
         payload = {

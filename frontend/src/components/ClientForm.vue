@@ -1,33 +1,17 @@
 <template>
-  <div class="registration-page min-h-screen bg-gradient py-6 px-4 sm:py-10">
-    <!-- Header with organization branding -->
-    <div class="registration-shell mx-auto mb-6 text-center sm:mb-10">
-      <div class="relative">
-        <!-- Decorative background elements -->
-        <div class="absolute inset-0 flex items-center justify-center">
-          <div class="w-24 h-24 border-4 border-mission-400 rounded-full opacity-20 animate-pulse"></div>
-          <div class="w-12 h-12 border-2 border-mission-500 rounded-full absolute opacity-30 animate-ping"></div>
-        </div>
-        <h1 class="registration-title font-bold text-slate-800 relative z-10 mb-3">
-          <span class="text-mission-600">Client Services</span> Portal
-        </h1>
-        <p class="registration-subtitle text-slate-600 relative z-10">Professional Service Management System</p>
-        <p class="text-mission-800 relative z-10 mt-3 text-base">
-          New client signup
-        </p>
-        <p class="text-slate-600 relative z-10 mt-2 text-sm">
-          <RouterLink to="/" class="font-semibold underline hover:text-mission-800">Home</RouterLink>
-          <span class="mx-2 text-slate-400">·</span>
-          Already with us?
-          <a href="/checkin/" class="font-semibold underline hover:text-mission-900">Check in</a>
-        </p>
-
-        <div class="mt-4 flex justify-center space-x-2">
-          <div class="w-2 h-2 bg-mission-400 rounded-full"></div>
-          <div class="w-2 h-2 bg-mission-500 rounded-full"></div>
-          <div class="w-2 h-2 bg-mission-600 rounded-full"></div>
-        </div>
-      </div>
+  <div class="registration-page min-h-screen py-6 px-4 sm:py-10">
+    <div class="registration-shell mx-auto mb-6 text-center sm:mb-8">
+      <img src="/mhh-logo.png" alt="Mission Hiring Hall" class="brand-logo" />
+      <h1 class="registration-title">New client signup</h1>
+      <p class="registration-subtitle">
+        Job counseling, training, and support for San Francisco residents.
+      </p>
+      <p class="registration-nav">
+        <RouterLink to="/">Home</RouterLink>
+        <span aria-hidden="true">·</span>
+        Already with us?
+        <a href="/checkin/">Check in</a>
+      </p>
     </div>
 
     <!-- Main Form Container -->
@@ -35,15 +19,9 @@
       <form @submit.prevent="handleSubmit" class="form-card registration-form">
         <!-- Form Header -->
         <div class="form-header">
-          <div class="decorative-pattern"></div>
           <div class="relative z-10">
-            <h2 class="form-title font-bold text-white flex items-center mb-2">
-              <svg class="w-10 h-10 mr-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              New Client Registration
-            </h2>
-            <p class="text-mission-100 form-intro">Complete the form below to register for services</p>
+            <h2 class="form-title">New client registration</h2>
+            <p class="form-intro">Complete the form below to register for services</p>
           </div>
         </div>
 
@@ -150,8 +128,8 @@
                 <label
                   v-for="session in cityBuildSessions"
                   :key="session.id"
-                  class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"
-                  :class="classSessionId === String(session.id) ? 'border-mission-500 bg-mission-50' : 'border-slate-200'"
+                  class="session-choice"
+                  :class="classSessionId === String(session.id) ? 'is-selected' : ''"
                 >
                   <input
                     v-model="classSessionId"
@@ -176,8 +154,8 @@
                   </span>
                 </label>
                 <label
-                  class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"
-                  :class="classSessionId === '' ? 'border-mission-500 bg-mission-50' : 'border-slate-200'"
+                  class="session-choice"
+                  :class="classSessionId === '' ? 'is-selected' : ''"
                 >
                   <input v-model="classSessionId" type="radio" class="mt-1" name="citybuild_session" value="" />
                   <span class="text-sm text-slate-700">I’ll pick a date later</span>
@@ -185,9 +163,17 @@
               </div>
             </div>
 
+            <div v-if="isGuardCard" class="program-note">
+              <p class="font-semibold text-slate-800">Guard Card class dates are near the end of this form.</p>
+              <p>
+                You will choose a Guard Card Orientation and the required training before you submit.
+                You can skip a date if none of them work.
+              </p>
+            </div>
+
             <div
               v-if="isPitStop"
-              class="rounded-xl border border-mission-200 bg-mission-50 p-4 text-sm text-slate-700 space-y-2"
+              class="program-note"
             >
               <p class="font-semibold text-slate-800">Pit Stop is a workforce program, not a job.</p>
               <p>
@@ -502,6 +488,97 @@
                   rows="3"
                   placeholder="Please share any additional information about your employment goals, barriers, or special circumstances..."
                 ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="currentStep === 'guardcard'" class="space-y-6">
+            <div class="section-header">
+              <div class="w-2 h-10 bg-mission-500 rounded-full mr-4"></div>
+              <h3 class="section-title font-semibold text-slate-800">Class signup</h3>
+            </div>
+            <p class="text-sm text-slate-600">
+              Pick a date for Guard Card Orientation and for the required training.
+              You can skip either one and still submit.
+            </p>
+            <p v-if="guardCardSessionsLoading" class="text-sm text-slate-500">Loading dates…</p>
+            <p v-else-if="guardCardSessionsError" class="text-sm text-slate-500">{{ guardCardSessionsError }}</p>
+
+            <div class="citybuild-session-list">
+              <h4 class="text-sm font-semibold text-slate-800">Guard Card Orientation</h4>
+              <p class="text-sm text-slate-600">The orientation sign-in. Choose the date you can attend.</p>
+              <p v-if="!guardCardSessionsLoading && !guardCardSessionsError && guardCardOrientationSessions.length === 0" class="text-sm text-slate-600">
+                No orientation dates are on the calendar right now. Submit this form and we will contact you.
+              </p>
+              <div v-if="guardCardOrientationSessions.length" class="form-stack">
+                <label
+                  v-for="session in guardCardOrientationSessions"
+                  :key="session.id"
+                  class="session-choice"
+                  :class="orientationSessionId === String(session.id) ? 'is-selected' : ''"
+                >
+                  <input
+                    v-model="orientationSessionId"
+                    type="radio"
+                    name="guard_orientation"
+                    :value="String(session.id)"
+                    :disabled="session.spots_remaining <= 0"
+                  />
+                  <span>
+                    <span class="block text-sm font-semibold text-slate-800">{{ session.template_name }}</span>
+                    <span class="block text-sm text-slate-700">
+                      {{ formatCityBuildSessionDate(session.session_date) }}
+                      · {{ formatCityBuildTimeRange(session.start_time, session.end_time) }}
+                    </span>
+                    <span class="block text-xs text-slate-500">
+                      <template v-if="session.location">{{ session.location }} · </template>
+                      {{ session.spots_remaining > 0 ? `${session.spots_remaining} seats open` : 'full' }}
+                    </span>
+                  </span>
+                </label>
+                <label class="session-choice" :class="orientationSessionId === '' ? 'is-selected' : ''">
+                  <input v-model="orientationSessionId" type="radio" name="guard_orientation" value="" />
+                  <span class="text-sm text-slate-700">I’ll pick an orientation date later</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="citybuild-session-list">
+              <h4 class="text-sm font-semibold text-slate-800">Guard Card Required Training</h4>
+              <p class="text-sm text-slate-600">The state-required training course. Choose the date you can attend.</p>
+              <p v-if="!guardCardSessionsLoading && !guardCardSessionsError && guardCardTrainingSessions.length === 0" class="text-sm text-slate-600">
+                No required-training dates are on the calendar right now. Submit this form and we will contact you.
+              </p>
+              <div v-else-if="guardCardTrainingSessions.length" class="form-stack">
+                <label
+                  v-for="session in guardCardTrainingSessions"
+                  :key="session.id"
+                  class="session-choice"
+                  :class="trainingSessionId === String(session.id) ? 'is-selected' : ''"
+                >
+                  <input
+                    v-model="trainingSessionId"
+                    type="radio"
+                    name="guard_training"
+                    :value="String(session.id)"
+                    :disabled="session.spots_remaining <= 0"
+                  />
+                  <span>
+                    <span class="block text-sm font-semibold text-slate-800">{{ session.template_name }}</span>
+                    <span class="block text-sm text-slate-700">
+                      {{ formatCityBuildSessionDate(session.session_date) }}
+                      · {{ formatCityBuildTimeRange(session.start_time, session.end_time) }}
+                    </span>
+                    <span class="block text-xs text-slate-500">
+                      <template v-if="session.location">{{ session.location }} · </template>
+                      {{ session.spots_remaining > 0 ? `${session.spots_remaining} seats open` : 'full' }}
+                    </span>
+                  </span>
+                </label>
+                <label class="session-choice" :class="trainingSessionId === '' ? 'is-selected' : ''">
+                  <input v-model="trainingSessionId" type="radio" name="guard_training" value="" />
+                  <span class="text-sm text-slate-700">I’ll pick a training date later</span>
+                </label>
               </div>
             </div>
           </div>
@@ -1008,15 +1085,29 @@ const idCompressing = ref(false)
 
 const isPitStop = computed(() => form.value.training_interest === 'pit_stop')
 const isCityBuild = computed(() => form.value.training_interest === 'citybuild')
+const isGuardCard = computed(() => form.value.training_interest === 'guard_card')
 
 const classSessionId = ref('')
 const cityBuildSessions = ref([])
 const cityBuildSessionsLoading = ref(false)
 const cityBuildSessionsError = ref('')
+const guardCardSessions = ref([])
+const guardCardSessionsLoading = ref(false)
+const guardCardSessionsError = ref('')
+const orientationSessionId = ref('')
+const trainingSessionId = ref('')
+
+const guardCardOrientationSessions = computed(() =>
+  guardCardSessions.value.filter((session) => sessionGroup(session) === 'orientation'),
+)
+const guardCardTrainingSessions = computed(() =>
+  guardCardSessions.value.filter((session) => sessionGroup(session) === 'required_training'),
+)
 
 const stepOrder = computed(() => {
   const steps = ['program', 'personal', 'address', 'background', 'employment']
   if (isPitStop.value) steps.push('pitstop')
+  if (isGuardCard.value) steps.push('guardcard')
   steps.push('documents')
   return steps
 })
@@ -1028,6 +1119,7 @@ const stepTitles = {
   background: 'Background',
   employment: 'Employment',
   pitstop: 'Pit Stop',
+  guardcard: 'Class signup',
   documents: 'Resume & ID',
 }
 
@@ -1058,6 +1150,28 @@ watch(isCityBuild, (on) => {
   }
 })
 
+watch(isGuardCard, (on) => {
+  if (on) {
+    loadGuardCardSessions()
+  } else {
+    orientationSessionId.value = ''
+    trainingSessionId.value = ''
+    guardCardSessions.value = []
+    guardCardSessionsError.value = ''
+  }
+})
+
+function sessionGroup(session) {
+  if (session.signup_group === 'orientation' || session.signup_group === 'required_training') {
+    return session.signup_group
+  }
+  if (session.category === 'guard_orientation') return 'orientation'
+  if (session.category === 'guard_required') return 'required_training'
+  const name = String(session.template_name || '').toLowerCase()
+  if (session.category === 'orientation' || name.includes('orientation')) return 'orientation'
+  return 'required_training'
+}
+
 function formatCityBuildSessionDate(dateStr) {
   const d = new Date(`${dateStr}T00:00:00`)
   if (Number.isNaN(d.getTime())) return dateStr
@@ -1072,6 +1186,20 @@ function formatCityBuildTimeRange(start, end) {
     return `${hour12}:${String(m).padStart(2, '0')} ${period}`
   }
   return `${fmt(start)}–${fmt(end)}`
+}
+
+async function loadGuardCardSessions() {
+  guardCardSessionsLoading.value = true
+  guardCardSessionsError.value = ''
+  try {
+    const response = await axios.get(getApiUrl('/api/classes/upcoming/?program=guard_card'))
+    guardCardSessions.value = response.data?.results || []
+  } catch {
+    guardCardSessionsError.value = 'Could not load class dates. You can still submit this form.'
+    guardCardSessions.value = []
+  } finally {
+    guardCardSessionsLoading.value = false
+  }
 }
 
 async function loadCityBuildSessions() {
@@ -1460,8 +1588,19 @@ async function handleSubmit() {
         payload[key] = key === 'dob' ? normalizeDateInput(form.value[key]) : form.value[key]
       }
     })
+    const classSessionIds = []
     if (isCityBuild.value && classSessionId.value) {
-      payload.class_session_id = Number(classSessionId.value)
+      classSessionIds.push(Number(classSessionId.value))
+    }
+    if (isGuardCard.value) {
+      if (orientationSessionId.value) classSessionIds.push(Number(orientationSessionId.value))
+      if (trainingSessionId.value) classSessionIds.push(Number(trainingSessionId.value))
+    }
+    if (classSessionIds.length === 1) {
+      payload.class_session_id = classSessionIds[0]
+    }
+    if (classSessionIds.length) {
+      payload.class_session_ids = classSessionIds
     }
 
     const url = getApiUrl('/api/clients/')
@@ -1553,6 +1692,9 @@ async function handleSubmit() {
       idFile.value = null
       classSessionId.value = ''
       cityBuildSessions.value = []
+      orientationSessionId.value = ''
+      trainingSessionId.value = ''
+      guardCardSessions.value = []
 
       // Reset pitstop
       pitstop.value = emptyPitstop()
@@ -1575,6 +1717,151 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
+.registration-page {
+  background: #0f0e13;
+  color: #dadada;
+  font-family: Oxygen, Arial, Helvetica, sans-serif;
+}
+
+.brand-logo {
+  display: block;
+  height: 72px;
+  width: auto;
+  margin: 0 auto 0.75rem;
+}
+
+.registration-title {
+  font-family: "Zen Kaku Gothic Antique", Oxygen, sans-serif;
+  color: #e89224;
+  font-weight: 700;
+  margin: 0;
+}
+
+.registration-subtitle {
+  color: #dadada;
+  margin: 0.75rem auto 0;
+  max-width: 34rem;
+}
+
+.registration-nav {
+  margin-top: 0.85rem;
+  color: #dadada;
+  font-size: 0.95rem;
+}
+
+.registration-nav a {
+  color: #e89224;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.registration-nav span {
+  margin: 0 0.45rem;
+  color: #747474;
+}
+
+.registration-page :deep(.form-card) {
+  background: #fff;
+  color: #333;
+  border-radius: 0;
+  border: 1px solid #2a2830;
+  box-shadow: none;
+}
+
+.registration-page :deep(.form-header) {
+  background: #0f0e13;
+  color: #fff;
+}
+
+.registration-page :deep(.form-header)::before {
+  display: none;
+}
+
+.form-title {
+  font-family: "Zen Kaku Gothic Antique", Oxygen, sans-serif;
+  color: #e89224;
+  margin: 0 0 0.35rem;
+}
+
+.form-intro {
+  color: #dadada;
+  margin: 0;
+}
+
+.registration-page :deep(.section-header) {
+  background: #fff;
+  border-left: 4px solid #e89224;
+  border-radius: 0;
+}
+
+.registration-page :deep(.section-title),
+.section-title {
+  font-family: "Zen Kaku Gothic Antique", Oxygen, sans-serif;
+  color: #333;
+}
+
+.registration-page :deep(.text-mission-600),
+.registration-page :deep(.text-mission-700),
+.registration-page :deep(.text-mission-800),
+.registration-page :deep(.text-mission-900) {
+  color: #e89224;
+}
+
+.registration-page :deep(.bg-mission-500) {
+  background: #e89224;
+}
+
+.registration-page :deep(.form-input:focus),
+.registration-page :deep(.form-select:focus) {
+  border-color: #e89224;
+  box-shadow: 0 0 0 4px rgba(232, 146, 36, 0.18);
+}
+
+.registration-page :deep(.submit-button) {
+  background: #e89224;
+  color: #0f0e13;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.registration-page :deep(.submit-button:hover:not(:disabled)) {
+  background: #c97a16;
+  transform: none;
+  box-shadow: none;
+}
+
+.registration-page :deep(.submit-button:focus) {
+  box-shadow: 0 0 0 3px rgba(232, 146, 36, 0.45);
+}
+
+.program-note {
+  border: 1px solid #e89224;
+  background: #fff6ea;
+  color: #333;
+  border-radius: 0;
+  padding: 1rem;
+  font-size: 0.95rem;
+}
+
+.program-note p + p {
+  margin-top: 0.4rem;
+}
+
+.session-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border: 1px solid #e2e8f0;
+  padding: 0.75rem;
+  cursor: pointer;
+  background: #fff;
+}
+
+.session-choice.is-selected {
+  border-color: #e89224;
+  background: #fff6ea;
+}
+
 .fade-slide-enter-active,
 .fade-slide-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -1660,7 +1947,7 @@ async function handleSubmit() {
 
 .stepper-fill {
   height: 100%;
-  background: linear-gradient(90deg, #14b8a6, #0d9488);
+  background: #e89224;
   border-radius: 999px;
   transition: width 0.2s ease;
 }
@@ -1682,9 +1969,9 @@ async function handleSubmit() {
 }
 
 .step-btn-primary {
-  border-color: #14b8a6;
-  background: #14b8a6;
-  color: #fff;
+  border-color: #e89224;
+  background: #e89224;
+  color: #0f0e13;
 }
 
 .step-btn:disabled {
@@ -1752,23 +2039,23 @@ async function handleSubmit() {
 }
 
 .program-btn-inactive:hover {
-  border-color: #14b8a6;
-  background: #f0fdfa;
-  color: #0d9488;
+  border-color: #e89224;
+  background: #fff6ea;
+  color: #0f0e13;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(20, 184, 166, 0.15);
+  box-shadow: none;
 }
 
 .program-btn-active {
-  border-color: #14b8a6;
-  background: #14b8a6;
-  color: white;
-  box-shadow: 0 2px 8px rgba(20, 184, 166, 0.25);
+  border-color: #e89224;
+  background: #0f0e13;
+  color: #fff;
+  box-shadow: none;
 }
 
 .program-btn-active:hover {
-  background: #0d9488;
-  border-color: #0d9488;
+  background: #0f0e13;
+  border-color: #e89224;
 }
 
 .program-btn-compact:active {
@@ -1797,15 +2084,15 @@ async function handleSubmit() {
 }
 
 .time-slot-inactive:hover {
-  border-color: #14b8a6;
-  background: #f0fdfa;
-  color: #0d9488;
+  border-color: #e89224;
+  background: #fff6ea;
+  color: #0f0e13;
   transform: translateY(-1px);
 }
 
 .time-slot-active {
-  border-color: #14b8a6;
-  background: #14b8a6;
+  border-color: #e89224;
+  background: #0f0e13;
   color: white;
 }
 
