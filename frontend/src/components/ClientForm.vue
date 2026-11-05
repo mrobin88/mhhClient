@@ -2151,9 +2151,9 @@ async function handleSubmit() {
   margin: 0.55rem 0 0;
   padding: 0.7rem 0.85rem;
   border-radius: 0.65rem;
-  background: #ecfeff;
-  border: 1px solid #a5f3fc;
-  color: #155e75;
+  background: #fff6ea;
+  border: 1px solid #f6d19a;
+  color: #785510;
   font-size: 0.9rem;
   font-weight: 600;
 }
@@ -2165,8 +2165,8 @@ async function handleSubmit() {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.75rem 0.85rem;
-  border: 2px solid #99f6e4;
-  background: #ecfdf5;
+  border: 2px solid #e89224;
+  background: #fff6ea;
   border-radius: 0.75rem;
 }
 
@@ -2176,12 +2176,12 @@ async function handleSubmit() {
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #0f766e;
+  color: #785510;
 }
 
 .doc-filename {
   font-size: 0.75rem;
-  color: #0f766e;
+  color: #785510;
   font-weight: 600;
   word-break: break-word;
 }

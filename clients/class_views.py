@@ -9,10 +9,8 @@ date, exporting a sign-in sheet) never requires touching Django admin.
 Session-authenticated, staff-only, single-tenant.
 """
 from datetime import timedelta
-import csv
 import logging
 import re
-from io import StringIO
 
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
@@ -354,7 +352,7 @@ def _signin_sheet_filename(session):
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_class_roster_csv(request, session_id):
-    """Paper sign-in sheet: name, phone, email, plus blank signature / time in / sponsorship."""
+    """Blank paper sign-in sheet: FN, LN, phone, email, sign in, sign out."""
     err = _staff_guard(request)
     if err:
         return err
@@ -364,35 +362,10 @@ def staff_class_roster_csv(request, session_id):
     except ClassSession.DoesNotExist:
         return Response({'error': 'Class session not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    enrollments = (
-        session.enrollments.select_related('client')
-        .exclude(status='cancelled')
-        .order_by('client__last_name', 'client__first_name')
-    )
-    buffer = StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow([
-        'Last name',
-        'First name',
-        'Phone number',
-        'Email',
-        'Signature',
-        'Time in',
-        'Need sponsorship',
-    ])
-    for enrollment in enrollments:
-        client = enrollment.client
-        writer.writerow([
-            client.last_name or '',
-            client.first_name or '',
-            client.phone or '',
-            client.email or '',
-            '',
-            '',
-            '',
-        ])
+    from .signin_sheet import signin_sheet_csv
+
     filename = _signin_sheet_filename(session)
-    response = HttpResponse('\ufeff' + buffer.getvalue(), content_type='text/csv; charset=utf-8')
+    response = HttpResponse('\ufeff' + signin_sheet_csv([session]), content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
 

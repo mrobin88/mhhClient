@@ -28,3 +28,6 @@ azure-communication-sms==1.1.0
 
 # Image compression for Staff Dashboard document uploads
 Pillow==10.4.0
+
+# Signup list PDF from the Clients admin action
+fpdf2==2.8.4

@@ -2355,8 +2355,9 @@ class ClassRosterControlTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('text/csv', response['Content-Type'])
         body = response.content.decode('utf-8-sig')
-        self.assertIn('Last name,First name,Phone number,Email,Signature,Time in,Need sponsorship', body)
-        self.assertIn('Reyes,Marco,4155557788,marco@example.com,,,', body)
+        self.assertIn('FN,LN,Phone,Email,Sign in,Sign out', body)
+        self.assertNotIn('Reyes', body)
+        self.assertNotIn('Marco', body)
 
     def test_print_roster_is_the_paper_sign_in_sheet(self):
         ClassEnrollment.objects.create(session=self.session, client=self.client_record)
@@ -2365,14 +2366,16 @@ class ClassRosterControlTests(TestCase):
         self.assertIn('text/html', response['Content-Type'])
         body = response.content.decode()
         self.assertIn('Sign in Sheet', body)
-        self.assertIn('Client Name', body)
-        self.assertIn('Need Sponsorship', body)
-        self.assertIn('>LN<', body)
         self.assertIn('>FN<', body)
-        self.assertIn('Reyes', body)
-        self.assertIn('Marco', body)
-        self.assertIn('415-555-7788', body)
-        self.assertIn('marco@example.com', body)
+        self.assertIn('>LN<', body)
+        self.assertIn('>Phone<', body)
+        self.assertIn('>Email<', body)
+        self.assertIn('>Sign in<', body)
+        self.assertIn('>Sign out<', body)
+        self.assertNotIn('Need Sponsorship', body)
+        self.assertNotIn('Reyes', body)
+        self.assertNotIn('Marco', body)
+        self.assertNotIn('marco@example.com', body)
         self.assertGreaterEqual(body.count('<tr>'), 28)
 
     def test_admin_can_print_sheet_and_mark_roster_attended(self):
@@ -3402,4 +3405,195 @@ class StaleApplicantTeamsAlertTests(TestCase):
         body = ok.json()
         self.assertEqual(body['sent'], 1)
         self.assertEqual(len(mail.outbox), 1)
+
+
+class SignupListAdminTests(TestCase):
+    def setUp(self):
+        self.site = AdminSite()
+        self.admin = ClientAdmin(Client, self.site)
+        self.amina = Client.objects.create(
+            first_name='Amina',
+            last_name='Diallo',
+            phone='+1 (628) 555-0101',
+            email='amina@example.com',
+            gender='F',
+            dob=date(1996, 4, 2),
+            training_interest='guard_card',
+            neighborhood='mission',
+            employment_status='unemployed',
+            demographic_info='hispanic_latinx',
+            highest_degree='phd',
+            additional_notes='private case detail should stay off the list',
+        )
+        self.luis = Client.objects.create(
+            first_name='Luis',
+            last_name='Chen',
+            phone='4155550199',
+            email='luis@example.com',
+            gender='M',
+            training_interest='general',
+        )
+        self.rosa = Client.objects.create(
+            first_name='Rosa',
+            last_name='Núñez',
+            phone='5105550144',
+            email='rosa@example.com',
+            gender='F',
+            training_interest='citybuild',
+            citybuild_stage=Client.CITYBUILD_STAGE_ENROLLED,
+        )
+        self.sam = Client.objects.create(
+            first_name='Sam',
+            last_name='Park',
+            phone='4155550177',
+            email='sam@example.com',
+            gender='M',
+            training_interest='pit_stop',
+            pit_stop_stage=Client.PIT_STOP_STAGE_WORKER,
+        )
+        Document.objects.create(
+            client=self.amina,
+            title='Resume',
+            doc_type='resume',
+            file=SimpleUploadedFile('amina.pdf', b'%PDF-1.4 resume', content_type='application/pdf'),
+            uploaded_by='staff',
+        )
+        orientation = ClassTemplate.objects.create(
+            name='Guard Card Orientation',
+            category='guard_orientation',
+            program='guard_card',
+            location='3120 Mission St',
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+        )
+        orientation_date = ClassSession.objects.create(
+            template=orientation,
+            session_date=timezone.localdate() + timedelta(days=3),
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+            location='3120 Mission St',
+        )
+        ignored = ClassTemplate.objects.create(
+            name='Should Not Count',
+            category='training',
+            program='general',
+            start_time=time(13, 0),
+            end_time=time(15, 0),
+        )
+        ignored_date = ClassSession.objects.create(
+            template=ignored,
+            session_date=timezone.localdate() + timedelta(days=4),
+            start_time=time(13, 0),
+            end_time=time(15, 0),
+        )
+        ClassEnrollment.objects.create(session=orientation_date, client=self.amina, status='registered')
+        ClassEnrollment.objects.create(session=ignored_date, client=self.luis, status='no_show')
+
+    def _rows(self):
+        from clients.signup_list import signup_rows
+
+        return {
+            row['name']: row
+            for row in signup_rows(Client.objects.filter(
+                pk__in=[self.amina.pk, self.luis.pk, self.rosa.pk, self.sam.pk],
+            ))
+        }
+
+    def test_rows_are_contact_facts_without_evaluations(self):
+        rows = self._rows()
+        amina = rows['Amina Diallo']
+        self.assertEqual(amina['phone'], '+1 (628) 555-0101')
+        self.assertEqual(amina['area_code'], '628')
+        self.assertEqual(amina['age'], str(self.amina.age))
+        self.assertEqual(amina['email'], 'amina@example.com')
+        self.assertEqual(amina['program'], 'Security Guard Card Training')
+        self.assertEqual(amina['enrolled'], 'Yes - Guard Card Orientation')
+        self.assertEqual(amina['resume'], 'Yes')
+        self.assertEqual(amina['signed_up'], timezone.localtime(self.amina.created_at).strftime('%Y-%m-%d'))
+        self.assertEqual(rows['Luis Chen']['enrolled'], 'No')
+        self.assertEqual(rows['Luis Chen']['resume'], 'No')
+        self.assertEqual(rows['Luis Chen']['area_code'], '415')
+        self.assertEqual(rows['Rosa Núñez']['enrolled'], 'Yes')
+        self.assertEqual(rows['Rosa Núñez']['program'], 'City Build')
+        self.assertEqual(rows['Sam Park']['enrolled'], 'Yes')
+        self.assertEqual(rows['Sam Park']['program'], 'Pit Stop')
+        from clients.signup_list import signup_rows
+
+        ordered = signup_rows(Client.objects.filter(
+            pk__in=[self.amina.pk, self.luis.pk, self.rosa.pk, self.sam.pk],
+        ))
+        self.assertEqual(
+            [row['name'] for row in ordered],
+            ['Luis Chen', 'Amina Diallo', 'Rosa Núñez', 'Sam Park'],
+        )
+
+    def test_csv_and_pdf_downloads_skip_private_fields(self):
+        import csv
+        from io import StringIO
+
+        from clients.signup_list import signup_list_csv, signup_list_pdf, signup_rows
+
+        selected = Client.objects.filter(pk__in=[self.amina.pk, self.luis.pk, self.rosa.pk, self.sam.pk])
+        rows = signup_rows(selected)
+        body = signup_list_csv(rows)
+        parsed = list(csv.reader(StringIO(body)))
+        self.assertEqual(
+            parsed[0],
+            ['Name', 'Phone', 'Area code', 'Age', 'Email', 'Program', 'Enrolled', 'Resume on file', 'Signed up'],
+        )
+        flat = body
+        self.assertIn('Amina Diallo', flat)
+        self.assertIn('628', flat)
+        self.assertIn('Yes - Guard Card Orientation', flat)
+        self.assertNotIn('private case detail', flat)
+        self.assertNotIn('Unemployed', flat)
+        self.assertNotIn('Mission District', flat)
+        self.assertNotIn('Hispanic or Latinx', flat)
+        self.assertNotIn('Doctorate', flat)
+        self.assertNotIn('Should Not Count', flat)
+        self.assertNotIn('No Show', flat)
+
+        pdf = self.admin.download_signup_list_pdf(None, selected)
+        self.assertEqual(pdf['Content-Type'], 'application/pdf')
+        self.assertIn('attachment;', pdf['Content-Disposition'])
+        self.assertIn('signup_list_', pdf['Content-Disposition'])
+        self.assertTrue(pdf.content.startswith(b'%PDF'))
+        self.assertGreater(len(pdf.content), 1000)
+        signup_list_pdf(rows)
+
+        csv_response = self.admin.download_signup_list_csv(None, selected)
+        self.assertIn('text/csv', csv_response['Content-Type'])
+        downloaded = csv_response.content.decode('utf-8-sig')
+        self.assertIn('Rosa Núñez', downloaded)
+        self.assertNotIn('private case detail', downloaded)
+
+    def test_program_filter_keeps_one_programs_signups(self):
+        from django.test import RequestFactory
+
+        from clients.admin import ProgramListFilter
+
+        request = RequestFactory().get('/admin/clients/client/', {'training_interest': 'guard_card'})
+        program_filter = ProgramListFilter(
+            request,
+            {'training_interest': ['guard_card']},
+            Client,
+            self.admin,
+        )
+        matched = program_filter.queryset(request, Client.objects.all())
+        self.assertEqual(list(matched), [self.amina])
+
+    def test_clients_changelist_offers_pdf_and_csv_actions(self):
+        User = get_user_model()
+        staff = User.objects.create_superuser(
+            username='signup_list_admin',
+            password='testpass123',
+            email='signup-list@example.com',
+        )
+        http = DjangoTestClient()
+        http.force_login(staff)
+        response = http.get('/admin/clients/client/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Download signup list (PDF)')
+        self.assertContains(response, 'Download signup list (CSV)')
+        self.assertContains(response, 'By program')
 

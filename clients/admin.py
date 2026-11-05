@@ -297,10 +297,26 @@ class CaseNoteAdmin(admin.ModelAdmin):
             obj.staff_member = _staff_display_name(request.user)
         super().save_model(request, obj, form, change)
     
+class ProgramListFilter(admin.SimpleListFilter):
+    """Sidebar filter so staff can pull one program's signups."""
+
+    title = 'program'
+    parameter_name = 'training_interest'
+
+    def lookups(self, request, model_admin):
+        return Client.TRAINING_INTEREST_CHOICES
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value:
+            return queryset.filter(training_interest=value)
+        return queryset
+
+
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'phone', 'email', 'training_interest', 'status', 'program_completed_date', 'has_resume', 'case_notes_count', 'created_at']
-    list_filter = ['status', 'training_interest', 'pit_stop_stage', 'citybuild_stage', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
+    list_display = ['full_name', 'phone', 'email', 'program_display', 'status', 'program_completed_date', 'has_resume', 'case_notes_count', 'created_at']
+    list_filter = ['status', ProgramListFilter, 'pit_stop_stage', 'citybuild_stage', 'sf_resident', 'employment_status', 'created_at', 'program_completed_date']
     search_fields = ['first_name', 'last_name', 'phone', 'email']
     readonly_fields = [
         'created_at',
@@ -995,15 +1011,19 @@ class ClientAdmin(admin.ModelAdmin):
     
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(case_notes_total=Count('casenotes'))
-    
+
+    @admin.display(description='Program', ordering='training_interest')
+    def program_display(self, obj):
+        return obj.get_training_interest_display()
+
     actions = [
+        'download_signup_list_pdf',
+        'download_signup_list_csv',
         'mark_active',
         'mark_completed',
         'create_worker_accounts',
         'text_missing_documents',
-        'export_to_csv',
         'export_program_report',
-        'export_client_profiles_pdf',
     ]
 
     REQUIRED_DOC_TYPES_FOR_TEXT = ('resume', 'id', 'consent', 'intake')
@@ -1211,13 +1231,32 @@ class ClientAdmin(admin.ModelAdmin):
         
         return response
     export_program_report.short_description = "Export program completion report"
-    
-    def export_client_profiles_pdf(self, request, queryset):
-        """Export client profiles as PDF documents - DISABLED (WeasyPrint removed)"""
-        self.message_user(request, 'PDF generation is not available. WeasyPrint has been removed from the project.', level='error')
-        return
-    
-    export_client_profiles_pdf.short_description = "Export client profiles as PDF (disabled)"
+
+    def _signup_list_download(self, queryset, kind):
+        from .signup_list import signup_filename, signup_list_csv, signup_list_pdf, signup_rows
+
+        rows = signup_rows(queryset)
+        if kind == 'pdf':
+            payload = signup_list_pdf(rows)
+            content_type = 'application/pdf'
+            extension = 'pdf'
+        else:
+            payload = '\ufeff' + signup_list_csv(rows)
+            content_type = 'text/csv; charset=utf-8'
+            extension = 'csv'
+        response = HttpResponse(payload, content_type=content_type)
+        response['Content-Disposition'] = (
+            f'attachment; filename="{signup_filename(rows, extension)}"'
+        )
+        return response
+
+    @admin.action(description='Download signup list (PDF)')
+    def download_signup_list_pdf(self, request, queryset):
+        return self._signup_list_download(queryset, 'pdf')
+
+    @admin.action(description='Download signup list (CSV)')
+    def download_signup_list_csv(self, request, queryset):
+        return self._signup_list_download(queryset, 'csv')
 
     # --- Safe delete handling ---
     def response_delete(self, request, obj_display, obj_id):

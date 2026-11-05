@@ -310,7 +310,7 @@ h1 { margin: .5rem 0; font-size: 1.75rem; }
   border-radius: 0.6rem;
   background: #ecfeff;
   border: 1px solid #a5f3fc;
-  color: #155e75;
+  color: #785510;
   font-size: 0.9rem;
   font-weight: 600;
 }
@@ -335,7 +335,7 @@ h1 { margin: .5rem 0; font-size: 1.75rem; }
 }
 .upload-staging-meta { min-width: 0; flex: 1; display: grid; gap: 0.15rem; }
 .upload-staging-label { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #c2410c; }
-.upload-staging-name { font-size: 0.9rem; font-weight: 700; color: #0f766e; word-break: break-word; }
+.upload-staging-name { font-size: 0.9rem; font-weight: 700; color: #785510; word-break: break-word; }
 .upload-staging-remove {
   flex-shrink: 0;
   border: 1px solid #fecaca;

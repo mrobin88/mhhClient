@@ -23,13 +23,7 @@ def sheet_date(value):
     return f'{value.strftime("%B")} {day}{suffix}, {value.year}'
 
 
-def format_sheet_phone(phone):
-    digits = ''.join(character for character in (phone or '') if character.isdigit())
-    if len(digits) == 11 and digits.startswith('1'):
-        return f'1 {digits[1:4]} {digits[4:7]} {digits[7:]}'
-    if len(digits) == 10:
-        return f'{digits[0:3]}-{digits[3:6]}-{digits[6:]}'
-    return (phone or '').strip()
+SHEET_COLUMNS = ('FN', 'LN', 'Phone', 'Email', 'Sign in', 'Sign out')
 
 
 def _logo_data_uri():
@@ -45,52 +39,19 @@ def _logo_data_uri():
     return _LOGO_DATA_URI
 
 
-def roster_rows_for_session(session):
-    enrollments = (
-        session.enrollments.select_related('client')
-        .exclude(status='cancelled')
-        .order_by('client__last_name', 'client__first_name', 'client_id')
-    )
-    rows = []
-    for enrollment in enrollments:
-        client = enrollment.client
-        rows.append({
-            'last_name': client.last_name or '',
-            'first_name': client.first_name or '',
-            'phone': format_sheet_phone(client.phone),
-            'email': client.email or '',
-        })
-    return rows
-
-
 def signin_sheet_csv(sessions):
+    """Blank sign-in rows. Names are written on the paper, not printed from the roster."""
     buffer = StringIO()
     writer = csv.writer(buffer)
-    writer.writerow([
-        'Class',
-        'Date',
-        'No.',
-        'LN',
-        'FN',
-        'Phone Number',
-        'Email',
-        'Signature',
-        'Time In',
-        'Need Sponsorship',
-    ])
+    writer.writerow(['Class', 'Date', *SHEET_COLUMNS])
     for session in sessions:
-        rows = roster_rows_for_session(session)
-        blank_count = max(SHEET_MIN_ROWS - len(rows), 0)
-        padded = rows + [{'last_name': '', 'first_name': '', 'phone': '', 'email': ''}] * blank_count
-        for number, row in enumerate(padded, start=1):
+        for _number in range(SHEET_MIN_ROWS):
             writer.writerow([
                 session.template.name,
                 session.session_date.isoformat(),
-                number,
-                row['last_name'],
-                row['first_name'],
-                row['phone'],
-                row['email'],
+                '',
+                '',
+                '',
                 '',
                 '',
                 '',
@@ -101,29 +62,9 @@ def signin_sheet_csv(sessions):
 def _sheet_section(session, logo_uri):
     dated = sheet_date(session.session_date)
     title = f'{session.template.name} | {dated} | Sign in Sheet'
-    rows = roster_rows_for_session(session)
-    total = max(SHEET_MIN_ROWS, len(rows))
-    body_rows = []
-    for number in range(1, total + 1):
-        row = rows[number - 1] if number <= len(rows) else None
-        if row:
-            cells = (
-                f'<td class="num">{number}</td>'
-                f'<td>{escape(row["last_name"])}</td>'
-                f'<td>{escape(row["first_name"])}</td>'
-                f'<td>{escape(row["phone"])}</td>'
-                f'<td class="email">{escape(row["email"])}</td>'
-                f'<td class="mark">:</td>'
-                f'<td class="mark">:</td>'
-                f'<td></td>'
-            )
-        else:
-            cells = (
-                f'<td class="num">{number}</td>'
-                f'<td></td><td></td><td></td><td></td>'
-                f'<td class="mark">:</td><td class="mark">:</td><td></td>'
-            )
-        body_rows.append(f'<tr>{cells}</tr>')
+    blank = '<td></td>' * len(SHEET_COLUMNS)
+    body_rows = [f'<tr>{blank}</tr>' for _number in range(SHEET_MIN_ROWS)]
+    headers = ''.join(f'<th>{escape(label)}</th>' for label in SHEET_COLUMNS)
     logo_html = (
         f'<img src="{logo_uri}" alt="Mission Hiring Hall" class="logo" />'
         if logo_uri
@@ -146,14 +87,7 @@ def _sheet_section(session, logo_uri):
       <table class="grid">
         <thead>
           <tr>
-            <th class="num">No.</th>
-            <th>LN</th>
-            <th>FN</th>
-            <th>Phone Number</th>
-            <th>Email</th>
-            <th>Signature</th>
-            <th>Time In</th>
-            <th>Need Sponsorship</th>
+            {headers}
           </tr>
         </thead>
         <tbody>

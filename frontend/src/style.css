@@ -23,7 +23,7 @@
   }
 
   .bg-gradient {
-    background: linear-gradient(to bottom right, #f0fdfa, #ccfbf1, #5eead4);
+    background: #0f0e13;
   }
 
   .max-w-5xl {
@@ -113,15 +113,15 @@
   }
 
   .border-mission-400 {
-    border-color: #5eead4;
+    border-color: #f0b45a;
   }
 
   .border-mission-500 {
-    border-color: #2dd4bf;
+    border-color: #e89224;
   }
 
   .border-mission-600 {
-    border-color: #14b8a6;
+    border-color: #c97a16;
   }
 
   .rounded-full {
@@ -191,7 +191,7 @@
   }
 
   .text-mission-600 {
-    color: #14b8a6;
+    color: #e89224;
   }
 
   .text-white {
@@ -199,7 +199,7 @@
   }
 
   .text-mission-100 {
-    color: #ccfbf1;
+    color: #fde8c8;
   }
 
   .text-red-800 {
@@ -391,15 +391,15 @@
   }
 
   .bg-mission-400 {
-    background-color: #5eead4;
+    background-color: #f0b45a;
   }
 
   .bg-mission-500 {
-    background-color: #2dd4bf;
+    background-color: #e89224;
   }
 
   .bg-mission-600 {
-    background-color: #14b8a6;
+    background-color: #c97a16;
   }
 
   .flex-col {
@@ -435,8 +435,8 @@
   }
 
   .form-input:focus, .form-select:focus {
-    border-color: #14b8a6;
-    box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.1);
+    border-color: #e89224;
+    box-shadow: 0 0 0 4px rgba(232, 146, 36, 0.18);
   }
 
   .form-input:hover, .form-select:hover {
@@ -458,8 +458,8 @@
   }
 
   .submit-button {
-    background: linear-gradient(to right, #14b8a6, #0d9488);
-    color: white;
+    background: #e89224;
+    color: #0f0e13;
     padding: 1rem 2rem;
     border-radius: 0.75rem;
     font-weight: 700;
@@ -474,14 +474,14 @@
   }
 
   .submit-button:hover:not(:disabled) {
-    background: linear-gradient(to right, #0d9488, #0f766e);
+    background: #c97a16;
     transform: scale(1.05);
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
   }
 
   .submit-button:focus {
     outline: none;
-    box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.3), 0 0 0 2px white;
+    box-shadow: 0 0 0 4px rgba(232, 146, 36, 0.35), 0 0 0 2px white;
   }
 
   .submit-button:disabled {
@@ -495,9 +495,9 @@
     align-items: center;
     margin-bottom: 1.5rem;
     padding: 1rem;
-    background: linear-gradient(to right, #f0fdfa, white);
-    border-radius: 0.75rem;
-    border-left: 4px solid #14b8a6;
+    background: #fff;
+    border-radius: 0;
+    border-left: 4px solid #e89224;
   }
 
   .form-card {
@@ -509,7 +509,7 @@
   }
 
   .form-header {
-    background: linear-gradient(to right, #14b8a6, #0d9488, #0f766e);
+    background: #0f0e13;
     padding: 2rem;
     position: relative;
     overflow: hidden;
