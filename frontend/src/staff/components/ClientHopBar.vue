@@ -56,7 +56,7 @@ const links = computed(() => {
     },
     {
       key: 'skill' as const,
-      label: 'Skill note',
+      label: 'Training note',
       to: { name: 'CreateSkill', query: { client: String(id) } },
     },
   ]

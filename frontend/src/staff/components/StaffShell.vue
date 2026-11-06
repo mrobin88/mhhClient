@@ -174,68 +174,68 @@ const feedbackContext = computed(() => {
 
 const navGroups: { title: string; items: NavItem[] }[] = [
   {
-    title: 'This workspace',
+    title: 'Daily work',
     items: [
       {
         label: 'Home',
-        hint: 'Find, class, note',
+        hint: 'Search, today’s classes, and new signups',
         icon: 'home',
         to: '/dashboard',
         match: ['Dashboard'],
       },
       {
         label: 'Clients',
-        hint: 'Roster, search, open a person',
+        hint: 'Everyone on the roster',
         icon: 'group',
         to: '/clients',
         match: ['Clients', 'ClientDetail'],
       },
       {
         label: 'Add a client',
-        hint: 'Outside referral, not public signup',
+        hint: 'For someone who did not use the public signup',
         icon: 'person_add',
         to: '/clients/new',
         match: ['ClientCreate'],
       },
       {
         label: 'Messages',
-        hint: 'Text threads. Badge is unread replies',
+        hint: 'Texts with clients. The number is unread replies',
         icon: 'chat',
         to: '/messages',
         match: ['Messages'],
         badge: true,
       },
       {
-        label: 'Pit Stop apps',
-        hint: 'Review the digital paper form',
+        label: 'Pit Stop applications',
+        hint: 'Applications waiting for a first review',
         icon: 'assignment_ind',
         to: '/pitstop-applications',
         match: ['PitStopApplications', 'PitStopApplicationDetail'],
       },
       {
         label: 'Classes',
-        hint: 'Orientation, JRT, attendance',
+        hint: 'Dates, rosters, and sign-in sheets',
         icon: 'event',
         to: '/classes',
         match: ['Classes'],
       },
       {
         label: 'Suggestions',
-        hint: 'Ideas, problems, and requests',
+        hint: 'Ideas and problems from staff',
         icon: 'lightbulb',
         to: '/suggestions',
         match: ['Tickets', 'TicketDetail'],
       },
       {
-        label: 'Skill note',
-        hint: 'Log a completed training',
+        label: 'Training note',
+        hint: 'Record a class someone finished',
         icon: 'school',
         to: '/create-skill',
         match: ['CreateSkill'],
       },
       {
         label: 'Guide',
-        hint: 'How the screens and programs fit',
+        hint: 'What each screen is for',
         icon: 'menu_book',
         to: '/how-it-works',
         match: ['HowItWorks'],
@@ -243,18 +243,18 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     ],
   },
   {
-    title: "What's going on",
+    title: 'Signups by program',
     items: [
       {
         label: 'Pit Stop signups',
-        hint: 'Filter clients to Pit Stop applicants',
+        hint: 'Clients who chose Pit Stop',
         icon: 'badge',
         to: { name: 'Clients', query: { program: 'pit_stop' } },
         queryProgram: 'pit_stop',
       },
       {
         label: 'City Build signups',
-        hint: 'Filter clients to City Build interest',
+        hint: 'Clients who chose City Build',
         icon: 'apartment',
         to: { name: 'Clients', query: { program: 'citybuild' } },
         queryProgram: 'citybuild',
@@ -262,41 +262,41 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     ],
   },
   {
-    title: 'Other apps',
+    title: 'Other screens',
     items: [
       {
-        label: 'Client portal',
-        hint: 'Check in or sign up',
+        label: 'Public signup',
+        hint: 'The page visitors use to sign up',
         icon: 'app_registration',
         href: '/',
       },
       {
         label: 'Lobby check-in',
-        hint: 'Phone lookup when they arrive',
+        hint: 'Look someone up when they walk in',
         icon: 'front_hand',
         href: '/checkin/',
       },
       {
-        label: 'Worker portal',
-        hint: 'Pit Stop clock in and out',
+        label: 'Worker clock',
+        hint: 'Where Pit Stop workers clock in and out',
         icon: 'schedule',
         href: '/worker/',
       },
     ],
   },
   {
-    title: 'Admin & reports',
+    title: 'Office tools',
     items: [
       {
         label: 'Django admin',
-        hint: 'PINs, work sites, one-off repairs',
+        hint: 'Records, PINs, and work sites',
         icon: 'admin_panel_settings',
         href: getApiUrl('/admin/'),
         external: true,
       },
       {
         label: 'Impact report',
-        hint: 'Aggregate funder report',
+        hint: 'Counts for the funder. No client names',
         icon: 'table_chart',
         href: getApiUrl('/api/reports/'),
         external: true,
@@ -319,9 +319,9 @@ const currentSection = computed(() => {
     if (route.query.program === 'pit_stop') return 'Pit Stop signups'
     return name === 'ClientDetail' ? 'Client' : 'Clients'
   }
-  if (name === 'PitStopApplications' || name === 'PitStopApplicationDetail') return 'Pit Stop apps'
+  if (name === 'PitStopApplications' || name === 'PitStopApplicationDetail') return 'Pit Stop applications'
   if (name === 'TicketDetail') return 'Suggestions'
-  if (name === 'CreateSkill') return 'Skill note'
+  if (name === 'CreateSkill') return 'Training note'
   if (name === 'HowItWorks') return 'Guide'
   if (name === 'Messages') return 'Messages'
   if (name === 'Classes') return 'Classes'

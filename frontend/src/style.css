@@ -234,27 +234,39 @@
     margin-top: 3rem;
   }
 
-  .space-x-2 {
+  .space-x-2 > :not([hidden]) ~ :not([hidden]) {
     margin-left: 0.5rem;
   }
 
-  .space-x-3 {
+  .space-x-3 > :not([hidden]) ~ :not([hidden]) {
     margin-left: 0.75rem;
   }
 
-  .space-y-3 {
+  .space-y-1 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.25rem;
+  }
+
+  .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.5rem;
+  }
+
+  .space-y-3 > :not([hidden]) ~ :not([hidden]) {
     margin-top: 0.75rem;
   }
 
-  .space-y-6 {
+  .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1rem;
+  }
+
+  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
     margin-top: 1.5rem;
   }
 
-  .space-y-10 {
+  .space-y-10 > :not([hidden]) ~ :not([hidden]) {
     margin-top: 2.5rem;
   }
 
-  .space-y-8 {
+  .space-y-8 > :not([hidden]) ~ :not([hidden]) {
     margin-top: 2rem;
   }
 

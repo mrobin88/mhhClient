@@ -352,7 +352,7 @@ def _signin_sheet_filename(session):
 @authentication_classes([StaffSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def staff_class_roster_csv(request, session_id):
-    """Blank paper sign-in sheet: FN, LN, phone, email, sign in, sign out."""
+    """Sign-in sheet: FN, LN, phone, email, and blank sign-in / sign-out columns."""
     err = _staff_guard(request)
     if err:
         return err

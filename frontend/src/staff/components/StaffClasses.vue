@@ -17,7 +17,7 @@
         Add classes, schedule recurring sessions, and track who attends — all from here.
         Classes sit in a column for their program (City Build, Pit Stop, CAPSA, Guard Card, General).
         Use the program menu on a class to move it. Cancel a date to keep a record, or delete it.
-        Print roster opens a blank sign-in sheet for that class: FN, LN, phone, email, sign in, and sign out. Export CSV uses the same columns. Names are written on the paper.
+        Print roster lists the people on that class: first name, last name, phone, and email, with blank sign-in and sign-out columns. Export CSV uses the same columns.
       </p>
 
       <form v-if="showCreateForm || editingTemplateId" class="space-y-3 border border-stone-200 rounded-xl p-3 mb-3" @submit.prevent="submitTemplate">

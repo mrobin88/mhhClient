@@ -2,7 +2,7 @@
 
 import base64
 import csv
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 
 from django.conf import settings
@@ -27,32 +27,86 @@ SHEET_COLUMNS = ('FN', 'LN', 'Phone', 'Email', 'Sign in', 'Sign out')
 
 
 def _logo_data_uri():
+    """Dark wordmark for white paper. The site file is white and prints inverted."""
     global _LOGO_DATA_URI
     if _LOGO_DATA_URI is not None:
         return _LOGO_DATA_URI
     path = Path(settings.BASE_DIR) / 'frontend' / 'public' / 'mhh-logo.png'
-    if path.is_file():
-        encoded = base64.b64encode(path.read_bytes()).decode('ascii')
-        _LOGO_DATA_URI = f'data:image/png;base64,{encoded}'
-    else:
+    if not path.is_file():
         _LOGO_DATA_URI = ''
+        return _LOGO_DATA_URI
+    from PIL import Image
+
+    image = Image.open(path).convert('RGBA')
+    pixels = image.load()
+    width, height = image.size
+    for y in range(height):
+        for x in range(width):
+            red, green, blue, alpha = pixels[x, y]
+            if alpha < 16:
+                continue
+            is_gold = red > 160 and green > 80 and blue < 120 and red > blue + 40
+            if not is_gold:
+                pixels[x, y] = (15, 14, 19, alpha)
+    buffer = BytesIO()
+    image.save(buffer, format='PNG')
+    encoded = base64.b64encode(buffer.getvalue()).decode('ascii')
+    _LOGO_DATA_URI = f'data:image/png;base64,{encoded}'
     return _LOGO_DATA_URI
 
 
+def format_sheet_phone(phone):
+    digits = ''.join(character for character in (phone or '') if character.isdigit())
+    if len(digits) == 11 and digits.startswith('1'):
+        digits = digits[1:]
+    if len(digits) == 10:
+        return f'{digits[0:3]}-{digits[3:6]}-{digits[6:]}'
+    return (phone or '').strip()
+
+
+def roster_rows_for_session(session):
+    enrollments = (
+        session.enrollments.select_related('client')
+        .exclude(status='cancelled')
+        .order_by('client__last_name', 'client__first_name', 'client_id')
+    )
+    rows = []
+    for enrollment in enrollments:
+        client = enrollment.client
+        rows.append({
+            'fn': client.first_name or '',
+            'ln': client.last_name or '',
+            'phone': format_sheet_phone(client.phone),
+            'email': client.email or '',
+        })
+    return rows
+
+
+def _sheet_cells(row):
+    if row is None:
+        values = ('', '', '', '', '', '')
+    else:
+        values = (row['fn'], row['ln'], row['phone'], row['email'], '', '')
+    return ''.join(f'<td>{escape(value)}</td>' for value in values)
+
+
 def signin_sheet_csv(sessions):
-    """Blank sign-in rows. Names are written on the paper, not printed from the roster."""
+    """One row per person, with blank sign-in and sign-out columns to fill by hand."""
     buffer = StringIO()
     writer = csv.writer(buffer)
     writer.writerow(['Class', 'Date', *SHEET_COLUMNS])
     for session in sessions:
-        for _number in range(SHEET_MIN_ROWS):
+        rows = roster_rows_for_session(session)
+        blank_count = max(SHEET_MIN_ROWS - len(rows), 0)
+        padded = rows + [None] * blank_count
+        for row in padded:
             writer.writerow([
                 session.template.name,
                 session.session_date.isoformat(),
-                '',
-                '',
-                '',
-                '',
+                '' if row is None else row['fn'],
+                '' if row is None else row['ln'],
+                '' if row is None else row['phone'],
+                '' if row is None else row['email'],
                 '',
                 '',
             ])
@@ -62,8 +116,12 @@ def signin_sheet_csv(sessions):
 def _sheet_section(session, logo_uri):
     dated = sheet_date(session.session_date)
     title = f'{session.template.name} | {dated} | Sign in Sheet'
-    blank = '<td></td>' * len(SHEET_COLUMNS)
-    body_rows = [f'<tr>{blank}</tr>' for _number in range(SHEET_MIN_ROWS)]
+    rows = roster_rows_for_session(session)
+    total = max(SHEET_MIN_ROWS, len(rows))
+    body_rows = [
+        f'<tr>{_sheet_cells(rows[index] if index < len(rows) else None)}</tr>'
+        for index in range(total)
+    ]
     headers = ''.join(f'<th>{escape(label)}</th>' for label in SHEET_COLUMNS)
     logo_html = (
         f'<img src="{logo_uri}" alt="Mission Hiring Hall" class="logo" />'
@@ -136,12 +194,14 @@ def render_signin_sheets(sessions):
       border: 1px solid #111;
     }}
     .logo-cell {{
-      width: 210px;
+      width: 180px;
       text-align: center;
-      background: #0f0e13;
+      background: #fff;
       padding: 6px 8px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }}
-    .logo {{ height: 58px; width: auto; display: block; margin: 0 auto; }}
+    .logo {{ height: 72px; width: auto; display: block; margin: 0 auto; }}
     .logo-fallback {{
       color: #e89224;
       font-weight: 800;

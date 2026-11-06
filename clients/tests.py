@@ -2356,8 +2356,7 @@ class ClassRosterControlTests(TestCase):
         self.assertIn('text/csv', response['Content-Type'])
         body = response.content.decode('utf-8-sig')
         self.assertIn('FN,LN,Phone,Email,Sign in,Sign out', body)
-        self.assertNotIn('Reyes', body)
-        self.assertNotIn('Marco', body)
+        self.assertIn('Marco,Reyes,415-555-7788,marco@example.com', body)
 
     def test_print_roster_is_the_paper_sign_in_sheet(self):
         ClassEnrollment.objects.create(session=self.session, client=self.client_record)
@@ -2373,9 +2372,10 @@ class ClassRosterControlTests(TestCase):
         self.assertIn('>Sign in<', body)
         self.assertIn('>Sign out<', body)
         self.assertNotIn('Need Sponsorship', body)
-        self.assertNotIn('Reyes', body)
-        self.assertNotIn('Marco', body)
-        self.assertNotIn('marco@example.com', body)
+        self.assertIn('>Marco<', body)
+        self.assertIn('>Reyes<', body)
+        self.assertIn('415-555-7788', body)
+        self.assertIn('marco@example.com', body)
         self.assertGreaterEqual(body.count('<tr>'), 28)
 
     def test_admin_can_print_sheet_and_mark_roster_attended(self):

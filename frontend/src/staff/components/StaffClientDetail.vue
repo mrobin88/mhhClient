@@ -82,7 +82,7 @@
           Details
         </button>
         <RouterLink :to="{ name: 'CreateSkill', query: { client: String(client.id) } }">
-          Skill note
+          Training note
         </RouterLink>
       </nav>
 
