@@ -69,6 +69,7 @@ from .ticket_views import (
 from .class_views import (
     public_upcoming_classes,
     staff_upcoming_classes,
+    staff_class_review_email,
     staff_class_roster,
     staff_class_roster_csv,
     staff_class_roster_print,
@@ -210,6 +211,7 @@ urlpatterns = [
 
     # Classes & Trainings
     path('staff/classes/upcoming/', staff_upcoming_classes, name='staff-classes-upcoming'),
+    path('staff/classes/review-email/', staff_class_review_email, name='staff-classes-review-email'),
     path('staff/classes/<int:session_id>/roster/', staff_class_roster, name='staff-classes-roster'),
     path(
         'staff/classes/<int:session_id>/roster.csv',

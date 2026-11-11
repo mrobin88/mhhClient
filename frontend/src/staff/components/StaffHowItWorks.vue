@@ -218,7 +218,7 @@ const screens = [
   },
   {
     name: 'Classes',
-    body: 'The calendar shows class dates as boxes. Click a box for the name list, mark who is here, and print a sign-in sheet with each person\'s name, phone, and email plus blank sign-in and sign-out columns. Classes are grouped by program (City Build, Pit Stop, CAPSA, Guard Card, General). Guard Card signup offers orientation and required training. Removing someone texts that we are working on a new date. Cancel keeps the date; delete removes it.',
+    body: 'The calendar shows class dates as boxes. Click a box for the name list, mark who is here, and print a sign-in sheet with each person\'s name, phone, and email plus blank sign-in and sign-out columns. Changing a date, time, or place texts the people signed up. Email staff to check classes asks every staff member to correct anything that is wrong. Classes are grouped by program (City Build, Pit Stop, CAPSA, Guard Card, General). Guard Card signup offers orientation and required training. Removing someone texts that we are working on a new date. Cancel keeps the date; delete removes it.',
     links: [{ to: '/classes', label: 'Open Classes' }],
   },
   {

@@ -8,7 +8,7 @@ date, exporting a sign-in sheet) never requires touching Django admin.
 
 Session-authenticated, staff-only, single-tenant.
 """
-from datetime import timedelta
+from datetime import date, timedelta
 import logging
 import re
 
@@ -159,15 +159,32 @@ def staff_upcoming_classes(request):
     if err:
         return err
 
-    days = min(int(request.GET.get('days') or 60), 180)
-    today = timezone.localdate()
-    horizon = today + timedelta(days=days)
-
-    sessions = _annotate_session_counts(
-        ClassSession.objects.filter(
-            status='scheduled', session_date__gte=today, session_date__lte=horizon
-        ).select_related('template')
-    ).order_by('session_date', 'start_time')
+    month = (request.GET.get('month') or '').strip()
+    if month:
+        try:
+            year_s, month_s = month.split('-', 1)
+            year, mon = int(year_s), int(month_s)
+            start = date(year, mon, 1)
+            if mon == 12:
+                end = date(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end = date(year, mon + 1, 1) - timedelta(days=1)
+        except (TypeError, ValueError):
+            return Response({'error': 'Use month=YYYY-MM.'}, status=status.HTTP_400_BAD_REQUEST)
+        sessions = _annotate_session_counts(
+            ClassSession.objects.filter(
+                session_date__gte=start, session_date__lte=end
+            ).select_related('template')
+        ).order_by('session_date', 'start_time')
+    else:
+        days = min(int(request.GET.get('days') or 60), 180)
+        today = timezone.localdate()
+        horizon = today + timedelta(days=days)
+        sessions = _annotate_session_counts(
+            ClassSession.objects.filter(
+                status='scheduled', session_date__gte=today, session_date__lte=horizon
+            ).select_related('template')
+        ).order_by('session_date', 'start_time')
 
     category = (request.GET.get('category') or '').strip()
     if category:
@@ -177,6 +194,97 @@ def staff_upcoming_classes(request):
         sessions = sessions.filter(template__program=program)
 
     return Response({'results': [_session_summary(s) for s in sessions]})
+
+
+def _review_email_message(result):
+    sent = result.get('sent') or 0
+    if sent == 1:
+        return 'Emailed 1 staff member to check that the class information is correct.'
+    if sent:
+        return f'Emailed {sent} staff members to check that the class information is correct.'
+    return ''
+
+
+def _review_email_error(result):
+    reason = result.get('reason') or ''
+    if reason == 'unconfigured':
+        return 'Email is not set up on the server yet.'
+    if reason == 'no_recipients':
+        return 'No staff accounts have an email address.'
+    if reason == 'failed':
+        return 'The email could not be sent.'
+    return ''
+
+
+def _combine_text_notes(notes):
+    sent = 0
+    failed = 0
+    for note in notes:
+        if not note:
+            continue
+        sent_match = re.search(r'Texted (\d+)', note)
+        failed_match = re.search(r'(\d+) texts? failed', note)
+        if sent_match:
+            sent += int(sent_match.group(1))
+        if failed_match:
+            failed += int(failed_match.group(1))
+    parts = []
+    if sent:
+        parts.append(f'Texted {sent} client{"s" if sent != 1 else ""}.')
+    if failed:
+        parts.append(f'{failed} text{"s" if failed != 1 else ""} failed.')
+    return ' '.join(parts)
+
+
+def _append_notes(message, *notes):
+    extra = ' '.join(note for note in notes if note)
+    if extra:
+        return f'{message} {extra}'
+    return message
+
+
+@api_view(['POST'])
+@authentication_classes([StaffSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_class_review_email(request):
+    """Email staff the upcoming classes and ask them to correct anything wrong."""
+    err = _staff_guard(request)
+    if err:
+        return err
+
+    from .notifications import class_review_line, email_staff_class_review
+
+    today = timezone.localdate()
+    horizon = today + timedelta(days=60)
+    sessions = (
+        ClassSession.objects.filter(
+            status='scheduled',
+            session_date__gte=today,
+            session_date__lte=horizon,
+        )
+        .select_related('template')
+        .order_by('session_date', 'start_time')
+    )
+    if not sessions:
+        return Response(
+            {'error': 'There are no upcoming classes to send.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    result = email_staff_class_review(
+        lines=[class_review_line(session) for session in sessions],
+        intro=(
+            'Please review these upcoming classes. Update the date, time, place, '
+            'and facilitator if something is wrong.'
+        ),
+        updated_by=staff_display_name(request.user),
+    )
+    message = _review_email_message(result)
+    if not message:
+        return Response(
+            {'error': _review_email_error(result) or 'The email could not be sent.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return Response({'message': message})
 
 
 def _parse_class_session_id(raw):
@@ -636,6 +744,14 @@ def staff_class_template_update(request, template_id):
     if request.method == 'DELETE':
         return _delete_class_template(template)
 
+    previous = {
+        'name': template.name,
+        'start_time': template.start_time,
+        'end_time': template.end_time,
+        'location': (template.location or '').strip(),
+        'facilitator': (template.facilitator or '').strip(),
+    }
+
     text_fields = ('name', 'description', 'location', 'facilitator')
     for field in text_fields:
         if field in request.data:
@@ -699,7 +815,79 @@ def staff_class_template_update(request, template_id):
     except ValidationError as exc:
         return Response(exc.message_dict, status=status.HTTP_400_BAD_REQUEST)
     template.save()
-    return Response({'message': f'Updated "{template.name}".', 'template': _template_summary(template)})
+
+    text_note = ''
+    email_note = ''
+    name_changed = previous['name'] != template.name
+    schedule_changed = (
+        previous['start_time'] != template.start_time
+        or previous['end_time'] != template.end_time
+        or previous['location'] != (template.location or '').strip()
+    )
+    facilitator_changed = previous['facilitator'] != (template.facilitator or '').strip()
+    if name_changed or schedule_changed or facilitator_changed:
+        from .notifications import (
+            class_review_line,
+            email_staff_class_review,
+            notify_class_session_change,
+        )
+
+        today = timezone.localdate()
+        upcoming = list(
+            template.sessions.filter(status='scheduled', session_date__gte=today)
+            .select_related('template')
+            .order_by('session_date', 'start_time')
+        )
+        notes = []
+        for session in upcoming:
+            inherited_schedule = (
+                session.start_time == previous['start_time']
+                and session.end_time == previous['end_time']
+                and (session.location or '').strip() == previous['location']
+            )
+            inherited_facilitator = (session.facilitator or '').strip() == previous['facilitator']
+            update_fields = []
+            if schedule_changed and inherited_schedule:
+                session.start_time = template.start_time
+                session.end_time = template.end_time
+                session.location = template.location
+                update_fields.extend(['start_time', 'end_time', 'location'])
+            if facilitator_changed and inherited_facilitator:
+                session.facilitator = template.facilitator
+                update_fields.append('facilitator')
+            if update_fields:
+                session.save(update_fields=update_fields)
+            client_facing = name_changed or (schedule_changed and inherited_schedule)
+            if not client_facing:
+                continue
+            session.enrollments.filter(
+                status__in=['registered', 'attended'],
+                confirmed_at__isnull=False,
+            ).update(confirmed_at=None)
+            try:
+                notes.append(notify_class_session_change(
+                    session,
+                    previous_status='scheduled',
+                    details_changed=True,
+                ))
+            except Exception:
+                logger.exception('Class change texts failed for session=%s', session.pk)
+        text_note = _combine_text_notes(notes)
+        result = email_staff_class_review(
+            lines=[class_review_line(session) for session in upcoming] or [
+                f'{template.name} — {template.start_time} to {template.end_time}'
+                + (f' — Where: {template.location}' if template.location else '')
+            ],
+            intro=(
+                f'{template.name} was updated. Please check the date, time, place, '
+                'and facilitator, and correct anything that is wrong.'
+            ),
+            updated_by=staff_display_name(request.user),
+        )
+        email_note = _review_email_message(result)
+
+    message = _append_notes(f'Updated "{template.name}".', text_note, email_note)
+    return Response({'message': message, 'template': _template_summary(template)})
 
 
 @api_view(['POST'])
@@ -998,9 +1186,30 @@ def staff_class_session_update(request, session_id):
             'Class change texts failed for session=%s', session.pk
         )
         text_note = ''
-    message = 'Session updated.'
-    if text_note:
-        message = f'{message} {text_note}'
+    email_note = ''
+    client_facing = bool(text_note) or (
+        details_changed or (session.status == 'cancelled' and previous_status != 'cancelled')
+    )
+    if client_facing:
+        from .notifications import class_review_line, email_staff_class_review
+
+        if session.status == 'cancelled' and previous_status != 'cancelled':
+            intro = (
+                f'{session.template.name} on {session.session_date} was cancelled. '
+                'Please make sure the class list is correct.'
+            )
+        else:
+            intro = (
+                f'{session.template.name} changed. Please make sure the date, time, '
+                'and place are correct, and fix anything that is wrong.'
+            )
+        result = email_staff_class_review(
+            lines=[class_review_line(session)],
+            intro=intro,
+            updated_by=staff_display_name(request.user),
+        )
+        email_note = _review_email_message(result)
+    message = _append_notes('Session updated.', text_note, email_note)
     return Response({'message': message, 'session': _session_summary(session)})
 
 

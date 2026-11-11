@@ -722,7 +722,10 @@ def send_class_roster_notice(enrollment, kind):
     session = enrollment.session
     if kind == 'updated':
         body = class_updated_body(client, session)
-        fingerprint = f'{session.session_date}|{session.start_time}|{session.end_time}|{_class_location(session)}'
+        fingerprint = (
+            f'{session.template.name}|{session.session_date}|{session.start_time}|'
+            f'{session.end_time}|{_class_location(session)}'
+        )
         dedupe_key = f'class-update:{session.pk}:{enrollment.pk}:{fingerprint}'
     elif kind == 'cancelled':
         body = class_cancelled_body(client, session)
@@ -794,6 +797,96 @@ def notify_class_session_change(session, *, previous_status, details_changed):
     else:
         return ''
     return notify_active_roster(session, kind)
+
+
+def _staff_email_can_send():
+    backend = getattr(settings, 'EMAIL_BACKEND', '')
+    if backend.endswith('locmem.EmailBackend') or backend.endswith('console.EmailBackend'):
+        return True
+    return bool((getattr(settings, 'EMAIL_HOST_PASSWORD', '') or '').strip())
+
+
+def class_review_line(session):
+    """One plain line of class facts for the staff review email."""
+    from django.utils import dateformat
+
+    when = (
+        f'{dateformat.format(session.session_date, "l, F j")} at '
+        f'{dateformat.time_format(session.start_time, "g:i A")}'
+    )
+    parts = [session.template.name, when]
+    location = (session.location or '').strip()
+    facilitator = (session.facilitator or '').strip()
+    if location:
+        parts.append(f'Where: {location}')
+    if facilitator:
+        parts.append(f'Facilitator: {facilitator}')
+    return ' — '.join(parts)
+
+
+def email_staff_class_review(*, lines, intro, updated_by=''):
+    """
+    Email active staff and ask them to correct the class information.
+
+    Returns {'sent': int, 'reason': '' | 'unconfigured' | 'no_recipients' | 'failed'}.
+    Never raises.
+    """
+    from django.contrib.auth import get_user_model
+
+    if not _staff_email_can_send():
+        return {'sent': 0, 'reason': 'unconfigured'}
+
+    users = (
+        get_user_model().objects.filter(is_active=True, is_staff=True)
+        .exclude(email='')
+        .exclude(email__isnull=True)
+        .order_by('id')
+    )
+    seen = set()
+    recipients = []
+    for user in users:
+        email = (user.email or '').strip()
+        key = email.lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        recipients.append((user, email))
+    if not recipients:
+        return {'sent': 0, 'reason': 'no_recipients'}
+
+    shown = list(lines[:40])
+    extra = len(lines) - len(shown)
+    if extra > 0:
+        shown.append(f'And {extra} more dates. Open Classes for the full calendar.')
+    if not shown:
+        shown.append('No upcoming dates are on the calendar yet.')
+
+    link = f"{getattr(settings, 'STAFF_APP_BASE_URL', '').rstrip('/')}/#/classes"
+    sent = 0
+    for user, email in recipients:
+        name = (user.get_full_name() or '').strip() or user.username
+        who = f'\n\nSaved by {updated_by}.' if updated_by else ''
+        message = (
+            f'Hi {name},\n\n'
+            f'{intro}{who}\n\n'
+            + '\n'.join(shown)
+            + f'\n\nOpen Classes and correct anything that is wrong:\n{link}\n\n'
+            'Mission Hiring Hall'
+        )
+        try:
+            send_mail(
+                subject='Please check the Mission Hiring Hall class information',
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+            sent += 1
+        except Exception:
+            logger.exception('Class review email failed for %s', user.pk)
+    if not sent:
+        return {'sent': 0, 'reason': 'failed'}
+    return {'sent': sent, 'reason': ''}
 
 
 def progress_followup_body(client, checkpoint_days):

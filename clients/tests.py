@@ -2272,8 +2272,97 @@ class ClassConfirmationSmsTests(TestCase):
                 content_type='application/json',
             )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['message'], 'Session updated.')
+        self.assertIn('Session updated.', response.json()['message'])
+        self.assertIn('Emailed 1 staff member', response.json()['message'])
         self.assertFalse(ClientTextMessage.objects.filter(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE).exists())
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    @patch('clients.notifications._sms_client')
+    def test_editing_the_class_updates_matching_dates_texts_clients_and_emails_staff(self, sms_client_mock):
+        from django.core import mail
+
+        self._enroll(sms_client_mock)
+        custom = ClassSession.objects.create(
+            template=self.template,
+            session_date=self.session.session_date + timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(16, 0),
+            location='Other room',
+            capacity=20,
+        )
+        response = self.http.patch(
+            f'/api/staff/classes/templates/{self.template.pk}/',
+            data=json.dumps({
+                'start_time': '10:00',
+                'end_time': '12:00',
+                'location': '169 11th St',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn('Texted 1 client', response.json()['message'])
+        self.assertIn('Emailed 1 staff member', response.json()['message'])
+        self.session.refresh_from_db()
+        custom.refresh_from_db()
+        self.assertEqual(self.session.start_time, time(10, 0))
+        self.assertEqual(self.session.location, '169 11th St')
+        self.assertEqual(custom.start_time, time(14, 0))
+        self.assertEqual(custom.location, 'Other room')
+        update = ClientTextMessage.objects.filter(
+            purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE
+        ).latest('pk')
+        self.assertIn('has changed', update.body)
+        self.assertIn('10:00 AM', update.body)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['classes@example.com'])
+        self.assertIn('correct', mail.outbox[0].body.lower())
+        self.assertIn('169 11th St', mail.outbox[0].body)
+        self.assertIn('Other room', mail.outbox[0].body)
+
+    @patch('clients.notifications._sms_client')
+    def test_saving_class_notes_does_not_text_or_email(self, sms_client_mock):
+        self._enroll(sms_client_mock)
+        sms_client_mock.return_value.send.reset_mock()
+        response = self.http.patch(
+            f'/api/staff/classes/templates/{self.template.pk}/',
+            data=json.dumps({'description': 'Bring a pen.'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['message'], f'Updated "{self.template.name}".')
+        sms_client_mock.return_value.send.assert_not_called()
+        self.assertFalse(
+            ClientTextMessage.objects.filter(purpose=ClientTextMessage.PURPOSE_CLASS_UPDATE).exists()
+        )
+
+    def test_calendar_month_returns_only_that_month(self):
+        outside = ClassSession.objects.create(
+            template=self.template,
+            session_date=self.session.session_date + timedelta(days=40),
+            start_time=time(9, 0),
+            end_time=time(12, 0),
+            capacity=20,
+        )
+        month = self.session.session_date.strftime('%Y-%m')
+        response = self.http.get(f'/api/staff/classes/upcoming/?month={month}')
+        self.assertEqual(response.status_code, 200)
+        ids = [row['id'] for row in response.json()['results']]
+        self.assertIn(self.session.pk, ids)
+        self.assertNotIn(outside.pk, ids)
+        bad = self.http.get('/api/staff/classes/upcoming/?month=nope')
+        self.assertEqual(bad.status_code, 400)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_review_email_asks_staff_to_check_class_information(self):
+        from django.core import mail
+
+        response = self.http.post('/api/staff/classes/review-email/', content_type='application/json')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn('Emailed 1 staff member', response.json()['message'])
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('correct', mail.outbox[0].body.lower())
+        self.assertIn('Job Readiness Training', mail.outbox[0].body)
+        self.assertIn('/#/classes', mail.outbox[0].body)
 
 
 @override_settings(
